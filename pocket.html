@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#14182a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Stacy's @ Melrose</title>
+<!-- ensureSignFonts() loads these faces before the canvas sign and mural text are
+     drawn; without the stylesheet they don't exist and both silently fall back to
+     a system font. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/pocket.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="boot">Opening up&hellip;</div>
+<div id="err" hidden></div>
+
+<header id="top">
+  <div class="name">Stacy's <span>@ Melrose</span></div>
+  <div class="sub"><span id="clock">--:--</span> &middot; 4343 N 7th Ave</div>
+</header>
+
+<section id="card" hidden>
+  <div class="row head">
+    <div class="occ">
+      <strong id="inside">0</strong>
+      <span>inside now</span>
+    </div>
+    <div id="state" class="pill">&mdash;</div>
+  </div>
+
+  <div class="bar"><i id="bar-fill"></i></div>
+  <div class="vibe" id="vibe">&mdash;</div>
+
+  <div class="row stats">
+    <div><b id="s-cars">0/0</b><span>parked</span></div>
+    <div><b id="s-patio">0/0</b><span>on patio</span></div>
+    <div><b id="s-out">0</b><span>outside</span></div>
+    <div><b id="s-arr">0</b><span>arrived/10m</span></div>
+  </div>
+
+  <div class="foot">
+    <span id="perf">&mdash;</span>
+    <button id="spin" class="on" type="button">Auto-rotate</button>
+  </div>
+</section>
+
+<script type="module" src="js/pocket.js"></script>
+</body>
+</html>

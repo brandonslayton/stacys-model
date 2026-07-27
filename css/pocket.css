@@ -1,0 +1,236 @@
+/* pocket.css — phone-first ambient view. Distinct from viewer.css (the dev HUD). */
+:root {
+  --ink: #f2eef8;
+  --dim: #a79dc0;
+  --glass: rgba(20, 18, 34, 0.62);
+  --edge: rgba(255, 255, 255, 0.1);
+  --hot: #ff5fa2;
+  --warm: #ffb454;
+  --cool: #6fd3e0;
+  --pad: max(14px, env(safe-area-inset-left));
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #14182a;
+  color: var(--ink);
+  font: 15px/1.35 "DM Sans", Outfit, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body { user-select: none; -webkit-user-select: none; }
+
+#c {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+/* ---------------------------------------------------------------- header */
+#top {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  left: var(--pad);
+  right: var(--pad);
+  pointer-events: none;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.75);
+}
+
+#top .name {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+#top .name span {
+  font-weight: 400;
+  opacity: 0.66;
+}
+
+#top .sub {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- card */
+#card {
+  position: fixed;
+  left: var(--pad);
+  right: var(--pad);
+  bottom: max(14px, env(safe-area-inset-bottom));
+  padding: 14px 16px 12px;
+  border-radius: 20px;
+  background: var(--glass);
+  border: 1px solid var(--edge);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+  max-width: 460px;
+  margin: 0 auto;
+}
+
+#card .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#card .occ strong {
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+#card .occ span {
+  margin-left: 8px;
+  font-size: 13px;
+  color: var(--dim);
+}
+
+.pill {
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid var(--edge);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.pill.open {
+  color: #0e1a12;
+  background: #67e0a3;
+  border-color: transparent;
+}
+
+.pill.closed {
+  color: var(--dim);
+}
+
+.bar {
+  margin: 12px 0 6px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+
+.bar i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--cool), var(--warm) 55%, var(--hot));
+  transition: width 0.7s ease;
+}
+
+.vibe {
+  font-size: 12.5px;
+  color: var(--dim);
+}
+
+#card .stats {
+  margin-top: 13px;
+  padding-top: 12px;
+  border-top: 1px solid var(--edge);
+  gap: 6px;
+}
+
+#card .stats > div {
+  flex: 1;
+  text-align: center;
+  min-width: 0;
+}
+
+#card .stats b {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+#card .stats span {
+  display: block;
+  margin-top: 2px;
+  font-size: 10.5px;
+  color: var(--dim);
+  letter-spacing: 0.02em;
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 11px;
+}
+
+#perf {
+  font-size: 10.5px;
+  color: rgba(167, 157, 192, 0.6);
+  font-variant-numeric: tabular-nums;
+}
+
+#spin {
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+  color: var(--dim);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--edge);
+  cursor: pointer;
+}
+
+#spin.on {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* ---------------------------------------------------------------- boot / error */
+#boot {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  color: var(--dim);
+  background: #14182a;
+  z-index: 5;
+  transition: opacity 0.5s ease;
+}
+
+#boot.gone {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#err {
+  position: fixed;
+  left: var(--pad);
+  right: var(--pad);
+  top: 40%;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: #3a1420;
+  border: 1px solid #7a2a44;
+  color: #ffc8d8;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+  z-index: 6;
+}

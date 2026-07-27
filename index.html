@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <title>Stacy's Model — Melrose Rising</title>
+  <link rel="stylesheet" href="css/viewer.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <canvas id="stage"></canvas>
+
+  <!-- Reference photo overlay, for lining up proportions -->
+  <img id="ref-img" alt="" hidden />
+
+  <aside id="panel">
+    <header>
+      <h1>Stacy's <span>@ Melrose</span></h1>
+      <p class="sub">model workbench</p>
+    </header>
+
+    <section>
+      <h2>View</h2>
+      <div class="btn-row" id="presets"></div>
+      <label class="row">
+        <span>Azimuth</span>
+        <input type="range" id="az" min="0" max="360" step="1" value="137" />
+        <output id="az-out">137&deg;</output>
+      </label>
+      <label class="row">
+        <span>Elevation</span>
+        <input type="range" id="el" min="2" max="89" step="1" value="42" />
+        <output id="el-out">42&deg;</output>
+      </label>
+      <label class="row">
+        <span>Zoom</span>
+        <input type="range" id="zoom" min="0.3" max="4" step="0.05" value="1" />
+        <output id="zoom-out">1.00&times;</output>
+      </label>
+      <p class="hint">Drag orbit &middot; wheel zoom &middot; shift-drag pan</p>
+    </section>
+
+    <section>
+      <h2>Time of day</h2>
+      <label class="row">
+        <span>Hour</span>
+        <input type="range" id="hour" min="0" max="23.9" step="0.1" value="13" />
+        <output id="hour-out">1:00 PM</output>
+      </label>
+      <label class="row">
+        <span>Night mix</span>
+        <input type="range" id="night" min="0" max="1" step="0.01" value="0" />
+        <output id="night-out">0.00</output>
+      </label>
+      <label class="check"><input type="checkbox" id="animate" checked /> Animate neon glimmer</label>
+    </section>
+
+    <section>
+      <h2>Reference</h2>
+      <div class="btn-row" id="refs"></div>
+      <label class="row">
+        <span>Opacity</span>
+        <input type="range" id="ref-op" min="0" max="1" step="0.01" value="0.5" />
+        <output id="ref-op-out">0.50</output>
+      </label>
+      <label class="check"><input type="checkbox" id="ref-front" /> Draw over model</label>
+    </section>
+
+    <section>
+      <h2>Display</h2>
+      <label class="check"><input type="checkbox" id="wire" /> Wireframe</label>
+      <label class="check"><input type="checkbox" id="shadows" checked /> Shadows</label>
+      <label class="check"><input type="checkbox" id="grid" /> Grid + axes</label>
+      <label class="check"><input type="checkbox" id="ortho" checked /> Orthographic</label>
+      <label class="check"><input type="checkbox" id="gamescale" /> Game scale (1.22&times;)</label>
+    </section>
+
+    <section>
+      <h2>Cost</h2>
+      <dl id="stats">
+        <dt>Meshes</dt><dd id="s-meshes">&mdash;</dd>
+        <dt>Triangles</dt><dd id="s-tris">&mdash;</dd>
+        <dt>Materials</dt><dd id="s-mats">&mdash;</dd>
+        <dt>Geometries</dt><dd id="s-geos">&mdash;</dd>
+        <dt>Draw calls</dt><dd id="s-calls">&mdash;</dd>
+        <dt>FPS</dt><dd id="s-fps">&mdash;</dd>
+      </dl>
+      <p class="hint" id="cost-note"></p>
+    </section>
+
+    <section>
+      <div class="btn-row">
+        <button type="button" id="rebuild" class="wide">Rebuild model <kbd>R</kbd></button>
+      </div>
+      <div class="btn-row">
+        <button type="button" id="snap" class="wide">Save PNG <kbd>S</kbd></button>
+      </div>
+      <p class="hint">Edit <code>js/stacys.js</code>, then Rebuild &mdash; no page reload needed.</p>
+    </section>
+  </aside>
+
+  <div id="err" hidden></div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="js/viewer.js"></script>
+</body>
+</html>

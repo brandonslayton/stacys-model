@@ -1,0 +1,15 @@
+# Reference photos — 22 MB of personal photos of the real venue. The model is
+# built from them but nothing at runtime loads them except the workbench's
+# reference-overlay feature, which only matters locally. Keeping them out of a
+# public repo on purpose.
+refs/
+
+# Generated screenshots
+shots/
+
+node_modules/
+__pycache__/
+*.pyc
+
+.DS_Store
+Thumbs.db

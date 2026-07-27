@@ -1,0 +1,62 @@
+/**
+ * Shared Sonoran palette, lifted verbatim from Melrose Rising config.js
+ * so colors stay in sync when the model is ported back.
+ */
+
+export const COLORS = {
+  // Sonoran basin — dust, gravel, creosote green (not Midwest lawn)
+  ground: 0x8a7a62,
+  groundDry: 0xa89070,
+  groundFar: 0xbba888, // horizon dust — blends toward sky
+  gravel: 0x9a8b72,
+  gravelLight: 0xb5a48a,
+  gravelDark: 0x7a6c55,
+  sidewalk: 0xc9c2b4,
+  asphalt: 0x3d424c,
+  asphaltEdge: 0x32363f,
+  laneMark: 0xe8e4d8,
+  reverseLane: 0x6a5a48,
+  // Kept for any legacy refs — muted desert scrub, not turf
+  grass: 0x6a7a52,
+  grassDark: 0x5a6a44,
+  lotDirt: 0x9a8468,
+  lotDebris: 0x6a5c48,
+  buildingCream: 0xf0e6d8,
+  buildingPink: 0xe8a0b0,
+  buildingCoral: 0xe07a6a,
+  buildingTeal: 0x4a9b8c,
+  buildingNight: 0x3d3550,
+  buildingRed: 0xb85c5c,
+  buildingBlue: 0x4a6a8a,
+  buildingOlive: 0x6a7a4a,
+  buildingLavender: 0xb8a0d0,
+  buildingOrange: 0xd4895a,
+  stucco: 0xe8dcc8,
+  roof: 0x4a4555,
+  neonPink: 0xff4d8d,
+  neonPurple: 0x9b6dff,
+  neonCyan: 0x4de0ff,
+  neonGold: 0xffc14d,
+  neonGreen: 0x5dff9a,
+  // Desert flora
+  palmFrond: 0x3d7a48,
+  palmFrondHi: 0x5a9a55,
+  palmTrunk: 0xb89a6a,
+  saguaro: 0x4a7a48,
+  saguaroDark: 0x3a6340,
+  agave: 0x6a9a78,
+  agaveBlue: 0x5a8a7a,
+  trunk: 0x8a6a48,
+  tree: 0x4a7a48,
+  planter: 0xc4785a,
+  seating: 0xd4a574,
+  mural: [0xff5c8a, 0xffb84d, 0x3dd68c, 0x4db8ff, 0x7c6cff],
+  car: [0xe85d5d, 0x5d8fe8, 0xf0c14d, 0xffffff, 0x3dd68c, 0x9b6dff],
+  ped: [0xffb6c1, 0x7ec8e3, 0xc5a3ff, 0xffd580, 0x98d8aa],
+  select: 0xffffff,
+  skyDay: 0x8ec0e0,
+  skyDusk: 0xd4886a,
+  skyNight: 0x14182a,
+  ambient: 0xfff2e4,
+  sun: 0xfff0d0,
+};
