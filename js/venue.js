@@ -19,6 +19,27 @@ export const VENUE = {
   tz: "America/Phoenix", // no DST, ever
 };
 
+/**
+ * Opening hour by weekday, venue-local. Straight from Brandon: 4pm Monday through
+ * Friday, noon on Saturday and Sunday.
+ */
+const OPEN_HOUR = {
+  sunday: 12,
+  monday: 16,
+  tuesday: 16,
+  wednesday: 16,
+  thursday: 16,
+  friday: 16,
+  saturday: 12,
+};
+
+/**
+ * Closing hour, as hours past midnight of the NEXT day. 2am is Arizona's last call,
+ * and it is an ASSUMPTION — Brandon gave opening times only. If they close earlier
+ * on some nights, this is the one number to change.
+ */
+const CLOSE_HOUR = 2;
+
 // ---------------------------------------------------------------- venue clock
 /**
  * The venue's wall-clock parts, regardless of where the phone is. Using the
@@ -136,31 +157,40 @@ export function currentEvent(events, now) {
   return decorate(live, now);
 }
 
-/**
- * Open/closed state, derived from the REAL event schedule.
- *
- * Stacy's publishes no opening hours anywhere I could find — not on their site,
- * and Yelp blocks scraping — so this deliberately reports what the schedule
- * actually supports rather than guessing hours. It is not the sim's crowd curve;
- * that one is invented and must not drive anything presented as fact.
- *
- * @returns {{label: string, tone: "open"|"soon"|"closed"}}
- */
-export function venueState(events, now) {
-  const today = eventsOn(events, now.isoDate);
-  const mins = now.hour * 60 + now.minute;
+/** Today's opening time in minutes past midnight, venue-local. */
+function openMinutes(weekday) {
+  const h = OPEN_HOUR[String(weekday).toLowerCase()];
+  return (h ?? 16) * 60;
+}
 
-  for (const e of today) {
-    const start = toMinutes(e.start_time);
-    let end = toMinutes(e.end_time);
-    if (end <= start) end += 24 * 60;
-    if (mins >= start && mins < end) return { label: "Open", tone: "open" };
-  }
-  const next = today.find((e) => toMinutes(e.start_time) > mins);
-  if (next) {
-    return { label: `Opens ${fmtTime(next.start_time)}`, tone: "soon" };
-  }
-  return { label: "Closed", tone: "closed" };
+/**
+ * Is the bar open right now, on the real posted hours?
+ *
+ * Two ways to be open: after today's opening time, or before closing on a session
+ * that began yesterday — at 1am the doors are still open from the night before.
+ */
+export function isOpenNow(now) {
+  const mins = now.hour * 60 + now.minute;
+  if (mins < CLOSE_HOUR * 60) return true; // still last night's session
+  return mins >= openMinutes(now.weekday);
+}
+
+/**
+ * Open/closed state from the REAL posted hours.
+ *
+ * Note this does NOT use the sim's crowd curve, which is invented and must never
+ * drive anything presented as fact. Between closing and the next opening it
+ * reports the opening time rather than a bare "Closed", which is more useful.
+ *
+ * @returns {{label: string, tone: "open"|"soon"}}
+ */
+export function venueState(now) {
+  if (isOpenNow(now)) return { label: "Open", tone: "open" };
+  const open = openMinutes(now.weekday);
+  const h = Math.floor(open / 60);
+  const m = open % 60;
+  const hms = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
+  return { label: `Opens ${fmtTime(hms)}`, tone: "soon" };
 }
 
 function decorate(e, now) {

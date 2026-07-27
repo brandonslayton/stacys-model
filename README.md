@@ -71,9 +71,16 @@ rather than `recurrence_day`, whose casing is inconsistent (`"Friday"` vs
 `"sunday"`) and which one-off events lack entirely. Days can hold more than one
 event.
 
-Open/closed is derived from the **event schedule**, not from the sim's curve —
-Stacy's publishes no opening hours anywhere findable, so the pill reports what the
-schedule supports (`Open`, `Opens 8:00 PM`, or `Closed`) rather than guessing.
+### Opening hours
+
+Real, from Brandon: **4pm Monday–Friday, noon Saturday and Sunday.** They live in
+`OPEN_HOUR` in `js/venue.js`. Closing is `CLOSE_HOUR = 2` (2am, Arizona's last
+call) — that one is an **assumption**, since only opening times were given.
+
+The pill reads `Open` or `Opens 4:00 PM`, and being open carries over past
+midnight, so 1am still reads `Open` from the previous evening's session. The
+crowd sim is zeroed while the doors are shut, so nobody strolls in at noon on a
+Monday under an `Opens 4:00 PM` badge.
 
 ```bash
 node pocket-shot.mjs                 # headless, iPhone size, 2pm + 10pm

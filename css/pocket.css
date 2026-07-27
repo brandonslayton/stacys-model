@@ -64,12 +64,6 @@ body { user-select: none; -webkit-user-select: none; }
   opacity: 0.66;
 }
 
-#top .addr {
-  margin-top: 3px;
-  font-size: 12px;
-  color: var(--dim);
-}
-
 /* Right-hand stack: open state, then the big day/date, then time + weather. */
 #top .when {
   text-align: right;

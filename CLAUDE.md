@@ -416,10 +416,13 @@ under it. The bottom card is tonight's event.
   `refresh-events` workflow mirrors it daily into `data/events.json` and the page
   reads that same-origin. The workflow validates the payload shape before
   overwriting, so an error page can't wipe a good schedule.
-- **Open/closed comes from the event schedule, not the sim curve.** Stacy's
-  publishes no opening hours anywhere findable (their site has none; Yelp 403s), so
-  the pill reports what the schedule supports instead of inventing hours. Never
-  wire the sim's `crowdFactor` into anything presented as fact.
+- **Open/closed comes from real posted hours** in `OPEN_HOUR` (js/venue.js):
+  4pm Mon–Fri, noon Sat/Sun, given directly by Brandon. Their site publishes none
+  and Yelp 403s, so this is the only source. `CLOSE_HOUR = 2` (Arizona last call)
+  is an **assumption** — only opening times were given. Open carries past midnight,
+  so 1am reads Open from the prior evening. **Never wire the sim's `crowdFactor`
+  into anything presented as fact** — the sim is also zeroed while shut
+  (`crowdFor()` in pocket.js) so the visuals agree with the pill.
 
 ### API gotchas that cost time
 

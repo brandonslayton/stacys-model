@@ -19,6 +19,7 @@ import {
   loadEvents,
   currentEvent,
   venueState,
+  isOpenNow,
   fetchWeather,
 } from "./venue.js";
 
@@ -237,9 +238,19 @@ function paintHeader(now) {
     ? `${weather.tempF}°${weather.glyph ? " " + weather.glyph : ""}`
     : "";
 
-  const state = venueState(events, now);
+  const state = venueState(now);
   $("state").textContent = state.label;
   $("state").className = `pill ${state.tone}`;
+}
+
+/**
+ * Crowd size for the sim, zeroed while the doors are shut so the visuals agree
+ * with the pill — otherwise people stroll in at noon on a Monday under a
+ * "Opens 4:00 PM" badge.
+ */
+function crowdFor(now) {
+  if (!isOpenNow(now)) return 0;
+  return crowdFactor(now.hourFloat, now.weekday);
 }
 
 function paintEvent(ev) {
@@ -286,7 +297,7 @@ async function boot() {
 
   const life = new LifeSystem(scene, model);
   const boot = venueNow();
-  life.setCrowd(crowdFactor(boot.hourFloat, boot.weekday));
+  life.setCrowd(crowdFor(boot));
   life.seed();
 
   // Real data. Both are optional garnish — a failure must not stop the render, so
@@ -295,9 +306,7 @@ async function boot() {
   loadEvents()
     .then((list) => {
       events = list;
-      const n = venueNow();
-      paintEvent(currentEvent(events, n));
-      paintHeader(n); // the state pill needs the schedule
+      paintEvent(currentEvent(events, venueNow()));
     })
     .catch(() => paintEvent(null));
   const refreshWeather = () =>
@@ -345,7 +354,7 @@ async function boot() {
     applyNight(nightFromHour(vnow.hourFloat));
     model.userData.tickNight?.(now);
 
-    life.setCrowd(crowdFactor(vnow.hourFloat, vnow.weekday));
+    life.setCrowd(crowdFor(vnow));
     life.update(dt);
 
     // Auto-rotate, resuming a few seconds after the last touch
