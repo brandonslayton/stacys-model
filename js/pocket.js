@@ -20,6 +20,7 @@ import {
   RIDESHARE_ICON,
   CREATIVE_ICON,
   UFO_ICON,
+  BIRD_ICON,
   moonPhase,
   moonName,
   moonIllumination,
@@ -33,6 +34,7 @@ import { MistSystem } from "./mist.js";
 import { IncidentSystem } from "./incident.js";
 import { RideshareSystem } from "./rideshare.js";
 import { UfoSystem } from "./ufo.js";
+import { BirdSystem } from "./bird.js";
 import { FlickerSystem } from "./flicker.js";
 import {
   venueNow,
@@ -822,6 +824,34 @@ function wireUfoButton(ufo) {
 }
 
 /**
+ * Pigeon flyby — one-shot arc over the property to tune model + flight.
+ * Soft camera follow so it stays readable on a phone.
+ */
+function wireBirdButton(bird) {
+  const btn = $("bird");
+  btn.innerHTML = BIRD_ICON;
+  btn.onclick = () => {
+    if (!bird.start()) return;
+    beginFollow(() => bird.followPoint?.(), {
+      az: 48,
+      el: 28,
+      zoom: 0.55,
+    });
+    btn.disabled = true;
+    const release = () => {
+      if (bird.busy) {
+        requestAnimationFrame(release);
+        return;
+      }
+      btn.disabled = false;
+      btn.classList.add("done");
+      setTimeout(() => btn.classList.remove("done"), 900);
+    };
+    requestAnimationFrame(release);
+  };
+}
+
+/**
  * Crowd size for the sim, zeroed while the doors are shut so the visuals agree
  * with the pill — otherwise people stroll in at noon on a Monday under a
  * "Opens 4:00 PM" badge. Creative mode pretends the doors are open.
@@ -907,6 +937,7 @@ async function boot() {
   const ufo = new UfoSystem(scene, model, {
     streetDoor: life.streetDoor,
   });
+  const bird = new BirdSystem(scene, model);
   const mist = new MistSystem(scene, model);
   mistRef = mist;
   mist.setProjection(camera.fov, renderer.domElement.height);
@@ -916,6 +947,7 @@ async function boot() {
   wireSickButton(incident);
   wireRideButton(rideshare);
   wireUfoButton(ufo);
+  wireBirdButton(bird);
   const boot = venueNow();
   life.setCrowd(crowdFor(boot));
   life.seed();
@@ -958,6 +990,7 @@ async function boot() {
     incident,
     rideshare,
     ufo,
+    bird,
     get nightMix() {
       return nightMix;
     },
@@ -1011,10 +1044,14 @@ async function boot() {
     incident.update(dt);
     rideshare.update(dt);
     ufo.update(dt);
+    bird.update(dt);
     mist.update(dt);
     paintFloatSms(rideshare);
 
-    stepFocus(dt, chores.busy || incident.busy || rideshare.busy || ufo.busy);
+    stepFocus(
+      dt,
+      chores.busy || incident.busy || rideshare.busy || ufo.busy || bird.busy
+    );
 
     // Auto-rotate, resuming a few seconds after the last touch. Held off during a
     // focus swing, which would otherwise fight it for the azimuth.

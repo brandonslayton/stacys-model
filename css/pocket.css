@@ -375,13 +375,18 @@ body { user-select: none; -webkit-user-select: none; }
 
 #ride:disabled,
 #sick:disabled,
-#ufo:disabled {
+#ufo:disabled,
+#bird:disabled {
   opacity: 0.42;
   cursor: default;
 }
 
 #ufo.done {
   color: #c8f0ff;
+}
+
+#bird.done {
+  color: #c4c4d0;
 }
 
 /* Brief cool flash after a Waymo run finishes */

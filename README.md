@@ -44,6 +44,7 @@ no lost camera position.
 | Sick patron | queasy-face button, bottom left |
 | Gaymo rideshare | car+dome button — tap to pick up, hold or double-tap to drop off |
 | UFO abduction | saucer button — patron walks past the property line and gets beamed up |
+| Pigeon flyby | bird button — one graceful arc over the property |
 
 Tapping the trash can sends a worker out of the porch with a bag, up the parking
 aisle, and into the dumpster — which reacts with a heart. The camera eases round to
@@ -243,6 +244,7 @@ stacys-model/
 │   ├── incident.js   # the sick-patron scene (two actors, door, puddle)
 │   ├── rideshare.js  # Waymo pickup / drop-off at the curb
 │   ├── ufo.js        # sidewalk alien abduction (saucer + beam)
+│   ├── bird.js       # pigeon model + one-shot flyby
 │   ├── sprites.js    # heart / star / rainbow textures + one-shot sprite pool
 │   ├── flicker.js    # natural flicker on signs, patio and porch light
 │   ├── venue.js      # REAL data: Phoenix clock, tonight's event, weather

@@ -113,6 +113,16 @@ export const UFO_ICON = svg(
   20
 );
 
+/** Pigeon / bird for the flyby button. */
+export const BIRD_ICON = svg(
+  `<path d="M4 14c2-1 3.5-4 5-4 1 0 1.5.8 2.2 1.2"/>` +
+    `<path d="M11.2 11.2c.8-2.2 2.6-3.8 5.3-4.2 1.2 1.6 1.6 3.4 1.2 5.2"/>` +
+    `<path d="M16.5 12.5c1.2.2 2.4.8 3.5 1.8"/>` +
+    `<path d="M9 12.5c-1.2 1-2.2 2.6-2.5 4"/>` +
+    `<circle cx="18.2" cy="9.2" r="0.7" fill="currentColor" stroke="none"/>`,
+  20
+);
+
 // ---------------------------------------------------------------- moon phase
 const SYNODIC = 29.530588853; // mean days between new moons
 /** A known new moon: 2000-01-06 18:14 UTC. */
