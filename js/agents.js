@@ -1,9 +1,10 @@
 /**
- * Cars and pedestrians.
+ * Cars, delivery trucks, and pedestrians.
  *
  * Low-poly agents for the lot sim. Cars share a common vocabulary (hood/grille
  * toward local +Z, taillights toward −Z) so the front is always readable, with
- * a handful of body styles plus a signature black Ram that can roll up.
+ * ambient body styles, a signature black Ram, Phoenix SUVs, and a liquor
+ * delivery fleet (box trucks + semis).
  */
 import * as THREE from "three";
 import { box, cyl, canvasTexture, roundRect } from "./kit.js";
@@ -916,5 +917,572 @@ export function createPedestrian(color) {
   const head = cyl(0.12, 0.12, 0.22, 0xe8c4a8, {}, 5);
   head.position.y = 0.95;
   g.add(head);
+  return g;
+}
+
+// ── Liquor delivery fleet ───────────────────────────────────────────
+
+/** Side-panel livery for commercial trucks. */
+function liquorLiveryTexture({
+  title = "DESERT SPIRITS",
+  subtitle = "WHOLESALE · PHOENIX",
+  bg = "#f4f2ec",
+  accent = "#6b2d8b",
+  tag = "LIQUOR",
+} = {}) {
+  const c = document.createElement("canvas");
+  c.width = 512;
+  c.height = 256;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, 512, 256);
+  // Accent stripe
+  ctx.fillStyle = accent;
+  ctx.fillRect(0, 0, 512, 48);
+  ctx.fillRect(0, 208, 512, 48);
+  // Gold hairline
+  ctx.fillStyle = "#d4a84b";
+  ctx.fillRect(0, 48, 512, 6);
+  ctx.fillRect(0, 202, 512, 6);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 28px Arial, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(tag, 256, 34);
+  ctx.fillStyle = accent;
+  ctx.font = "bold 42px Arial, sans-serif";
+  ctx.fillText(title, 256, 130);
+  ctx.fillStyle = "#333338";
+  ctx.font = "bold 22px Arial, sans-serif";
+  ctx.fillText(subtitle, 256, 172);
+  // Bottle icon (simple)
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 4;
+  ctx.strokeRect(40, 90, 28, 70);
+  ctx.strokeRect(444, 90, 28, 70);
+  ctx.fillStyle = accent;
+  ctx.fillRect(48, 78, 12, 14);
+  ctx.fillRect(452, 78, 12, 14);
+  return canvasTexture(c, 4);
+}
+
+function sideDecal(tex, w, h) {
+  const mat = new THREE.MeshStandardMaterial({
+    map: tex,
+    roughness: 0.45,
+    metalness: 0.12,
+    flatShading: true,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  return mesh;
+}
+
+/**
+ * Compact commercial box truck — the usual liquor-store / bar drop van.
+ * Cab + insulated cargo box, roll-up rear, chrome bumper, neon DRLs.
+ * Local +Z = nose.
+ */
+export function createLiquorBoxTruck(variant = 0) {
+  const g = new THREE.Group();
+  g.name = "delivery";
+  g.userData.carStyle = "boxTruck";
+  g.userData.kind = "boxTruck";
+  g.userData.delivery = true;
+
+  // Two nice liveries
+  const variants = [
+    {
+      cab: 0xf2f0ea,
+      box: 0xf7f5f0,
+      accent: 0x6b2d8b,
+      title: "DESERT SPIRITS",
+      subtitle: "WHOLESALE · PHOENIX",
+      tag: "LIQUOR",
+      bg: "#f4f2ec",
+      accentHex: "#6b2d8b",
+    },
+    {
+      cab: 0x1a2744,
+      box: 0xf0f2f4,
+      accent: 0xc9a227,
+      title: "VALLEY WINE CO",
+      subtitle: "FINE SPIRITS DELIVERY",
+      tag: "VWC",
+      bg: "#eef1f4",
+      accentHex: "#1a2744",
+    },
+  ];
+  const v = variants[variant % variants.length];
+  const paint = { roughness: 0.36, metalness: 0.28 };
+  const cabPaint = { roughness: 0.34, metalness: 0.32 };
+
+  const w = 1.22;
+  const halfW = w * 0.5;
+  const cabLen = 0.95;
+  const boxLen = 1.85;
+  const totalLen = cabLen + boxLen;
+  const noseZ = totalLen * 0.5;
+  const tailZ = -totalLen * 0.5;
+  const stance = 0.06;
+  const cabY = 0.48 + stance;
+
+  // Chassis rail
+  const chassis = box(w * 0.7, 0.1, totalLen * 0.92, 0x2a2a30, DARK);
+  chassis.position.y = 0.28 + stance;
+  g.add(chassis);
+
+  // ── Cab ──
+  const cabZ = noseZ - cabLen * 0.5;
+  const cabBody = box(w * 0.98, 0.55, cabLen * 0.92, v.cab, cabPaint);
+  cabBody.position.set(0, cabY, cabZ);
+  g.add(cabBody);
+  // Hood slope
+  const hood = box(w * 0.92, 0.22, 0.28, v.cab, cabPaint);
+  hood.position.set(0, cabY - 0.08, noseZ - 0.22);
+  g.add(hood);
+  // Greenhouse
+  const glass = box(w * 0.9, 0.38, cabLen * 0.7, 0x0c1824, GLASS);
+  glass.position.set(0, cabY + 0.38, cabZ - 0.04);
+  g.add(glass);
+  const wind = box(w * 0.86, 0.34, 0.22, 0x0a141c, GLASS);
+  wind.position.set(0, cabY + 0.36, cabZ + cabLen * 0.28);
+  wind.rotation.x = -0.2;
+  g.add(wind);
+  // Roof
+  const cabRoof = box(w * 0.88, 0.05, cabLen * 0.65, v.cab, cabPaint);
+  cabRoof.position.set(0, cabY + 0.58, cabZ - 0.04);
+  g.add(cabRoof);
+  // Mirrors
+  for (const side of [-1, 1]) {
+    const mir = box(0.08, 0.14, 0.06, 0x1a1a1e, DARK);
+    mir.position.set(side * (halfW + 0.06), cabY + 0.25, cabZ + 0.2);
+    g.add(mir);
+  }
+
+  // ── Cargo box ──
+  const cargoZ = tailZ + boxLen * 0.5;
+  const cargoH = 1.05;
+  const cargoY = 0.55 + stance + cargoH * 0.15;
+  const cargo = box(w * 1.02, cargoH, boxLen * 0.96, v.box, paint);
+  cargo.position.set(0, cargoY, cargoZ);
+  g.add(cargo);
+  // Ribbed roof
+  const cRoof = box(w * 1.0, 0.06, boxLen * 0.94, 0xe8e6e0, paint);
+  cRoof.position.set(0, cargoY + cargoH * 0.5 + 0.02, cargoZ);
+  g.add(cRoof);
+  // Accent stripe along box
+  const stripe = box(w * 1.04, 0.1, boxLen * 0.9, v.accent, {
+    roughness: 0.4,
+    metalness: 0.2,
+    emissive: v.accent,
+    emissiveIntensity: 0.08,
+  });
+  stripe.position.set(0, cargoY + 0.15, cargoZ);
+  g.add(stripe);
+
+  // Side liveries
+  const livery = liquorLiveryTexture({
+    title: v.title,
+    subtitle: v.subtitle,
+    tag: v.tag,
+    bg: v.bg,
+    accent: v.accentHex,
+  });
+  for (const side of [-1, 1]) {
+    const decal = sideDecal(livery, boxLen * 0.78, cargoH * 0.55);
+    decal.position.set(side * (halfW * 1.02 + 0.01), cargoY + 0.05, cargoZ);
+    decal.rotation.y = side > 0 ? Math.PI / 2 : -Math.PI / 2;
+    g.add(decal);
+  }
+
+  // Roll-up rear door lines
+  const rearDoor = box(w * 0.92, cargoH * 0.92, 0.06, 0xd8d6d0, paint);
+  rearDoor.position.set(0, cargoY, tailZ + 0.04);
+  g.add(rearDoor);
+  for (let i = 0; i < 6; i++) {
+    const rib = box(w * 0.88, 0.02, 0.04, 0xb0aea8, DARK);
+    rib.position.set(0, cargoY - cargoH * 0.35 + i * 0.14, tailZ + 0.07);
+    g.add(rib);
+  }
+  // Rear step bumper
+  const stepBump = box(w * 0.85, 0.08, 0.14, 0x3a3a42, CHROME);
+  stepBump.position.set(0, 0.22 + stance, tailZ + 0.02);
+  g.add(stepBump);
+
+  // Lights
+  ensureLights(g, {
+    neonHeavy: true,
+    baseHead: 1.1,
+    baseNeon: 1.3,
+    baseTail: 0.95,
+  });
+  for (const side of [-1, 1]) {
+    const hl = box(0.2, 0.1, 0.08, 0xf0f6ff, {
+      roughness: 0.15,
+      metalness: 0.45,
+      emissive: 0xd8ecff,
+      emissiveIntensity: 1.1,
+    });
+    hl.position.set(side * (halfW * 0.65), cabY - 0.05, noseZ - 0.02);
+    g.add(hl);
+    pushLight(g, hl, "head");
+    const tl = box(0.14, 0.1, 0.06, 0xff2030, {
+      roughness: 0.25,
+      metalness: 0.25,
+      emissive: 0xff1028,
+      emissiveIntensity: 0.95,
+    });
+    tl.position.set(side * (halfW * 0.75), cargoY - 0.25, tailZ + 0.02);
+    g.add(tl);
+    pushLight(g, tl, "tail");
+  }
+  const drl = box(w * 0.75, 0.035, 0.05, 0xb0f4ff, {
+    roughness: 0.12,
+    metalness: 0.55,
+    emissive: 0x50e8ff,
+    emissiveIntensity: 1.35,
+  });
+  drl.position.set(0, cabY + 0.12, noseZ - 0.01);
+  g.add(drl);
+  pushLight(g, drl, "neon");
+
+  // Chrome front bumper
+  const fBump = box(w * 1.02, 0.12, 0.16, 0xc8ccd0, CHROME);
+  fBump.position.set(0, 0.22 + stance, noseZ - 0.04);
+  g.add(fBump);
+
+  // Wheels — dual rear on box trucks
+  const wheelR = 0.2;
+  addCarWheels(
+    g,
+    [
+      [-halfW * 0.82, noseZ - cabLen * 0.55],
+      [halfW * 0.82, noseZ - cabLen * 0.55],
+      [-halfW * 0.82, tailZ + boxLen * 0.35],
+      [halfW * 0.82, tailZ + boxLen * 0.35],
+    ],
+    wheelR,
+    0.16
+  );
+
+  // AZ commercial plate
+  attachRearPlate(g, makePlate("DS-441", { skyBlue: true }), tailZ - 0.01, 0.36);
+
+  return g;
+}
+
+/**
+ * Day-cab semi with a short liquor trailer — the big wholesale drop.
+ * Stops on the street (too long for the lot aisle). Local +Z = nose.
+ */
+export function createLiquorSemi(variant = 0) {
+  const g = new THREE.Group();
+  g.name = "delivery";
+  g.userData.carStyle = "semi";
+  g.userData.kind = "semi";
+  g.userData.delivery = true;
+
+  const variants = [
+    {
+      cab: 0xe8e4dc,
+      trailer: 0x2a1840,
+      accent: 0xd4a84b,
+      title: "GRAND CANYON BEV",
+      subtitle: "DISTRIBUTION · AZ",
+      tag: "GCB",
+      bg: "#2a1840",
+      accentHex: "#d4a84b",
+      textOnDark: true,
+    },
+    {
+      cab: 0xc41e3a, // classic red tractor
+      trailer: 0xf5f3ee,
+      accent: 0x1a1a22,
+      title: "RIO SALADO SPIRITS",
+      subtitle: "SEMI DIRECT · PHX",
+      tag: "RSS",
+      bg: "#f5f3ee",
+      accentHex: "#c41e3a",
+      textOnDark: false,
+    },
+  ];
+  const v = variants[variant % variants.length];
+  const paint = { roughness: 0.34, metalness: 0.3 };
+  const cabPaint = { roughness: 0.32, metalness: 0.36 };
+
+  const w = 1.32;
+  const halfW = w * 0.5;
+  const cabLen = 1.35;
+  const gap = 0.18; // fifth-wheel gap
+  const trailLen = 3.15;
+  const totalLen = cabLen + gap + trailLen;
+  const noseZ = totalLen * 0.5;
+  const tailZ = -totalLen * 0.5;
+  const stance = 0.1;
+
+  // ── Tractor ──
+  const cabZ = noseZ - cabLen * 0.5;
+  const cabY = 0.55 + stance;
+  // Bumper
+  const bumper = box(w * 1.05, 0.16, 0.2, 0xc0c4c8, CHROME);
+  bumper.position.set(0, 0.24 + stance, noseZ - 0.02);
+  g.add(bumper);
+  // Hood
+  const hood = box(w * 0.95, 0.38, 0.55, v.cab, cabPaint);
+  hood.position.set(0, cabY - 0.05, noseZ - 0.35);
+  g.add(hood);
+  // Cab body
+  const cabBody = box(w, 0.7, 0.85, v.cab, cabPaint);
+  cabBody.position.set(0, cabY + 0.1, cabZ - 0.1);
+  g.add(cabBody);
+  // Sleeper-ish roof fairing
+  const fairing = box(w * 0.92, 0.35, 0.7, v.cab, cabPaint);
+  fairing.position.set(0, cabY + 0.55, cabZ - 0.15);
+  g.add(fairing);
+  // Windshield
+  const wind = box(w * 0.9, 0.4, 0.2, 0x0a141c, GLASS);
+  wind.position.set(0, cabY + 0.35, cabZ + 0.28);
+  wind.rotation.x = -0.15;
+  g.add(wind);
+  // Side glass
+  const sideG = box(w * 0.98, 0.32, 0.55, 0x0c1824, GLASS);
+  sideG.position.set(0, cabY + 0.32, cabZ - 0.05);
+  g.add(sideG);
+  // Exhaust stack
+  const stack = cyl(0.05, 0.055, 0.9, 0x4a4a52, CHROME, 8);
+  stack.position.set(-halfW * 0.85, cabY + 0.55, cabZ - 0.25);
+  g.add(stack);
+  // Fuel tanks
+  for (const side of [-1, 1]) {
+    const tank = cyl(0.12, 0.12, 0.55, 0xa0a4a8, CHROME, 10);
+    tank.rotation.z = Math.PI / 2;
+    tank.position.set(side * (halfW * 0.7), 0.35 + stance, cabZ - 0.35);
+    g.add(tank);
+  }
+  // Fifth wheel plate
+  const fifth = box(w * 0.5, 0.08, 0.35, 0x3a3a42, DARK);
+  fifth.position.set(0, 0.42 + stance, cabZ - cabLen * 0.45);
+  g.add(fifth);
+
+  // Tractor lights
+  ensureLights(g, {
+    neonHeavy: true,
+    baseHead: 1.2,
+    baseNeon: 1.4,
+    baseTail: 1.0,
+  });
+  for (const side of [-1, 1]) {
+    const hl = box(0.22, 0.1, 0.08, 0xf4f8ff, {
+      roughness: 0.14,
+      metalness: 0.5,
+      emissive: 0xe0f0ff,
+      emissiveIntensity: 1.2,
+    });
+    hl.position.set(side * (halfW * 0.7), cabY - 0.08, noseZ - 0.02);
+    g.add(hl);
+    pushLight(g, hl, "head");
+  }
+  const drl = box(w * 0.85, 0.04, 0.05, 0xb8f8ff, {
+    roughness: 0.12,
+    metalness: 0.55,
+    emissive: 0x58f0ff,
+    emissiveIntensity: 1.5,
+  });
+  drl.position.set(0, cabY + 0.15, noseZ - 0.01);
+  g.add(drl);
+  pushLight(g, drl, "neon");
+  // Cab marker lights on roof
+  for (let i = -2; i <= 2; i++) {
+    const mk = box(0.06, 0.04, 0.05, 0xffa020, {
+      roughness: 0.3,
+      emissive: 0xff8010,
+      emissiveIntensity: 0.7,
+    });
+    mk.position.set(i * 0.14, cabY + 0.75, cabZ + 0.15);
+    g.add(mk);
+    pushLight(g, mk, "marker");
+  }
+
+  // Tractor wheels (steer + drive)
+  const wR = 0.24;
+  addCarWheels(
+    g,
+    [
+      [-halfW * 0.85, noseZ - 0.45],
+      [halfW * 0.85, noseZ - 0.45],
+      [-halfW * 0.85, cabZ - 0.35],
+      [halfW * 0.85, cabZ - 0.35],
+    ],
+    wR,
+    0.18
+  );
+
+  // ── Trailer ──
+  const trailZ = tailZ + trailLen * 0.5;
+  const tH = 1.2;
+  const tY = 0.7 + stance;
+  const trailer = box(w * 1.05, tH, trailLen * 0.96, v.trailer, paint);
+  trailer.position.set(0, tY, trailZ);
+  g.add(trailer);
+  // Landing gear
+  for (const side of [-1, 1]) {
+    const leg = box(0.06, 0.35, 0.06, 0x4a4a52, DARK);
+    leg.position.set(side * 0.25, 0.28 + stance, trailZ + trailLen * 0.25);
+    g.add(leg);
+  }
+  // Rear doors
+  const doors = box(w * 0.98, tH * 0.92, 0.08, v.trailer, paint);
+  doors.position.set(0, tY, tailZ + 0.05);
+  g.add(doors);
+  const doorSplit = box(0.04, tH * 0.9, 0.09, 0x1a1a22, DARK);
+  doorSplit.position.set(0, tY, tailZ + 0.06);
+  g.add(doorSplit);
+
+  // Livery — dark trailers get light text via special canvas
+  const liveryOpts = v.textOnDark
+    ? {
+        title: v.title,
+        subtitle: v.subtitle,
+        tag: v.tag,
+        bg: v.bg,
+        accent: v.accentHex,
+      }
+    : {
+        title: v.title,
+        subtitle: v.subtitle,
+        tag: v.tag,
+        bg: v.bg,
+        accent: v.accentHex,
+      };
+  // For dark purple trailer, paint light stripe text
+  const livery = (() => {
+    if (!v.textOnDark) return liquorLiveryTexture(liveryOpts);
+    const c = document.createElement("canvas");
+    c.width = 512;
+    c.height = 256;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = v.bg;
+    ctx.fillRect(0, 0, 512, 256);
+    ctx.fillStyle = v.accentHex;
+    ctx.fillRect(0, 0, 512, 40);
+    ctx.fillRect(0, 216, 512, 40);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 26px Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(v.tag, 256, 28);
+    ctx.font = "bold 38px Arial, sans-serif";
+    ctx.fillText(v.title, 256, 125);
+    ctx.fillStyle = v.accentHex;
+    ctx.font = "bold 20px Arial, sans-serif";
+    ctx.fillText(v.subtitle, 256, 170);
+    ctx.strokeStyle = v.accentHex;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(36, 85, 26, 65);
+    ctx.strokeRect(450, 85, 26, 65);
+    return canvasTexture(c, 4);
+  })();
+  for (const side of [-1, 1]) {
+    const decal = sideDecal(livery, trailLen * 0.75, tH * 0.5);
+    decal.position.set(side * (halfW * 1.05 + 0.01), tY + 0.05, trailZ);
+    decal.rotation.y = side > 0 ? Math.PI / 2 : -Math.PI / 2;
+    g.add(decal);
+  }
+
+  // Trailer taillights + underride bar
+  for (const side of [-1, 1]) {
+    const tl = box(0.16, 0.12, 0.06, 0xff1828, {
+      roughness: 0.25,
+      metalness: 0.25,
+      emissive: 0xff1020,
+      emissiveIntensity: 1.0,
+    });
+    tl.position.set(side * (halfW * 0.8), tY - 0.35, tailZ + 0.02);
+    g.add(tl);
+    pushLight(g, tl, "tail");
+  }
+  const underride = box(w * 0.95, 0.08, 0.1, 0xc0c4c8, CHROME);
+  underride.position.set(0, 0.22 + stance, tailZ + 0.04);
+  g.add(underride);
+
+  // Trailer tandem axles
+  addCarWheels(
+    g,
+    [
+      [-halfW * 0.88, trailZ - 0.35],
+      [halfW * 0.88, trailZ - 0.35],
+      [-halfW * 0.88, trailZ - 0.75],
+      [halfW * 0.88, trailZ - 0.75],
+    ],
+    0.22,
+    0.17
+  );
+
+  attachRearPlate(g, makePlate("GCB-88", { skyBlue: true }), tailZ - 0.02, 0.4);
+
+  return g;
+}
+
+/** Hand truck crate of liquor bottles for delivery drivers. */
+export function createLiquorCrate() {
+  const g = new THREE.Group();
+  g.name = "liquorCrate";
+  const caseBox = box(0.32, 0.22, 0.22, 0x8b6914, { roughness: 0.75 });
+  caseBox.position.y = 0.12;
+  g.add(caseBox);
+  // Bottle tops peeking out
+  for (const [x, z] of [
+    [-0.08, -0.04],
+    [0.08, -0.04],
+    [-0.08, 0.05],
+    [0.08, 0.05],
+  ]) {
+    const neck = cyl(0.025, 0.03, 0.1, 0x2a4a3a, { roughness: 0.3, metalness: 0.2 }, 6);
+    neck.position.set(x, 0.28, z);
+    g.add(neck);
+    const cap = cyl(0.028, 0.028, 0.03, 0xc9a227, CHROME, 6);
+    cap.position.set(x, 0.34, z);
+    g.add(cap);
+  }
+  // Label strip
+  const label = box(0.28, 0.08, 0.01, 0x6b2d8b, {
+    roughness: 0.5,
+    emissive: 0x4a1a6a,
+    emissiveIntensity: 0.15,
+  });
+  label.position.set(0, 0.12, 0.115);
+  g.add(label);
+  return g;
+}
+
+/** Delivery driver in work shirt + cap (not a party guest). */
+export function createDeliveryDriver(shirt = 0x2a3a5c) {
+  const g = new THREE.Group();
+  g.name = "deliveryDriver";
+  // Legs / trousers
+  const legs = box(0.22, 0.35, 0.16, 0x3a3a42, { roughness: 0.8 });
+  legs.position.y = 0.2;
+  g.add(legs);
+  // Shirt
+  const body = cyl(0.13, 0.15, 0.48, shirt, { roughness: 0.7 }, 6);
+  body.position.y = 0.58;
+  g.add(body);
+  // Head
+  const head = cyl(0.11, 0.11, 0.2, 0xe8c4a8, {}, 6);
+  head.position.y = 0.95;
+  g.add(head);
+  // Cap
+  const cap = cyl(0.13, 0.12, 0.08, 0x1a1a22, DARK, 8);
+  cap.position.y = 1.08;
+  g.add(cap);
+  const brim = box(0.16, 0.02, 0.1, 0x1a1a22, DARK);
+  brim.position.set(0, 1.05, 0.1);
+  g.add(brim);
+  // Crate attach point (held in front)
+  const hold = new THREE.Object3D();
+  hold.name = "crateHold";
+  hold.position.set(0.18, 0.45, 0.12);
+  g.add(hold);
+  g.userData.crateHold = hold;
   return g;
 }

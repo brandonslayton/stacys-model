@@ -23,6 +23,10 @@ import {
   createCar,
   createRamTruck,
   createPhxSuv,
+  createLiquorBoxTruck,
+  createLiquorSemi,
+  createLiquorCrate,
+  createDeliveryDriver,
   createPedestrian,
   tickCarLights,
   CAR_COLORS,
@@ -46,14 +50,20 @@ const MAX_CAR_TRIPS = 7;
 /** Soft occupancy ceiling. Far above the game's 5 — see note 1 above. */
 const MAX_INSIDE = 70;
 const SPAWN_CHECK_S = 0.3;
+/** At most one liquor delivery at a time. */
+const MAX_DELIVERIES = 1;
+/** Seconds between delivery spawn rolls. */
+const DELIVERY_CHECK_S = 12;
+/** Base chance per check that a delivery rolls (before busyness). */
+const DELIVERY_CHANCE = 0.14;
 
 /** Pedestrian personal space — close is fine, overlapping is not. */
 const PED_MIN = 0.48;
 /**
- * Front-to-back only. Car length ~2.0: if another car's centre is within this
- * distance ahead in the facing cone, the follower soft-slows (never full stop).
+ * Front-to-back only. Sized for SUVs / box trucks: if another vehicle's centre is
+ * within this distance ahead in the facing cone, the follower soft-slows.
  */
-const CAR_AHEAD = 2.4;
+const CAR_AHEAD = 3.2;
 /** How wide the "in front of me" cone is (half-width, metres). */
 const CAR_LANE = 0.85;
 /** Absolute floor on speed scale so queues never freeze. */
@@ -68,6 +78,15 @@ const CS = {
   INSIDE: "inside",
   LOAD: "load",
   DRIVE_OUT: "drive_out",
+};
+
+/** Liquor delivery trip states. */
+const DS = {
+  DRIVE_IN: "del_drive_in",
+  WALK_IN: "del_walk_in",
+  DROP: "del_drop",
+  WALK_OUT: "del_walk_out",
+  DRIVE_OUT: "del_drive_out",
 };
 
 /** Visible-pedestrian states. */
@@ -176,16 +195,22 @@ export class LifeSystem {
 
     this.carPool = [];
     this.pedPool = [];
+    this.deliveryPool = [];
     this._buildPools();
 
     this.carTrips = [];
     this.walkers = [];
+    /** Active liquor delivery trips (box truck / semi). */
+    this.deliveries = [];
     /** Occupants with no mesh: { leaveAt } in seconds of sim time. */
     this.inside = [];
     this.busyness = 1;
     this.target = 0;
     this.now = 0;
     this._spawnAcc = 0;
+    this._deliveryAcc = 0;
+    /** Next sim-time a delivery is allowed to spawn (cooldown after one leaves). */
+    this._deliveryReadyAt = 8;
     /** Rolling arrival log (sim timestamps) for the "recent arrivals" stat. */
     this.arrivalLog = [];
     /**
@@ -316,6 +341,24 @@ export class LifeSystem {
       this.root.add(mesh);
       this.pedPool.push({ mesh, busy: false, bob: Math.random() * Math.PI * 2 });
     }
+
+    // Liquor fleet: two nice box trucks + two nice semis (only one runs at a time)
+    const fleet = [
+      createLiquorBoxTruck(0),
+      createLiquorBoxTruck(1),
+      createLiquorSemi(0),
+      createLiquorSemi(1),
+    ];
+    for (const mesh of fleet) {
+      mesh.visible = false;
+      mesh.castShadow = false;
+      this.root.add(mesh);
+      this.deliveryPool.push({
+        mesh,
+        busy: false,
+        kind: mesh.userData.kind,
+      });
+    }
   }
 
   /**
@@ -443,6 +486,105 @@ export class LifeSystem {
   }
 
   // ── Spawning ──────────────────────────────────────────────────────
+
+  /**
+   * Liquor drop: box truck pulls into the aisle; semi stops on 7th at the curb.
+   * Driver walks a crate to the porch, dwells, walks back, leaves.
+   * ~70% box truck / ~30% semi when both kinds are free.
+   */
+  _trySpawnDelivery() {
+    if (this.lotHold) return;
+    if (this.deliveries.length >= MAX_DELIVERIES) return;
+    if (this.now < this._deliveryReadyAt) return;
+    if (!this.mouth || !this.aisle) return;
+
+    const free = this.deliveryPool.filter((d) => !d.busy);
+    if (!free.length) return;
+
+    const boxes = free.filter((d) => d.kind === "boxTruck");
+    const semis = free.filter((d) => d.kind === "semi");
+    let unit = null;
+    if (boxes.length && semis.length) {
+      unit = Math.random() < 0.7
+        ? boxes[(Math.random() * boxes.length) | 0]
+        : semis[(Math.random() * semis.length) | 0];
+    } else {
+      unit = free[(Math.random() * free.length) | 0];
+    }
+    if (!unit) return;
+
+    const isSemi = unit.kind === "semi";
+    const spawnX = this.mouth.x + 12 + Math.random() * 5;
+    let path;
+    let stopFaceY;
+    let stopPos;
+
+    if (isSemi) {
+      // Curb / near-lane stop abeam the porch — too long for the lot
+      const stopX = this.streetDoor.x + 0.4;
+      stopPos = new THREE.Vector3(stopX, 0.02, STREET.nearLaneZ);
+      path = this._clean([
+        ...roadPolyline(spawnX, stopX, -1),
+        stopPos.clone(),
+      ]);
+      stopFaceY = Math.atan2(-1, 0); // facing northbound (−X)
+    } else {
+      // Box truck: into the lot, stop mid-aisle for the drop
+      const stopZ = THREE.MathUtils.clamp(
+        this.streetDoor.z + 0.4,
+        Math.min(this.mouth.z, this.aisle.z) + 0.5,
+        Math.max(this.mouth.z, this.aisle.z) - 0.5
+      );
+      stopPos = new THREE.Vector3(this.aisle.x, 0.02, stopZ);
+      path = this._clean([
+        ...roadPolyline(spawnX, this.mouth.x, -1),
+        new THREE.Vector3(this.mouth.x, 0.02, STREET.curbZ),
+        this.mouth.clone(),
+        new THREE.Vector3(this.aisle.x, 0.02, (this.mouth.z + stopZ) * 0.5),
+        stopPos.clone(),
+      ]);
+      stopFaceY = Math.atan2(
+        this.aisle.x - this.mouth.x,
+        this.aisle.z - this.mouth.z
+      );
+    }
+    if (!path || path.length < 2) return;
+
+    unit.busy = true;
+    unit.mesh.visible = true;
+    unit.mesh.position.copy(path[0]);
+    unit.mesh.rotation.y = Math.atan2(
+      path[1].x - path[0].x,
+      path[1].z - path[0].z
+    );
+
+    // Dedicated driver (not from the patron ped pool)
+    const driver = createDeliveryDriver(isSemi ? 0x3a2a1a : 0x2a3a5c);
+    this.root.add(driver);
+    driver.visible = false;
+    const crate = createLiquorCrate();
+    driver.userData.crateHold.add(crate);
+    crate.visible = true;
+
+    this.deliveries.push({
+      state: DS.DRIVE_IN,
+      unit,
+      isSemi,
+      path,
+      pathI: 0,
+      lotFrom: isSemi ? path.length - 1 : Math.max(1, path.length - 3),
+      speedRoad: isSemi ? 6.2 + Math.random() * 0.8 : 6.8 + Math.random() * 1.0,
+      speedLot: 3.2 + Math.random() * 0.6,
+      walkSpeed: 1.55 + Math.random() * 0.25,
+      stopFaceY,
+      stopPos,
+      driver,
+      crate,
+      pathWalk: null,
+      dwellLeft: 0,
+      tripsLeft: 1 + ((Math.random() * 2) | 0), // 1–2 crate runs
+    });
+  }
 
   _trySpawnCar() {
     if (this.lotHold) return;
@@ -609,7 +751,7 @@ export class LifeSystem {
     }
   }
 
-  /** Every visible ped mesh currently in the sim (walkers + car-trip peds). */
+  /** Every visible ped mesh currently in the sim (walkers + car-trip peds + drivers). */
   pedMeshes() {
     const out = [];
     for (const w of this.walkers) {
@@ -617,6 +759,9 @@ export class LifeSystem {
     }
     for (const t of this.carTrips) {
       if (t.ped?.mesh?.visible) out.push(t.ped.mesh);
+    }
+    for (const d of this.deliveries) {
+      if (d.driver?.visible) out.push(d.driver);
     }
     return out;
   }
@@ -630,6 +775,11 @@ export class LifeSystem {
     for (const t of this.carTrips) {
       if (t.state !== CS.DRIVE_IN && t.state !== CS.DRIVE_OUT) continue;
       const m = t.car?.mesh;
+      if (m?.visible && m !== exclude) out.push(m);
+    }
+    for (const d of this.deliveries) {
+      if (d.state !== DS.DRIVE_IN && d.state !== DS.DRIVE_OUT) continue;
+      const m = d.unit?.mesh;
       if (m?.visible && m !== exclude) out.push(m);
     }
     if (this.getExtraVehicles) {
@@ -749,6 +899,15 @@ export class LifeSystem {
       if (b > 1.0 && Math.random() < 0.4) this._trySpawnWalker();
     }
 
+    this._deliveryAcc += t;
+    if (this._deliveryAcc >= DELIVERY_CHECK_S) {
+      this._deliveryAcc = 0;
+      // Liquor drops show up even on quieter nights — bars always need stock
+      if (Math.random() < DELIVERY_CHANCE + this.busyness * 0.06) {
+        this._trySpawnDelivery();
+      }
+    }
+
     // People leaving the building
     for (let i = this.inside.length - 1; i >= 0; i--) {
       if (this.inside[i].leaveAt > this.now) continue;
@@ -778,6 +937,24 @@ export class LifeSystem {
       } else if (trip.car?.mesh?.visible) {
         // Neon DRL breathe + occasional flash (Phoenix SUVs hit harder)
         tickCarLights(trip.car.mesh, this.now);
+      }
+    }
+
+    for (let i = this.deliveries.length - 1; i >= 0; i--) {
+      const del = this.deliveries[i];
+      try {
+        this._tickDelivery(del, t);
+      } catch (err) {
+        console.warn("[life] delivery aborted", err);
+        del.state = "done";
+      }
+      if (del.state === "done") {
+        this._finishDelivery(del);
+        this.deliveries.splice(i, 1);
+        // Cooldown so the next drop is spaced out
+        this._deliveryReadyAt = this.now + 45 + Math.random() * 50;
+      } else if (del.unit?.mesh?.visible) {
+        tickCarLights(del.unit.mesh, this.now);
       }
     }
 
@@ -829,6 +1006,216 @@ export class LifeSystem {
     if (trip.state === CS.DRIVE_IN && trip.pathI >= trip.lotFrom) return trip.speedLot;
     if (trip.state === CS.DRIVE_OUT && trip.pathI < 4) return trip.speedLot;
     return trip.speedRoad;
+  }
+
+  _deliverySpeed(del) {
+    if (this.lotHold) {
+      if (del.state === DS.DRIVE_OUT) return 0;
+      if (del.state === DS.DRIVE_IN) {
+        // Semis are on the street — still hold at the stop zone
+        const gate = Math.max(0, del.lotFrom - 1);
+        if (del.pathI >= del.lotFrom) return del.isSemi ? 0 : del.speedLot;
+        if (del.pathI >= gate) return 0;
+      }
+    }
+    if (del.state === DS.DRIVE_IN && del.pathI >= del.lotFrom) return del.speedLot;
+    if (del.state === DS.DRIVE_OUT && del.pathI < 3) {
+      return del.isSemi ? del.speedRoad * 0.7 : del.speedLot;
+    }
+    return del.speedRoad;
+  }
+
+  _finishDelivery(del) {
+    if (del.unit) {
+      del.unit.busy = false;
+      del.unit.mesh.visible = false;
+    }
+    if (del.driver) {
+      del.driver.visible = false;
+      this.root.remove(del.driver);
+      // Dispose is overkill for pool-less one-shot meshes; drop references
+      del.driver = null;
+    }
+    del.crate = null;
+  }
+
+  /** Path from truck stop to porch door (box truck from aisle; semi from curb). */
+  _pathDeliveryToDoor(del) {
+    const start = del.driver.position.clone();
+    if (del.isSemi) {
+      return this._clean([
+        start,
+        sidewalkPoint(start.x),
+        ...sidewalkPolyline(start.x, this.streetDoor.x),
+        this.streetDoor.clone(),
+      ]);
+    }
+    return this._clean([
+      start,
+      new THREE.Vector3(this.aisle.x + 0.7, 0, start.z),
+      this.yardCorner.clone(),
+      this.streetDoor.clone(),
+    ]);
+  }
+
+  _pathDoorToDelivery(del) {
+    const end = this._pedBesideDelivery(del);
+    if (del.isSemi) {
+      return this._clean([
+        this.streetDoor.clone(),
+        sidewalkPoint(this.streetDoor.x),
+        ...sidewalkPolyline(this.streetDoor.x, end.x),
+        end,
+      ]);
+    }
+    return this._clean([
+      this.streetDoor.clone(),
+      this.yardCorner.clone(),
+      new THREE.Vector3(this.aisle.x + 0.7, 0, end.z),
+      end,
+    ]);
+  }
+
+  _pedBesideDelivery(del) {
+    const mesh = del.unit.mesh;
+    const yaw = mesh.rotation.y;
+    // Stand on the building / curb side of the truck
+    const side = del.isSemi ? 1 : 1; // +X-ish via cos for yaw≈0...
+    return new THREE.Vector3(
+      mesh.position.x + Math.cos(yaw) * 0.85 * side,
+      0,
+      mesh.position.z - Math.sin(yaw) * 0.85 * side
+    );
+  }
+
+  _pathDeliveryOut(del) {
+    if (del.isSemi) {
+      const x = del.unit.mesh.position.x;
+      return this._clean([
+        del.unit.mesh.position.clone(),
+        ...roadPolyline(x, STREET.xMin + 1, -1),
+      ]);
+    }
+    // Back down the aisle, out the mouth, north on 7th
+    return this._clean([
+      del.unit.mesh.position.clone(),
+      new THREE.Vector3(this.aisle.x, 0.02, (del.unit.mesh.position.z + this.mouth.z) * 0.5),
+      this.mouth.clone(),
+      new THREE.Vector3(this.mouth.x, 0.02, STREET.curbZ),
+      ...roadPolyline(this.mouth.x, STREET.xMin + 1, -1),
+    ]);
+  }
+
+  _tickDelivery(del, dt) {
+    const truck = del.unit.mesh;
+
+    switch (del.state) {
+      case DS.DRIVE_IN: {
+        const r = this._advance(
+          truck,
+          del.path,
+          del.pathI,
+          this._deliverySpeed(del) * this.frontSpeedScale(truck),
+          dt,
+          del.stopFaceY
+        );
+        del.pathI = r.pathI;
+        if (!r.done) break;
+        truck.rotation.y = del.stopFaceY;
+        // Driver steps out with a crate
+        const beside = this._pedBesideDelivery(del);
+        del.driver.position.copy(beside);
+        del.driver.visible = true;
+        if (del.crate) del.crate.visible = true;
+        del.path = this._pathDeliveryToDoor(del);
+        del.pathI = 0;
+        del.state = DS.WALK_IN;
+        break;
+      }
+      case DS.WALK_IN: {
+        const r = this._advance(
+          del.driver,
+          del.path,
+          del.pathI,
+          del.walkSpeed,
+          dt
+        );
+        del.pathI = r.pathI;
+        del.driver.position.y = Math.abs(Math.sin(this.now * 9)) * 0.04;
+        if (!r.done) break;
+        del.driver.position.y = 0;
+        // Hand off at the door — hide crate for a beat
+        if (del.crate) del.crate.visible = false;
+        del.dwellLeft = 2.2 + Math.random() * 1.4;
+        del.state = DS.DROP;
+        break;
+      }
+      case DS.DROP: {
+        del.dwellLeft -= dt;
+        // Slight shift like waiting for a signature
+        del.driver.rotation.y = Math.atan2(
+          this.streetDoor.x - del.driver.position.x,
+          this.streetDoor.z - del.driver.position.z
+        );
+        if (del.dwellLeft > 0) break;
+        del.tripsLeft -= 1;
+        if (del.tripsLeft > 0) {
+          // Another crate run — walk back empty, then out again full
+          del.path = this._pathDoorToDelivery(del);
+          del.pathI = 0;
+          del.state = DS.WALK_OUT;
+          del._reload = true;
+          break;
+        }
+        del.path = this._pathDoorToDelivery(del);
+        del.pathI = 0;
+        del._reload = false;
+        del.state = DS.WALK_OUT;
+        break;
+      }
+      case DS.WALK_OUT: {
+        const r = this._advance(
+          del.driver,
+          del.path,
+          del.pathI,
+          del.walkSpeed * 1.05,
+          dt
+        );
+        del.pathI = r.pathI;
+        del.driver.position.y = Math.abs(Math.sin(this.now * 9)) * 0.04;
+        if (!r.done) break;
+        del.driver.position.y = 0;
+        if (del._reload) {
+          // Grab another case from the truck
+          if (del.crate) del.crate.visible = true;
+          del.path = this._pathDeliveryToDoor(del);
+          del.pathI = 0;
+          del.state = DS.WALK_IN;
+          del._reload = false;
+          break;
+        }
+        // Done — board and leave
+        del.driver.visible = false;
+        del.path = this._pathDeliveryOut(del);
+        del.pathI = 0;
+        del.state = DS.DRIVE_OUT;
+        break;
+      }
+      case DS.DRIVE_OUT: {
+        const r = this._advance(
+          truck,
+          del.path,
+          del.pathI,
+          this._deliverySpeed(del) * this.frontSpeedScale(truck),
+          dt
+        );
+        del.pathI = r.pathI;
+        if (r.done) del.state = "done";
+        break;
+      }
+      default:
+        del.state = "done";
+    }
   }
 
   _tickCar(trip, dt) {
