@@ -514,10 +514,10 @@ function wireMistButton(mist) {
 }
 
 /**
- * Waymo button.
+ * Gaymo button (Waymo-branded hover robotaxi).
  *
  *   tap            → guests leave the bar, wait, get picked up
- *   double-tap     → Waymo drops someone off
+ *   double-tap     → Gaymo drops someone off
  *   long-press     → same as double-tap (phones struggle with dblclick)
  *
  * A short delay on the single-tap lets a second tap cancel it and run dropoff

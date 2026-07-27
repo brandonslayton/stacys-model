@@ -41,7 +41,7 @@ no lost camera position.
 | Take out the trash | trash-can button, bottom left |
 | Patio misters | mist button, bottom left — on/off |
 | Sick patron | queasy-face button, bottom left |
-| Waymo rideshare | car+dome button — tap to pick up, hold or double-tap to drop off |
+| Gaymo rideshare | car+dome button — tap to pick up, hold or double-tap to drop off |
 
 Tapping the trash can sends a worker out of the porch with a bag, up the parking
 aisle, and into the dumpster — which reacts with a heart. The camera eases round to
@@ -60,10 +60,11 @@ camera to the patio (the rear face, likewise hidden by default); switching it of
 leaves the camera where it is. `js/mist.js` renders the whole thing as a single
 `THREE.Points` with a custom shader, so it costs **one draw call**.
 
-The rideshare button calls a **Waymo**. Tap: one or two guests walk out of the porch,
-wait on the curb, a white robotaxi (spinning lidar dome, blue status LEDs, empty cabin)
-pulls up in the near lane, they board, and it drives north. Hold or double-tap: the
-same car drops someone off and they walk in. `js/rideshare.js`.
+The rideshare button calls a **Gaymo** — a Waymo-branded hover robotaxi with a
+"Gaymo" door wordmark, cyan status LEDs, roof lidar top-hat, and a pride thruster
+glow under a wheel-less belly that actually floats. Tap: guests walk out, wait on
+the curb, it glides in, they board, it leaves north. Hold or double-tap: drop-off.
+`js/rideshare.js`.
 
 Layout: venue name top-left with tonight's event directly under it, and top-right
 an `Open` / `Opens 4:00 PM` pill over a big weekday and date, the venue clock,

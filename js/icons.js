@@ -79,17 +79,16 @@ export const TRASH_ICON = svg(
 );
 
 /**
- * Robotaxi / rideshare: a car silhouette with a roof sensor dome so it reads as
- * autonomous rather than a plain cab.
+ * Gaymo rideshare: car silhouette with a roof sensor dome and no wheels so the
+ * icon matches the hovering robotaxi on the street.
  */
 export const RIDESHARE_ICON = svg(
-  `<path d="M4.5 14.5h15"/>` +
-    `<path d="M5.2 14.5l1.4-4.2A1.6 1.6 0 0 1 8.1 9h7.8a1.6 1.6 0 0 1 1.5 1.3l1.4 4.2"/>` +
-    `<path d="M7.2 11.2h9.6"/>` +
-    `<circle cx="7.5" cy="15.8" r="1.35"/>` +
-    `<circle cx="16.5" cy="15.8" r="1.35"/>` +
-    `<path d="M11 6.2v1.6"/><circle cx="12" cy="5.4" r="1.5"/>` +
-    `<path d="M10.2 5.4h3.6"/>`,
+  `<path d="M5 15.2h14"/>` +
+    `<path d="M5.4 15.2l1.3-4A1.5 1.5 0 0 1 8.1 9.8h7.8a1.5 1.5 0 0 1 1.4 1.2l1.3 4.2"/>` +
+    `<path d="M7.4 11.6h9.2"/>` +
+    `<path d="M11 6.4v1.5"/><circle cx="12" cy="5.5" r="1.45"/>` +
+    `<path d="M8 16.6c1.2.8 2.4 1.2 4 1.2s2.8-.4 4-1.2"/>` +
+    `<path d="M9.5 17.8h5"/>`,
   20
 );
 
