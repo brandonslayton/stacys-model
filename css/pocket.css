@@ -184,8 +184,18 @@ body { user-select: none; -webkit-user-select: none; }
   .ev-tags i { font-size: 9px; padding: 2px 6px; }
 
   #controls button {
-    width: 48px;
-    height: 48px;
+    width: 58px;
+    height: 58px;
+  }
+
+  #controls button svg {
+    width: 26px;
+    height: 26px;
+  }
+
+  /* SMS toast sits above the taller control strip */
+  #sms {
+    bottom: max(92px, calc(env(safe-area-inset-bottom) + 84px));
   }
 
   /* The SVGs carry hardcoded width/height, so they need scaling too or they sit
@@ -321,30 +331,40 @@ body { user-select: none; -webkit-user-select: none; }
 }
 
 /* ---------------------------------------------------------------- controls
-   Horizontal strip. On narrow phones the full set no longer fits, so the row
-   scrolls sideways instead of clipping buttons off the right edge. */
+   Horizontal strip of action buttons. Ten buttons no longer fit on a phone
+   width, so the row is a single-line scroller: swipe sideways to reach the
+   later toys (Gaymo, UFO, bird, etc.) instead of having them clipped off. */
 #controls {
   position: fixed;
-  left: var(--pad);
-  right: var(--pad);
-  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 0;
+  right: 0;
+  bottom: max(12px, env(safe-area-inset-bottom));
   display: flex;
   flex-wrap: nowrap;
-  gap: 10px;
-  max-width: none;
-  width: auto;
-  /* Cap to the safe content width so overflow can scroll */
+  align-items: center;
+  gap: 12px;
+  /* Full width so overflow-x has a real clip box; pad inset so first/last
+     buttons clear the home indicator / rounded corners. */
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  padding:
+    8px
+    max(14px, env(safe-area-inset-right))
+    10px
+    max(14px, env(safe-area-inset-left));
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
   scroll-snap-type: x proximity;
-  /* Room so the first/last button aren't flush against the screen edge */
-  padding: 4px 2px 6px;
+  scroll-padding-inline: max(14px, env(safe-area-inset-left));
   /* Hide the scrollbar but keep swipe/scroll working */
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* legacy Edge */
+  /* pan-x wins over the canvas's touch-action:none for drags that start here */
   touch-action: pan-x;
+  pointer-events: auto;
   z-index: 20;
 }
 
@@ -354,9 +374,9 @@ body { user-select: none; -webkit-user-select: none; }
 
 #controls button {
   flex: 0 0 auto; /* never shrink — overflow scrolls instead */
-  scroll-snap-align: start;
-  width: 44px; /* 44px is the minimum comfortable touch target */
-  height: 44px;
+  scroll-snap-align: center;
+  width: 52px;
+  height: 52px;
   display: grid;
   place-items: center;
   padding: 0;
@@ -368,11 +388,24 @@ body { user-select: none; -webkit-user-select: none; }
   -webkit-backdrop-filter: blur(18px) saturate(140%);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   cursor: pointer;
+  /* Prevent long-press text selection / callout while scrubbing the strip */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
   transition: color 0.2s ease, background 0.2s ease, transform 0.15s ease;
 }
 
+/* Icons are baked at 20px in icons.js; scale them up with the larger hit target
+   so the glyph fills the button instead of floating as a tiny mark. */
+#controls button svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+  pointer-events: none;
+}
+
 #controls button:active {
-  transform: scale(0.92);
+  transform: scale(0.94);
 }
 
 #spin.on {
@@ -443,7 +476,8 @@ body { user-select: none; -webkit-user-select: none; }
   position: fixed;
   left: var(--pad);
   right: var(--pad);
-  bottom: max(72px, calc(env(safe-area-inset-bottom) + 64px));
+  /* Clear the taller 52px control strip + gap */
+  bottom: max(84px, calc(env(safe-area-inset-bottom) + 76px));
   display: flex;
   justify-content: center;
   pointer-events: none;
