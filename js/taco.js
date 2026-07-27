@@ -288,12 +288,15 @@ export class TacoSystem {
       this.unload = new THREE.Vector3(ud.unloadX, 0.02, ud.unloadZ).applyMatrix4(m);
       this.park = new THREE.Vector3(ud.parkX, 0.02, ud.parkZ).applyMatrix4(m);
       this.faceY = venue.rotation.y + (ud.faceY || 0);
+      // Park parallel to 7th so the SUV sits beside the tent, not through it
+      this.parkFaceY = venue.rotation.y + (ud.parkFaceY ?? 0);
     } else {
       // Fallback near NW if metadata missing
       this.spot = new THREE.Vector3(-7.5, 0, 6.2);
-      this.unload = this.spot.clone().add(new THREE.Vector3(0, 0.02, 1.2));
-      this.park = this.spot.clone().add(new THREE.Vector3(2.2, 0.02, 0.4));
-      this.faceY = 0;
+      this.unload = this.spot.clone().add(new THREE.Vector3(1.8, 0.02, 0.8));
+      this.park = this.spot.clone().add(new THREE.Vector3(2.4, 0.02, 0.3));
+      this.faceY = Math.PI / 2;
+      this.parkFaceY = 0;
     }
 
     // Stand kit (hidden until built)
@@ -311,23 +314,25 @@ export class TacoSystem {
     this.flattop.position.set(-0.15, 0, 0.15);
     this.stand.add(this.flattop);
 
-    // Layout is local: +Z = serving face (world +X / toward the lot & sign
-    // when faceY is π/2). Stay compact so the tent sits on the north strip.
+    // Layout is local: +Z = serving face (world +X / toward lot & sign).
+    // Keep props under/near the tent footprint (half ≈ 1.15) so nothing
+    // reaches the sign pole or the SUV parking slot.
     this.table = buildServingTable();
-    this.table.position.set(0.1, 0, 0.75);
+    this.table.position.set(0.05, 0, 0.55);
     this.stand.add(this.table);
 
     this.cooler = buildCooler();
-    this.cooler.position.set(-0.8, 0, 0.45);
+    this.cooler.position.set(-0.75, 0, 0.25);
     this.stand.add(this.cooler);
 
     this.aframe = buildAFrame();
-    this.aframe.position.set(0.85, 0, 1.25);
+    this.aframe.position.set(0.55, 0, 1.2);
     this.stand.add(this.aframe);
 
     this.picnic = [buildPicnicTable(), buildPicnicTable()];
-    this.picnic[0].position.set(-0.35, 0, 1.95);
-    this.picnic[1].position.set(0.95, 0, 1.95);
+    // One table in front of the tent, one slightly aside — both clear of the SUV bay
+    this.picnic[0].position.set(-0.15, 0, 1.55);
+    this.picnic[1].position.set(0.85, 0, 1.55);
     this.stand.add(this.picnic[0], this.picnic[1]);
 
     // Build pieces animate in order
@@ -650,6 +655,7 @@ export class TacoSystem {
         this.pathI = r.pathI;
         tickCarLights(this.suv, this.clock, { engineOn: true });
         if (!r.done) break;
+        // Rear toward the tent for unload
         this.suv.rotation.y = this.faceY + Math.PI;
         setCarLightsOff(this.suv);
         this.t = 0;
@@ -691,14 +697,13 @@ export class TacoSystem {
         if (this.buildI < this.buildPieces.length) break;
         if (this.buildPieces.some((p) => p.scale.x < 0.99)) break;
 
-        // Park SUV beside the stand
+        // Park SUV in its bay (between tent and sign), facing the street
         this.path = this._clean([
           this.suv.position.clone(),
           this.park.clone(),
         ]);
         this.pathI = 0;
         this.state = ST.OPEN;
-        // Drive the short hop to park, then stay
         this._parking = true;
         this._refreshEatSlots();
         if (this.life) this.life.tacoOpen = true;
@@ -713,12 +718,12 @@ export class TacoSystem {
             this.pathI,
             LOT,
             t,
-            this.faceY
+            this.parkFaceY
           );
           this.pathI = r.pathI;
           tickCarLights(this.suv, this.clock, { engineOn: true });
           if (!r.done) break;
-          this.suv.rotation.y = this.faceY;
+          this.suv.rotation.y = this.parkFaceY;
           setCarLightsOff(this.suv);
           this._parking = false;
         }

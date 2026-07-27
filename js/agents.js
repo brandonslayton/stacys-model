@@ -418,34 +418,33 @@ export function createCar(colorOrOpts = 0xe85d5d) {
     g.add(trunk);
   }
 
-  // Greenhouse
-  const cabin = box(s.w * 0.86, s.ch, s.cl, 0x121c24, GLASS);
-  cabin.position.set(0, bodyY + s.bh * 0.5 + s.ch * 0.45, s.cz);
+  // Greenhouse — glass sits under the roof with a clear gap so the top doesn't
+  // z-fight (white SUVs especially showed a glitchy roof sparkle).
+  const cabinY = bodyY + s.bh * 0.5 + s.ch * 0.42;
+  const cabin = box(s.w * 0.86, s.ch * 0.92, s.cl, 0x121c24, GLASS);
+  cabin.position.set(0, cabinY, s.cz);
   g.add(cabin);
 
   // Windshield — sloped, faces +Z
-  const wind = box(s.w * 0.82, s.ch * 0.85, 0.32, 0x101820, GLASS);
-  wind.position.set(
-    0,
-    bodyY + s.bh * 0.5 + s.ch * 0.4,
-    s.cz + s.cl * 0.5 - 0.05
-  );
+  const wind = box(s.w * 0.82, s.ch * 0.78, 0.32, 0x101820, GLASS);
+  wind.position.set(0, cabinY, s.cz + s.cl * 0.5 - 0.05);
   wind.rotation.x = style === "coupe" ? -0.32 : -0.22;
   g.add(wind);
 
   // Rear glass
-  const rearG = box(s.w * 0.8, s.ch * 0.75, style === "hatch" ? 0.36 : 0.28, 0x101820, GLASS);
+  const rearG = box(s.w * 0.8, s.ch * 0.7, style === "hatch" ? 0.36 : 0.28, 0x101820, GLASS);
   rearG.position.set(
     0,
-    bodyY + s.bh * 0.5 + s.ch * 0.38,
+    cabinY - 0.02,
     s.cz - s.cl * 0.5 + (style === "hatch" ? -0.05 : 0.05)
   );
   rearG.rotation.x = style === "hatch" ? 0.28 : 0.16;
   g.add(rearG);
 
-  // Roof skin
-  const roof = box(s.w * 0.8, 0.04, s.cl * 0.85, color, paint);
-  roof.position.set(0, bodyY + s.bh * 0.5 + s.ch * 0.9, s.cz - (style === "coupe" ? 0.06 : 0));
+  // Roof skin — sits fully above the glass cabin
+  const roofY = bodyY + s.bh * 0.5 + s.ch + 0.03;
+  const roof = box(s.w * 0.8, 0.05, s.cl * 0.85, color, paint);
+  roof.position.set(0, roofY, s.cz - (style === "coupe" ? 0.06 : 0));
   g.add(roof);
 
   // Door creases (4-door on sedan/suv/hatch/compact; 2-door coupe)
