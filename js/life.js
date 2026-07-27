@@ -52,12 +52,8 @@ const MAX_CAR_TRIPS = 7;
 /** Soft occupancy ceiling. Far above the game's 5 — see note 1 above. */
 const MAX_INSIDE = 70;
 const SPAWN_CHECK_S = 0.3;
-/** At most one liquor delivery at a time. */
+/** At most one liquor delivery at a time (button-triggered). */
 const MAX_DELIVERIES = 1;
-/** Seconds between delivery spawn rolls. */
-const DELIVERY_CHECK_S = 12;
-/** Base chance per check that a delivery rolls (before busyness). */
-const DELIVERY_CHANCE = 0.14;
 /** Seconds between garbage-truck spawn rolls. */
 const GARBAGE_CHECK_S = 18;
 /** Base chance per check the truck comes for Leslie. */
@@ -225,9 +221,6 @@ export class LifeSystem {
     this.target = 0;
     this.now = 0;
     this._spawnAcc = 0;
-    this._deliveryAcc = 0;
-    /** Next sim-time a delivery is allowed to spawn (cooldown after one leaves). */
-    this._deliveryReadyAt = 8;
     this._garbageAcc = 0;
     this._garbageReadyAt = 22;
 
@@ -599,19 +592,23 @@ export class LifeSystem {
     this.leslie.scale.set(1, 1, 1);
   }
 
+  /** True while a liquor truck is on a drop run. */
+  get liquorBusy() {
+    return this.deliveries.length > 0;
+  }
+
   /**
-   * Liquor drop: box truck pulls into the aisle; semi stops on 7th at the curb.
-   * Driver walks a crate to the porch, dwells, walks back, leaves.
-   * ~70% box truck / ~30% semi when both kinds are free.
+   * Button: start a liquor drop. Box truck (~70%) pulls into the aisle; semi
+   * (~30%) curb-stops on 7th. Driver walks crate(s) to the porch and leaves.
+   * @returns {boolean} false if one is already running or fleet is unavailable
    */
-  _trySpawnDelivery() {
-    if (this.lotHold) return;
-    if (this.deliveries.length >= MAX_DELIVERIES) return;
-    if (this.now < this._deliveryReadyAt) return;
-    if (!this.mouth || !this.aisle) return;
+  startLiquorDelivery() {
+    if (this.lotHold) return false;
+    if (this.deliveries.length >= MAX_DELIVERIES) return false;
+    if (!this.mouth || !this.aisle) return false;
 
     const free = this.deliveryPool.filter((d) => !d.busy);
-    if (!free.length) return;
+    if (!free.length) return false;
 
     const boxes = free.filter((d) => d.kind === "boxTruck");
     const semis = free.filter((d) => d.kind === "semi");
@@ -623,7 +620,7 @@ export class LifeSystem {
     } else {
       unit = free[(Math.random() * free.length) | 0];
     }
-    if (!unit) return;
+    if (!unit) return false;
 
     const isSemi = unit.kind === "semi";
     const spawnX = this.mouth.x + 12 + Math.random() * 5;
@@ -660,7 +657,7 @@ export class LifeSystem {
         this.aisle.z - this.mouth.z
       );
     }
-    if (!path || path.length < 2) return;
+    if (!path || path.length < 2) return false;
 
     unit.busy = true;
     unit.mesh.visible = true;
@@ -696,6 +693,33 @@ export class LifeSystem {
       dwellLeft: 0,
       tripsLeft: 1 + ((Math.random() * 2) | 0), // 1–2 crate runs
     });
+    return true;
+  }
+
+  /** World-ish focus point for the camera during a liquor drop. */
+  liquorFocusTarget() {
+    const del = this.deliveries[0];
+    if (!del) {
+      return this.streetDoor
+        ? { az: 48, el: 22, zoom: 0.48, target: [this.streetDoor.x, 0.5, this.streetDoor.z + 1.2] }
+        : null;
+    }
+    if (del.isSemi && del.stopPos) {
+      return {
+        az: 42,
+        el: 20,
+        zoom: 0.42,
+        target: [del.stopPos.x, 0.7, del.stopPos.z],
+      };
+    }
+    // Box truck in the aisle
+    const p = del.unit?.mesh?.position || del.stopPos || this.aisle;
+    return {
+      az: 55,
+      el: 24,
+      zoom: 0.46,
+      target: [p.x + 0.4, 0.55, p.z],
+    };
   }
 
   _trySpawnCar() {
@@ -1018,15 +1042,6 @@ export class LifeSystem {
       if (b > 1.0 && Math.random() < 0.4) this._trySpawnWalker();
     }
 
-    this._deliveryAcc += t;
-    if (this._deliveryAcc >= DELIVERY_CHECK_S) {
-      this._deliveryAcc = 0;
-      // Liquor drops show up even on quieter nights — bars always need stock
-      if (Math.random() < DELIVERY_CHANCE + this.busyness * 0.06) {
-        this._trySpawnDelivery();
-      }
-    }
-
     this._garbageAcc += t;
     if (this._garbageAcc >= GARBAGE_CHECK_S) {
       this._garbageAcc = 0;
@@ -1080,8 +1095,6 @@ export class LifeSystem {
       if (del.state === "done") {
         this._finishDelivery(del);
         this.deliveries.splice(i, 1);
-        // Cooldown so the next drop is spaced out
-        this._deliveryReadyAt = this.now + 45 + Math.random() * 50;
       } else if (del.unit?.mesh?.visible) {
         tickCarLights(del.unit.mesh, this.now);
       }

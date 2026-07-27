@@ -375,10 +375,15 @@ body { user-select: none; -webkit-user-select: none; }
 
 #ride:disabled,
 #sick:disabled,
+#liquor:disabled,
 #ufo:disabled,
 #bird:disabled {
   opacity: 0.42;
   cursor: default;
+}
+
+#liquor.done {
+  color: #6b2d8b;
 }
 
 #ufo.done {

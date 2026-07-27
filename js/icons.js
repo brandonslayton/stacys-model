@@ -113,6 +113,16 @@ export const UFO_ICON = svg(
   20
 );
 
+/**
+ * Liquor delivery: bottle silhouette for the stock drop button.
+ */
+export const LIQUOR_ICON = svg(
+  `<path d="M10 3.2h4v2.2c0 .6.2 1.1.6 1.5l1.2 1.2c.7.7 1.1 1.6 1.1 2.6V19a1.8 1.8 0 0 1-1.8 1.8H8.9A1.8 1.8 0 0 1 7.1 19v-8.3c0-1 .4-1.9 1.1-2.6l1.2-1.2c.4-.4.6-.9.6-1.5V3.2z"/>` +
+    `<path d="M9.2 12.5h5.6"/>` +
+    `<path d="M9.2 15.2h5.6"/>`,
+  20
+);
+
 /** Pigeon / bird for the flyby button. */
 export const BIRD_ICON = svg(
   `<path d="M4 14c2-1 3.5-4 5-4 1 0 1.5.8 2.2 1.2"/>` +

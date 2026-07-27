@@ -17,6 +17,7 @@ import {
   TRASH_ICON,
   MIST_ICON,
   SICK_ICON,
+  LIQUOR_ICON,
   RIDESHARE_ICON,
   CREATIVE_ICON,
   UFO_ICON,
@@ -593,6 +594,31 @@ function wireSickButton(incident) {
 }
 
 /**
+ * Liquor delivery: one-shot stock drop (box truck or semi). Camera swings to the
+ * aisle / curb so the handoff is readable; button locks until the truck leaves.
+ */
+function wireLiquorButton(life) {
+  const btn = $("liquor");
+  btn.innerHTML = LIQUOR_ICON;
+  btn.onclick = () => {
+    if (!life.startLiquorDelivery()) return;
+    const view = life.liquorFocusTarget();
+    if (view) beginFocus(view);
+    btn.disabled = true;
+    const release = () => {
+      if (life.liquorBusy) {
+        requestAnimationFrame(release);
+        return;
+      }
+      btn.disabled = false;
+      btn.classList.add("done");
+      setTimeout(() => btn.classList.remove("done"), 900);
+    };
+    requestAnimationFrame(release);
+  };
+}
+
+/**
  * Misters toggle. Switching them ON swings the camera round to the patio, since it
  * faces away by default and the effect would otherwise be invisible. Switching OFF
  * leaves the camera alone — yanking the view on a "stop doing that" is not what
@@ -945,6 +971,7 @@ async function boot() {
   wireTrashButton(chores);
   wireMistButton(mist);
   wireSickButton(incident);
+  wireLiquorButton(life);
   wireRideButton(rideshare);
   wireUfoButton(ufo);
   wireBirdButton(bird);
@@ -1050,7 +1077,12 @@ async function boot() {
 
     stepFocus(
       dt,
-      chores.busy || incident.busy || rideshare.busy || ufo.busy || bird.busy
+      chores.busy ||
+        incident.busy ||
+        rideshare.busy ||
+        ufo.busy ||
+        bird.busy ||
+        life.liquorBusy
     );
 
     // Auto-rotate, resuming a few seconds after the last touch. Held off during a
