@@ -197,78 +197,74 @@ export function createWaymo() {
   skirt.position.y = 0.14;
   g.add(skirt);
 
-  // Ground FX sit ABOVE the asphalt/pad (~padTop 0.09) so they aren't buried
-  // under the lot mesh. depthTest off so the glow never loses a z-fight.
-  const GLOW_Y = 0.13;
+  // Ground FX above asphalt. depthTest ON so the glow is hidden behind the
+  // building when the Gaymo is on the far side of the lot.
+  const GLOW_Y = 0.12;
   const shadow = new THREE.Mesh(
-    new THREE.CircleGeometry(0.78, 24),
+    new THREE.CircleGeometry(0.72, 24),
     new THREE.MeshBasicMaterial({
       color: 0x000000,
       transparent: true,
-      opacity: 0.28,
+      opacity: 0.26,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true,
     })
   );
   shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = GLOW_Y - 0.02;
-  shadow.renderOrder = 2;
+  shadow.position.y = GLOW_Y - 0.015;
   shadow.name = "hoverShadow";
   g.add(shadow);
 
-  // Rainbow underglow — multi-layer, soft/diffused, additive, above the lot
   const rainbowMap = _rainbowGlowTexture();
   const rainbow = new THREE.Mesh(
-    new THREE.CircleGeometry(1.05, 64),
+    new THREE.CircleGeometry(0.95, 48),
     new THREE.MeshBasicMaterial({
       map: rainbowMap,
       transparent: true,
-      opacity: 0.38,
+      opacity: 0.32,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     })
   );
   rainbow.rotation.x = -Math.PI / 2;
   rainbow.position.y = GLOW_Y;
-  rainbow.renderOrder = 3;
   rainbow.name = "rainbowGlow";
   g.add(rainbow);
 
   const halo = new THREE.Mesh(
-    new THREE.CircleGeometry(1.55, 64),
+    new THREE.CircleGeometry(1.35, 48),
     new THREE.MeshBasicMaterial({
       map: rainbowMap,
       transparent: true,
-      opacity: 0.18,
+      opacity: 0.12,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     })
   );
   halo.rotation.x = -Math.PI / 2;
-  halo.position.y = GLOW_Y - 0.01;
-  halo.renderOrder = 3;
+  halo.position.y = GLOW_Y - 0.008;
   halo.name = "rainbowHalo";
   g.add(halo);
 
+  // Small bloom only — large bloom was reading through walls
   const bloom = new THREE.Mesh(
-    new THREE.CircleGeometry(2.1, 48),
+    new THREE.CircleGeometry(1.65, 40),
     new THREE.MeshBasicMaterial({
       map: rainbowMap,
       transparent: true,
-      opacity: 0.08,
+      opacity: 0.05,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     })
   );
   bloom.rotation.x = -Math.PI / 2;
-  bloom.position.y = GLOW_Y - 0.015;
-  bloom.renderOrder = 3;
+  bloom.position.y = GLOW_Y - 0.012;
   bloom.name = "rainbowBloom";
   g.add(bloom);
 
@@ -926,39 +922,19 @@ export class RideshareSystem {
   }
 
   /**
-   * Out: up the aisle on the *street-side* of the dumpster (never through it),
-   * fully past on the north (−X), THEN left onto 7th Ave, northbound to the
-   * end of the road stub and despawn.
+   * Out via the driveway mouth onto 7th (same as life.js cars) — never routes
+   * through the dumpster corner. Northbound on the near lane to the road end.
    */
   _leavePath() {
-    if (this.inLot && this.aisle && this.dump) {
-      const d = this.dump;
-      // Dumpster body ~1.2×0.8 after rotation — clearZ is on the street side of it
-      // so the path never crosses the bin. pastX is a full car past its north face.
-      const clearZ = d.pos.z + 1.85;
-      const pastX = d.pos.x - 3.4;
-      return this._clean([
-        this.carStop.clone(),
-        // Stay on the aisle, move toward the rear but stop street-side of the dumpster
-        new THREE.Vector3(this.aisle.x, 0.02, clearZ + 1.5),
-        new THREE.Vector3(this.aisle.x, 0.02, clearZ),
-        // Parallel to the dumpster on its street-facing side — go fully past it
-        new THREE.Vector3(d.pos.x + 1.4, 0.02, clearZ),
-        new THREE.Vector3(pastX, 0.02, clearZ),
-        // Only now turn left onto 7th (curb → near lane)
-        new THREE.Vector3(pastX, 0.02, STREET.curbZ),
-        lanePoint(pastX, -1),
-        // Northbound on 7th Ave to the end of the stub, then despawn
-        ...roadPolyline(pastX, STREET.xMin + 0.8, -1),
-      ]);
-    }
     if (this.inLot && this.aisle && this.mouth) {
-      // No dumpster — back out the driveway the way life.js cars leave
       return this._clean([
         this.carStop.clone(),
-        this.aisle.clone(),
+        // Back toward the street end of the aisle (away from the dumpster NE corner)
+        new THREE.Vector3(this.aisle.x, 0.02, (this.carStop.z + this.mouth.z) * 0.5),
         this.mouth.clone(),
         new THREE.Vector3(this.mouth.x, 0.02, STREET.curbZ),
+        lanePoint(this.mouth.x, -1),
+        // Northbound on 7th to the end of the stub, despawn
         ...roadPolyline(this.mouth.x, STREET.xMin + 0.8, -1),
       ]);
     }
@@ -1153,15 +1129,16 @@ export class RideshareSystem {
   _tickCar(job, t) {
     if (!job.carPath || !this.waymo.visible) return true;
     this._setIdleHover(false);
+    // Front-only soft slow (same rule as life.js cars)
+    const scale = this.life?.frontSpeedScale?.(this.waymo) ?? 1;
     const r = this._advance(
       this.waymo,
       job.carPath,
       job.carI,
-      this._carSpeed(job),
+      this._carSpeed(job) * scale,
       t
     );
     job.carI = r.pathI;
-    // Soft centre nudge only — no braking queues
     this.life?.separateVehicles?.();
     return r.done;
   }

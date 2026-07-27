@@ -174,16 +174,35 @@ export class IncidentSystem {
 
   _buildPerson(shirt, trouser) {
     const g = new THREE.Group();
-    const body = cyl(0.13, 0.16, 0.56, shirt, {}, 5);
-    body.position.y = 0.55;
-    g.add(body);
+    // Legs stay planted — only the torso folds for the heave, so the mouth
+    // actually moves toward the ground in front of them instead of the whole
+    // figure rotating around the shoes.
     const legs = box(0.22, 0.3, 0.18, trouser);
     legs.position.y = 0.16;
     g.add(legs);
+
+    const torso = new THREE.Group();
+    torso.name = "torso";
+    torso.position.y = 0.32; // hip pivot
+    g.add(torso);
+
+    const body = cyl(0.13, 0.16, 0.56, shirt, {}, 5);
+    body.position.y = 0.28; // mid-torso relative to hips
+    torso.add(body);
+
     const head = cyl(0.12, 0.12, 0.22, 0xe8c4a8, {}, 5);
-    head.position.y = 0.95;
+    head.position.y = 0.68;
     head.name = "head";
-    g.add(head);
+    torso.add(head);
+
+    // Mouth marker on the face (local to torso: front of head, slightly low)
+    const mouth = new THREE.Object3D();
+    mouth.name = "mouth";
+    mouth.position.set(0, 0.62, 0.16);
+    torso.add(mouth);
+
+    g.userData.torso = torso;
+    g.userData.mouth = mouth;
     return g;
   }
 
@@ -220,11 +239,15 @@ export class IncidentSystem {
   _buildSpray() {
     const COUNT = 90;
     const pos = new Float32Array(COUNT * 3);
+    // Park inactive particles under the map so they never draw at the origin
+    for (let i = 0; i < COUNT; i++) {
+      pos[i * 3 + 1] = -50;
+    }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
     const mat = new THREE.PointsMaterial({
       color: 0x9ff03a,
-      size: 0.11,
+      size: 0.09,
       sizeAttenuation: true,
       transparent: true,
       opacity: 0.95,
@@ -240,7 +263,7 @@ export class IncidentSystem {
       count: COUNT,
       vel: new Float32Array(COUNT * 3),
       age: new Float32Array(COUNT).fill(Infinity),
-      life: 0.85,
+      life: 0.95,
     };
   }
 
@@ -277,22 +300,31 @@ export class IncidentSystem {
   }
 
   /**
-   * World-space mouth: head is a child of the patron group, which pitches forward
-   * on rotation.x when they hunch — a fixed y 0.72 looked like it came from the
-   * shoes because the mesh rotates around the feet.
+   * World-space mouth from the torso's mouth marker (folds with the heave).
    */
   _mouthWorld(out = new THREE.Vector3()) {
-    this.patron.updateWorldMatrix(true, false);
-    // Local mouth: a bit below head centre (head sits at y 0.95), forward of face
-    out.set(0, 0.88, 0.2);
-    out.applyMatrix4(this.patron.matrixWorld);
+    this.patron.updateWorldMatrix(true, true);
+    const mouth = this.patron.userData.mouth || this.patron.getObjectByName("mouth");
+    if (mouth) {
+      mouth.getWorldPosition(out);
+    } else {
+      out.set(
+        this.patron.position.x,
+        this.patron.position.y + 0.9,
+        this.patron.position.z
+      );
+    }
     return out;
   }
 
-  /** Forward (+ local Z) with a slight downward bias, in world space. */
+  /**
+   * Spray direction: horizontal facing of the person + a mild downward bias.
+   * Using pure torso-local +Z when hunched points almost into the ground
+   * (looked like a shoe fountain).
+   */
   _pukeDir(out = new THREE.Vector3()) {
-    out.set(0, -0.35, 1);
-    out.applyQuaternion(this.patron.quaternion);
+    const yaw = this.patron.rotation.y;
+    out.set(Math.sin(yaw), -0.28, Math.cos(yaw));
     out.normalize();
     return out;
   }
@@ -300,18 +332,17 @@ export class IncidentSystem {
   _emitSpray(from, dir) {
     const s = this.spray;
     let launched = 0;
-    for (let i = 0; i < s.count && launched < 16; i++) {
+    for (let i = 0; i < s.count && launched < 18; i++) {
       if (s.age[i] < s.life) continue;
       const j = i * 3;
-      // Small jitter at the mouth so the retch isn't a single ray
-      s.geo.attributes.position.array[j] = from.x + (Math.random() - 0.5) * 0.06;
-      s.geo.attributes.position.array[j + 1] = from.y + (Math.random() - 0.5) * 0.04;
-      s.geo.attributes.position.array[j + 2] = from.z + (Math.random() - 0.5) * 0.06;
-      const speed = 1.4 + Math.random() * 1.1;
-      s.vel[j] = dir.x * speed + (Math.random() - 0.5) * 0.35;
-      // Mostly forward/down — not blasting straight up from the ground
-      s.vel[j + 1] = dir.y * speed + 0.15 + Math.random() * 0.35;
-      s.vel[j + 2] = dir.z * speed + (Math.random() - 0.5) * 0.35;
+      s.geo.attributes.position.array[j] = from.x + (Math.random() - 0.5) * 0.04;
+      s.geo.attributes.position.array[j + 1] = from.y + (Math.random() - 0.5) * 0.03;
+      s.geo.attributes.position.array[j + 2] = from.z + (Math.random() - 0.5) * 0.04;
+      // Strong forward burst out of the mouth, mild arc, then gravity
+      const speed = 2.6 + Math.random() * 1.2;
+      s.vel[j] = dir.x * speed + (Math.random() - 0.5) * 0.4;
+      s.vel[j + 1] = 0.85 + Math.random() * 0.7; // initial loft so stream arcs
+      s.vel[j + 2] = dir.z * speed + (Math.random() - 0.5) * 0.4;
       s.age[i] = 0;
       launched++;
     }
@@ -323,24 +354,37 @@ export class IncidentSystem {
     let any = false;
     const arr = s.geo.attributes.position.array;
     for (let i = 0; i < s.count; i++) {
-      if (s.age[i] >= s.life) continue;
+      if (s.age[i] >= s.life) {
+        // Hide spent particles
+        if (arr[i * 3 + 1] > -10) arr[i * 3 + 1] = -50;
+        continue;
+      }
       any = true;
       s.age[i] += dt;
       const j = i * 3;
-      s.vel[j + 1] -= 4.2 * dt; // gravity, so it arcs
+      s.vel[j + 1] -= 5.5 * dt;
       arr[j] += s.vel[j] * dt;
       arr[j + 1] += s.vel[j + 1] * dt;
       arr[j + 2] += s.vel[j + 2] * dt;
-      if (arr[j + 1] < this.groundY + 0.02) {
-        arr[j + 1] = this.groundY + 0.02;
-        s.vel[j] *= 0.4;
-        s.vel[j + 2] *= 0.4;
+      if (arr[j + 1] < this.groundY + 0.025) {
+        // Settle into the puddle area ahead of the feet, not under them
+        arr[j + 1] = this.groundY + 0.025;
+        s.vel[j] *= 0.25;
+        s.vel[j + 2] *= 0.25;
         s.vel[j + 1] = 0;
+        // Expire quickly once puddled so the shoe-pile doesn't build up
+        if (s.age[i] < s.life - 0.15) s.age[i] = s.life - 0.12;
       }
     }
     s.geo.attributes.position.needsUpdate = true;
-    s.mat.opacity = 0.95;
     s.points.visible = any;
+  }
+
+  _setHunch(amount) {
+    // amount 0..~0.85 — fold torso only
+    const torso = this.patron.userData.torso;
+    if (torso) torso.rotation.x = amount;
+    else this.patron.rotation.x = amount;
   }
 
   /** Hearts and rainbows over whoever happens to be standing about. */
@@ -409,10 +453,10 @@ export class IncidentSystem {
       }
       case ST.HUNCH: {
         job.wait -= t;
-        // Fold forward
+        // Fold torso forward (hips planted)
         const k = 1 - Math.max(0, job.wait) / 0.7;
-        this.patron.rotation.x = k * 0.75;
-        this.patron.position.y = this.groundY - k * 0.035;
+        this._setHunch(k * 0.95);
+        this.patron.position.y = this.groundY;
         if (job.wait > 0) break;
         job.state = ST.PUKE;
         job.wait = 1.5;
@@ -421,15 +465,27 @@ export class IncidentSystem {
       }
       case ST.PUKE: {
         job.wait -= t;
-        this.patron.rotation.x = 0.75 + Math.sin(job.t * 22) * 0.09; // heaving
+        // Heaving torso — mouth marker rides along
+        this._setHunch(0.95 + Math.sin(job.t * 22) * 0.1);
+        this.patron.position.y = this.groundY;
         // Three retches rather than one continuous stream
         const beat = Math.floor((1.5 - job.wait) / 0.42);
         if (beat > job.sprayed && beat <= 3) {
           job.sprayed = beat;
-          // Mouth tracks the hunched head in world space (not a fixed height)
           this._emitSpray(this._mouthWorld(), this._pukeDir());
         }
         this.puddle.visible = true;
+        // Puddle slightly in front of feet (where the stream lands)
+        const yaw = this.patron.rotation.y;
+        this.puddle.position.set(
+          this.patron.position.x + Math.sin(yaw) * 0.55,
+          this.groundY,
+          this.patron.position.z + Math.cos(yaw) * 0.55
+        );
+        this.spot = {
+          x: this.puddle.position.x,
+          z: this.puddle.position.z,
+        };
         this.puddle.scale.setScalar(
           Math.min(1, 0.15 + (1.5 - Math.max(0, job.wait)) / 1.1)
         );
@@ -441,10 +497,10 @@ export class IncidentSystem {
       case ST.RECOVER: {
         job.wait -= t;
         const k = Math.max(0, job.wait) / 0.9;
-        this.patron.rotation.x = k * 0.75;
-        this.patron.position.y = this.groundY - k * 0.035;
+        this._setHunch(k * 0.95);
+        this.patron.position.y = this.groundY;
         if (job.wait > 0) break;
-        this.patron.rotation.x = 0;
+        this._setHunch(0);
         this.patron.position.y = this.groundY;
         job.state = ST.LEAVE;
         break;

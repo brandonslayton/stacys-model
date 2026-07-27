@@ -38,11 +38,16 @@ const SPAWN_CHECK_S = 0.3;
 /** Pedestrian personal space — close is fine, overlapping is not. */
 const PED_MIN = 0.48;
 /**
- * Car centres closer than this get a soft nudge. Body length is ~2.0, so ~1.8
- * allows ~10% mesh overlap (fine) but stops full through-the-middle stacking.
- * No braking / following distance — that jammed the street.
+ * Front-to-back only. Car length ~2.0: if another car's centre is within this
+ * distance ahead in the facing cone, the follower soft-slows (never full stop).
  */
-const CAR_MIN = 1.8;
+const CAR_AHEAD = 2.4;
+/** How wide the "in front of me" cone is (half-width, metres). */
+const CAR_LANE = 0.85;
+/** Absolute floor on speed scale so queues never freeze. */
+const CAR_MIN_SCALE = 0.4;
+/** Only depenetrate true centre-stacks (rare). */
+const CAR_STACK = 1.35;
 
 /** Car states. */
 const CS = {
@@ -173,9 +178,24 @@ export class LifeSystem {
     this.arrivalLog = [];
     /**
      * Optional () => THREE.Object3D[] of foreign vehicles (e.g. Gaymo) included
-     * in the simple centre-separation pass.
+     * in front-cone avoidance.
      */
     this.getExtraVehicles = null;
+
+    // Dumpster as a solid obstacle (world-space AABB) — nothing drives through it
+    const dump = venue.userData.dumpster;
+    if (dump) {
+      const p = new THREE.Vector3(dump.x, 0, dump.z).applyMatrix4(m);
+      // Body ~1.2×0.8 after Ry(π/2); pad the box so cars stay clear
+      this.dumpsterBox = {
+        minX: p.x - 1.15,
+        maxX: p.x + 1.15,
+        minZ: p.z - 0.95,
+        maxZ: p.z + 0.95,
+      };
+    } else {
+      this.dumpsterBox = null;
+    }
   }
 
   /**
@@ -521,13 +541,15 @@ export class LifeSystem {
   }
 
   /**
-   * All visible busy cars + optional extras (Gaymo). Used only for a soft
-   * centre nudge — no braking.
+   * Moving cars only (+ optional Gaymo). Parked stall cars are skipped so they
+   * don't "stop" traffic that is merely nearby.
    */
-  vehicleMeshes(exclude = null) {
+  movingVehicleMeshes(exclude = null) {
     const out = [];
-    for (const c of this.carPool) {
-      if (c.busy && c.mesh.visible && c.mesh !== exclude) out.push(c.mesh);
+    for (const t of this.carTrips) {
+      if (t.state !== CS.DRIVE_IN && t.state !== CS.DRIVE_OUT) continue;
+      const m = t.car?.mesh;
+      if (m?.visible && m !== exclude) out.push(m);
     }
     if (this.getExtraVehicles) {
       for (const m of this.getExtraVehicles()) {
@@ -538,11 +560,36 @@ export class LifeSystem {
   }
 
   /**
-   * If two vehicle centres are nearly stacked (through the middle), push them
-   * apart. Light edge contact is allowed on purpose.
+   * Speed scale 0.4..1 based on what's *in front* of this car only.
+   * Side-by-side and rear cars are ignored — that's what was looking like
+   * mutual blocking.
+   */
+  frontSpeedScale(car) {
+    const others = this.movingVehicleMeshes(car);
+    const yaw = car.rotation.y;
+    const fx = Math.sin(yaw);
+    const fz = Math.cos(yaw);
+    let scale = 1;
+    for (const o of others) {
+      const dx = o.position.x - car.position.x;
+      const dz = o.position.z - car.position.z;
+      const along = dx * fx + dz * fz;
+      if (along < 0.5 || along > CAR_AHEAD) continue; // not ahead
+      const lat = Math.abs(dx * fz - dz * fx);
+      if (lat > CAR_LANE) continue; // different lane / side
+      // Soft slow: closer → slower, never freeze
+      const s = CAR_MIN_SCALE + (1 - CAR_MIN_SCALE) * (along / CAR_AHEAD);
+      if (s < scale) scale = s;
+    }
+    return scale;
+  }
+
+  /**
+   * If two centres are almost on top of each other, push the *rear* car back
+   * along its own reverse so front/back stay defined.
    */
   separateVehicles() {
-    const meshes = this.vehicleMeshes();
+    const meshes = this.movingVehicleMeshes();
     for (let i = 0; i < meshes.length; i++) {
       for (let j = i + 1; j < meshes.length; j++) {
         const a = meshes[i];
@@ -550,15 +597,43 @@ export class LifeSystem {
         const dx = a.position.x - b.position.x;
         const dz = a.position.z - b.position.z;
         const d = Math.hypot(dx, dz);
-        if (d < 1e-4 || d >= CAR_MIN) continue;
-        const push = (CAR_MIN - d) * 0.5;
-        const nx = dx / d;
-        const nz = dz / d;
-        a.position.x += nx * push;
-        a.position.z += nz * push;
-        b.position.x -= nx * push;
-        b.position.z -= nz * push;
+        if (d < 1e-4 || d >= CAR_STACK) continue;
+        // Who is behind? Project separation onto each facing.
+        const ay = a.rotation.y;
+        const by = b.rotation.y;
+        const aAlong = dx * Math.sin(ay) + dz * Math.cos(ay); // b relative to a
+        // If b is ahead of a (aAlong > 0), a is the rear car → push a back
+        if (aAlong > 0) {
+          a.position.x -= Math.sin(ay) * (CAR_STACK - d) * 0.6;
+          a.position.z -= Math.cos(ay) * (CAR_STACK - d) * 0.6;
+        } else {
+          b.position.x -= Math.sin(by) * (CAR_STACK - d) * 0.6;
+          b.position.z -= Math.cos(by) * (CAR_STACK - d) * 0.6;
+        }
       }
+    }
+    // Dumpster is solid — push any vehicle centre out of its box
+    this._resolveDumpster();
+  }
+
+  _resolveDumpster() {
+    const box = this.dumpsterBox;
+    if (!box) return;
+    const meshes = this.movingVehicleMeshes();
+    for (const m of meshes) {
+      const x = m.position.x;
+      const z = m.position.z;
+      if (x < box.minX || x > box.maxX || z < box.minZ || z > box.maxZ) continue;
+      // Push out via nearest edge
+      const dl = x - box.minX;
+      const dr = box.maxX - x;
+      const db = z - box.minZ;
+      const dt = box.maxZ - z;
+      const mEdge = Math.min(dl, dr, db, dt);
+      if (mEdge === dl) m.position.x = box.minX - 0.05;
+      else if (mEdge === dr) m.position.x = box.maxX + 0.05;
+      else if (mEdge === db) m.position.z = box.minZ - 0.05;
+      else m.position.z = box.maxZ + 0.05;
     }
   }
 
@@ -670,7 +745,7 @@ export class LifeSystem {
           car,
           trip.path,
           trip.pathI,
-          this._carSpeed(trip),
+          this._carSpeed(trip) * this.frontSpeedScale(car),
           dt,
           trip.spot.faceY
         );
@@ -766,7 +841,7 @@ export class LifeSystem {
           car,
           trip.path,
           trip.pathI,
-          this._carSpeed(trip),
+          this._carSpeed(trip) * this.frontSpeedScale(car),
           dt
         );
         trip.pathI = r.pathI;
