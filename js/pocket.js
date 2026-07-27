@@ -208,11 +208,11 @@ const PATIO_VIEW = { az: 268, el: 30, zoom: 0.86, target: [0, 0.9, -3.9] };
 const INCIDENT_VIEW = { az: 186, el: 30, zoom: 0.5, target: [-5.4, 0.6, 3.1] };
 
 /**
- * Parking aisle / lot entrance — where the Gaymo stops for pickup. Street-side
- * az would hide the aisle behind the building; this looks in from the north-west
- * so the driveway, loading zone and dumpster exit are all readable.
+ * Boarding-side view of the aisle stop. Guests enter from the building (+X) side
+ * of the Gaymo; az ~52 sits on that side of the lot so both passengers and the
+ * doors stay in frame (the old NW angle put the car between you and the board).
  */
-const RIDESHARE_VIEW = { az: 210, el: 28, zoom: 0.55, target: [-4.2, 0.5, 2.2] };
+const RIDESHARE_VIEW = { az: 52, el: 20, zoom: 0.46, target: [-3.4, 0.4, 4.0] };
 
 /** Eased-to view, or null when the user is in control. */
 let focusTarget = null;

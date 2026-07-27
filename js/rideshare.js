@@ -162,53 +162,88 @@ export function createWaymo() {
 
   // ── Hover thrusters (four soft pads under the belly — no wheels) ──
   const thrusters = [];
-  for (const [tx, tz] of [
-    [-0.32, 0.55],
-    [0.32, 0.55],
-    [-0.32, -0.55],
-    [0.32, -0.55],
-  ]) {
-    const pad = cyl(0.12, 0.14, 0.04, 0x22222a, { ...CHAR, roughness: 0.4 }, 12);
+  const thrusterHues = [0.0, 0.12, 0.33, 0.58]; // red / gold / green / blue
+  for (let ti = 0; ti < 4; ti++) {
+    const [tx, tz] = [
+      [-0.3, 0.52],
+      [0.3, 0.52],
+      [-0.3, -0.52],
+      [0.3, -0.52],
+    ][ti];
+    const pad = cyl(0.11, 0.13, 0.035, 0x1a1a22, { ...CHAR, roughness: 0.4 }, 12);
     pad.position.set(tx, 0.04, tz);
     g.add(pad);
-    const glow = cyl(0.1, 0.11, 0.02, 0xff88cc, {
-      roughness: 0.3,
-      emissive: 0xff66bb,
-      emissiveIntensity: 0.9,
+    const glow = cyl(0.09, 0.1, 0.02, 0xffffff, {
+      roughness: 0.25,
+      emissive: 0xffffff,
+      emissiveIntensity: 1.0,
       transparent: true,
       opacity: 0.95,
     }, 12);
-    glow.position.set(tx, 0.015, tz);
+    glow.position.set(tx, 0.012, tz);
+    glow.userData.hue = thrusterHues[ti];
     g.add(glow);
     thrusters.push(glow);
   }
 
+  // Thin cyan skirting line under the rocker — high-tech trim
+  const skirt = box(1.12, 0.025, 2.12, 0x3ec8ff, {
+    roughness: 0.25,
+    emissive: 0x3ec8ff,
+    emissiveIntensity: 0.55,
+  });
+  skirt.position.y = 0.14;
+  g.add(skirt);
+
   // Road shadow disc — makes the float gap legible against asphalt
   const shadow = new THREE.Mesh(
-    new THREE.CircleGeometry(0.85, 20),
+    new THREE.CircleGeometry(0.78, 24),
     new THREE.MeshBasicMaterial({
       color: 0x000000,
       transparent: true,
-      opacity: 0.32,
+      opacity: 0.3,
       depthWrite: false,
     })
   );
   shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = 0.025;
+  shadow.position.y = 0.022;
   shadow.name = "hoverShadow";
   g.add(shadow);
 
-  // Soft under-glow wash (pride-tinted, sits in world under the car)
-  const wash = cyl(0.55, 0.75, 0.02, 0xff66bb, {
-    roughness: 1,
-    emissive: 0xff55aa,
-    emissiveIntensity: 0.55,
-    transparent: true,
-    opacity: 0.45,
-  }, 16);
-  wash.position.y = 0.03;
-  wash.name = "hoverWash";
-  g.add(wash);
+  // Rainbow gradient underglow — additive, spins slowly for a futuristic read
+  const rainbowMap = _rainbowGlowTexture();
+  const rainbow = new THREE.Mesh(
+    new THREE.CircleGeometry(1.05, 48),
+    new THREE.MeshBasicMaterial({
+      map: rainbowMap,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    })
+  );
+  rainbow.rotation.x = -Math.PI / 2;
+  rainbow.position.y = 0.035;
+  rainbow.name = "rainbowGlow";
+  g.add(rainbow);
+
+  // Softer outer halo (same map, larger / dimmer)
+  const halo = new THREE.Mesh(
+    new THREE.CircleGeometry(1.45, 48),
+    new THREE.MeshBasicMaterial({
+      map: rainbowMap,
+      transparent: true,
+      opacity: 0.4,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    })
+  );
+  halo.rotation.x = -Math.PI / 2;
+  halo.position.y = 0.028;
+  halo.name = "rainbowHalo";
+  g.add(halo);
 
   // ── Roof "top hat" sensor suite (Waymo fifth-gen read) ─────────────
   const suite = new THREE.Group();
@@ -315,24 +350,24 @@ export function createWaymo() {
   mono.rotation.x = -Math.PI / 2;
   g.add(mono);
 
-  g.scale.setScalar(1.1);
+  // ~10% smaller than the previous 1.1 scale so it sits better next to life.js cars
+  g.scale.setScalar(0.99);
 
-  // Shadow + wash live on the group; hover bob only lifts the hull parts so the
-  // shadow stays glued to the road. Hull is everything except those two.
+  // Ground FX stay put; hull bobs above them
   const hull = new THREE.Group();
   hull.name = "hull";
-  // Reparent current children into hull, then re-add shadow/wash on g
-  const keep = new Set([shadow, wash]);
+  const keep = new Set([shadow, rainbow, halo]);
   const move = [...g.children].filter((c) => !keep.has(c));
   for (const c of move) hull.add(c);
   g.add(hull);
-  // Ensure shadow/wash render under the hull
   g.add(shadow);
-  g.add(wash);
+  g.add(rainbow);
+  g.add(halo);
 
   g.userData.hull = hull;
   g.userData.shadow = shadow;
-  g.userData.wash = wash;
+  g.userData.rainbow = rainbow;
+  g.userData.halo = halo;
   g.userData.thrusters = thrusters;
   g.userData.hoverY = HOVER_Y;
 
@@ -342,27 +377,31 @@ export function createWaymo() {
 
   g.userData.tickHover = (t) => {
     const bob = Math.sin(t * 2.6) * HOVER_BOB;
-    const bob2 = Math.sin(t * 1.7 + 1.1) * 0.012;
     hull.position.y = HOVER_Y + bob;
     // Tiny pitch/roll so it feels free-floating, not on rails
-    hull.rotation.x = Math.sin(t * 1.9) * 0.018;
-    hull.rotation.z = Math.sin(t * 2.3 + 0.4) * 0.014;
+    hull.rotation.x = Math.sin(t * 1.9) * 0.016;
+    hull.rotation.z = Math.sin(t * 2.3 + 0.4) * 0.012;
     // Shadow breathes with height
     const lift = (bob + HOVER_BOB) / (HOVER_BOB * 2);
-    shadow.scale.setScalar(0.92 + lift * 0.12);
-    shadow.material.opacity = 0.38 - lift * 0.1;
-    // Thrusters + wash pulse
-    const pulse = 0.65 + 0.35 * (0.5 + 0.5 * Math.sin(t * 5.5));
+    shadow.scale.setScalar(0.9 + lift * 0.14);
+    shadow.material.opacity = 0.34 - lift * 0.1;
+    // Spinning rainbow gradient under the belly
+    rainbow.rotation.z = t * 0.9;
+    halo.rotation.z = -t * 0.45;
+    const pulse = 0.7 + 0.3 * (0.5 + 0.5 * Math.sin(t * 5.2));
+    rainbow.material.opacity = 0.75 + pulse * 0.2;
+    halo.material.opacity = 0.28 + pulse * 0.18;
+    const breath = 0.96 + pulse * 0.08;
+    rainbow.scale.setScalar(breath);
+    halo.scale.setScalar(breath);
+    // Thrusters cycle through pride hues
     for (const thr of thrusters) {
-      thr.material.emissiveIntensity = pulse;
-      thr.scale.setScalar(0.92 + pulse * 0.12);
+      const h = (thr.userData.hue + t * 0.15) % 1;
+      thr.material.emissive.setHSL(h, 0.85, 0.55);
+      thr.material.color.setHSL(h, 0.7, 0.6);
+      thr.material.emissiveIntensity = 0.75 + pulse * 0.4;
+      thr.scale.setScalar(0.9 + pulse * 0.14);
     }
-    wash.material.emissiveIntensity = 0.4 + pulse * 0.35;
-    wash.material.opacity = 0.35 + pulse * 0.15;
-    // Cycle wash through a soft pride palette
-    const hue = (t * 0.12) % 1;
-    wash.material.emissive.setHSL(hue, 0.7, 0.55);
-    wash.material.color.setHSL(hue, 0.55, 0.5);
   };
 
   g.userData.pulseLed = (t) => {
@@ -372,6 +411,49 @@ export function createWaymo() {
   };
 
   return g;
+}
+
+/**
+ * Radial rainbow disc for the hover underglow. Angular bands fade to transparent
+ * at the edge so AdditiveBlending reads as a soft tech glow, not a hard sticker.
+ */
+function _rainbowGlowTexture() {
+  const S = 256;
+  const c = document.createElement("canvas");
+  c.width = c.height = S;
+  const ctx = c.getContext("2d");
+  const cx = S / 2;
+  const cy = S / 2;
+  const bands = [
+    "#ff2a6a",
+    "#ff8c2a",
+    "#ffd12a",
+    "#2aff7a",
+    "#2ac8ff",
+    "#8a4dff",
+  ];
+  const n = bands.length;
+  for (let i = 0; i < n; i++) {
+    const a0 = (i / n) * Math.PI * 2 - Math.PI / 2;
+    const a1 = ((i + 1) / n) * Math.PI * 2 - Math.PI / 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, S * 0.48, a0, a1);
+    ctx.closePath();
+    ctx.fillStyle = bands[i];
+    ctx.fill();
+  }
+  // Soft radial mask — hot core, transparent rim
+  ctx.globalCompositeOperation = "destination-in";
+  const mask = ctx.createRadialGradient(cx, cy, 0, cx, cy, S * 0.5);
+  mask.addColorStop(0, "rgba(255,255,255,1)");
+  mask.addColorStop(0.4, "rgba(255,255,255,0.9)");
+  mask.addColorStop(0.72, "rgba(255,255,255,0.4)");
+  mask.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = mask;
+  ctx.fillRect(0, 0, S, S);
+  ctx.globalCompositeOperation = "source-over";
+  return canvasTexture(c);
 }
 
 /** Horizontal pride pin-stripe as a multi-box band (cheap, no texture). */
@@ -566,10 +648,11 @@ export class RideshareSystem {
       this.carStop = new THREE.Vector3(this.aisle.x, 0.02, stopZ);
       // Enter from the south on 7th, same as life.js cars
       this.arriveX = Math.min(STREET.xMax - 1, this.mouth.x + ARRIVE_LEAD);
-      // Guests wait on the building side of the aisle (+X from aisle centre)
+      // Guests wait on the building side of the aisle (+X), spaced well apart
+      // so a two-person party never stands on top of each other.
       this.waitPoints = [
-        new THREE.Vector3(this.aisle.x + 0.85, 0, stopZ + 0.35),
-        new THREE.Vector3(this.aisle.x + 0.85, 0, stopZ - 0.3),
+        new THREE.Vector3(this.aisle.x + 0.95, 0, stopZ + 0.7),
+        new THREE.Vector3(this.aisle.x + 0.95, 0, stopZ - 0.7),
       ];
       // Face along the aisle toward the rear after pulling in
       this.stopFaceY = Math.atan2(
@@ -588,8 +671,8 @@ export class RideshareSystem {
     );
     this.arriveX = Math.min(STREET.xMax - 1, this.carStop.x + ARRIVE_LEAD);
     this.waitPoints = [
-      sidewalkPoint(this.streetDoor.x - 0.4),
-      sidewalkPoint(this.streetDoor.x + 0.55),
+      sidewalkPoint(this.streetDoor.x - 0.7),
+      sidewalkPoint(this.streetDoor.x + 0.75),
     ];
     this.stopFaceY = -Math.PI / 2;
     this.inLot = false;
@@ -778,16 +861,27 @@ export class RideshareSystem {
     void n;
   }
 
+  /**
+   * Along-car offset for passenger i — front vs rear door so two people never
+   * share a door handle. ~0.55 units apart (body radius ~0.15 each).
+   */
+  _doorOffset(i) {
+    return i === 0 ? 0.55 : -0.55;
+  }
+
   /** Porch → front yard → wait spots on the aisle (building side). */
   _pathsDoorToCurb(n) {
     const paths = [];
     for (let i = 0; i < n; i++) {
       const wait = this.waitPoints[i] || this.waitPoints[0];
       if (this.inLot) {
+        // Stagger yard waypoints so two guests don't merge on the same line
+        const yard = this.yardCorner.clone();
+        yard.z += this._doorOffset(i) * 0.35;
         paths.push(
           this._clean([
             this.streetDoor.clone(),
-            this.yardCorner.clone(),
+            yard,
             wait.clone(),
           ])
         );
@@ -795,7 +889,7 @@ export class RideshareSystem {
         paths.push(
           this._clean([
             this.streetDoor.clone(),
-            sidewalkPoint(this.streetDoor.x),
+            sidewalkPoint(this.streetDoor.x + this._doorOffset(i) * 0.3),
             wait.clone(),
           ])
         );
@@ -804,24 +898,21 @@ export class RideshareSystem {
     return paths;
   }
 
-  /** Wait spots → passenger door on the building side of the Gaymo. */
+  /** Wait spots → passenger doors on the building side of the Gaymo. */
   _pathsCurbToCar(n) {
     const paths = [];
     const car = this.waymo.position;
     for (let i = 0; i < n; i++) {
       const wait = this.waitPoints[i] || this.waitPoints[0];
+      const off = this._doorOffset(i);
       const door = this.inLot
-        ? new THREE.Vector3(
-            car.x + 0.7,
-            0,
-            car.z + (i === 0 ? 0.2 : -0.25)
-          )
-        : new THREE.Vector3(
-            car.x + (i === 0 ? -0.25 : 0.3),
-            0,
-            STREET.sidewalkZ + 0.4
-          );
-      paths.push(this._clean([wait.clone(), door]));
+        ? new THREE.Vector3(car.x + 0.78, 0, car.z + off)
+        : new THREE.Vector3(car.x + off * 0.5, 0, STREET.sidewalkZ + 0.4);
+      // Mid-point keeps them from clipping through each other on the approach
+      const mid = this.inLot
+        ? new THREE.Vector3(car.x + 1.05, 0, car.z + off)
+        : wait.clone().lerp(door, 0.5);
+      paths.push(this._clean([wait.clone(), mid, door]));
     }
     return paths;
   }
@@ -831,30 +922,22 @@ export class RideshareSystem {
     const paths = [];
     const car = this.waymo.position;
     for (let i = 0; i < n; i++) {
+      const off = this._doorOffset(i);
       const start = this.inLot
-        ? new THREE.Vector3(
-            car.x + 0.7,
-            0,
-            car.z + (i === 0 ? 0.2 : -0.25)
-          )
-        : new THREE.Vector3(
-            car.x + (i === 0 ? -0.2 : 0.25),
-            0,
-            STREET.sidewalkZ + 0.15
-          );
+        ? new THREE.Vector3(car.x + 0.78, 0, car.z + off)
+        : new THREE.Vector3(car.x + off * 0.45, 0, STREET.sidewalkZ + 0.15);
       if (this.inLot) {
-        paths.push(
-          this._clean([
-            start,
-            this.yardCorner.clone(),
-            this.streetDoor.clone(),
-          ])
-        );
+        const yard = this.yardCorner.clone();
+        yard.z += off * 0.35;
+        const doorSide = this.streetDoor.clone();
+        // Fan out slightly at the porch so they don't stack on the mat
+        doorSide.z += off * 0.22;
+        paths.push(this._clean([start, yard, doorSide]));
       } else {
         paths.push(
           this._clean([
             start,
-            sidewalkPoint(this.streetDoor.x + (i === 0 ? -0.2 : 0.25)),
+            sidewalkPoint(this.streetDoor.x + off * 0.35),
             this.streetDoor.clone(),
           ])
         );
@@ -914,11 +997,13 @@ export class RideshareSystem {
         g.position.y = 0;
         continue;
       }
-      const r = this._advance(g, path, job.pathI[i], speed, dt);
+      // Slightly different paces so a pair never walks in perfect lockstep
+      const pace = speed * (i === 0 ? 1.0 : 0.9);
+      const r = this._advance(g, path, job.pathI[i], pace, dt);
       job.pathI[i] = r.pathI;
       if (!r.done) {
         allDone = false;
-        g.position.y = Math.abs(Math.sin(this.bob + i)) * 0.04;
+        g.position.y = Math.abs(Math.sin(this.bob + i * 1.7)) * 0.04;
       } else {
         g.position.y = 0;
       }
