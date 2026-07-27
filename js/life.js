@@ -38,15 +38,11 @@ const SPAWN_CHECK_S = 0.3;
 /** Pedestrian personal space — close is fine, overlapping is not. */
 const PED_MIN = 0.48;
 /**
- * Car following (moving vehicles only — parked cars do not freeze the street).
- * Distances are centre-to-centre; half-body ~1.1.
+ * Car centres closer than this get a soft nudge. Body length is ~2.0, so ~1.8
+ * allows ~10% mesh overlap (fine) but stops full through-the-middle stacking.
+ * No braking / following distance — that jammed the street.
  */
-const CAR_RADIUS = 1.1;
-const CAR_STOP = 2.7;
-const CAR_BRAKE = 5.2;
-const CAR_LANE = 1.25;
-/** z above this ≈ on 7th Ave (not the lot). */
-const ROAD_Z = STREET.curbZ - 0.15;
+const CAR_MIN = 1.8;
 
 /** Car states. */
 const CS = {
@@ -176,12 +172,10 @@ export class LifeSystem {
     /** Rolling arrival log (sim timestamps) for the "recent arrivals" stat. */
     this.arrivalLog = [];
     /**
-     * Optional () => THREE.Object3D[] of foreign vehicles (e.g. Gaymo) so life
-     * cars brake for them and they can query the same traffic set.
+     * Optional () => THREE.Object3D[] of foreign vehicles (e.g. Gaymo) included
+     * in the simple centre-separation pass.
      */
     this.getExtraVehicles = null;
-
-    this._honkTex = null;
   }
 
   /**
@@ -398,8 +392,6 @@ export class LifeSystem {
       dwellLeft: 0,
       unloadWait: 0,
       heldInside: 0,
-      /** Seconds fully stopped by traffic — used to unstick deadlocks. */
-      stuckT: 0,
     });
   }
 
@@ -529,16 +521,13 @@ export class LifeSystem {
   }
 
   /**
-   * Only vehicles currently in motion (plus optional extras like a moving Gaymo).
-   * Parked stall cars used to sit in the traffic set and freeze the whole queue
-   * south of the building — they are intentionally excluded here.
+   * All visible busy cars + optional extras (Gaymo). Used only for a soft
+   * centre nudge — no braking.
    */
-  movingVehicleMeshes(exclude = null) {
+  vehicleMeshes(exclude = null) {
     const out = [];
-    for (const t of this.carTrips) {
-      if (t.state !== CS.DRIVE_IN && t.state !== CS.DRIVE_OUT) continue;
-      const m = t.car?.mesh;
-      if (m?.visible && m !== exclude) out.push(m);
+    for (const c of this.carPool) {
+      if (c.busy && c.mesh.visible && c.mesh !== exclude) out.push(c.mesh);
     }
     if (this.getExtraVehicles) {
       for (const m of this.getExtraVehicles()) {
@@ -549,80 +538,20 @@ export class LifeSystem {
   }
 
   /**
-   * Same corridor? Street cars only care about other street cars; lot cars only
-   * about the lot. Mouth mixing is tight so a Gaymo at the aisle stop doesn't
-   * freeze the entire southbound queue on 7th.
-   */
-  _sameCorridor(a, b) {
-    const aRoad = a.position.z >= ROAD_Z;
-    const bRoad = b.position.z >= ROAD_Z;
-    if (aRoad === bRoad) return true;
-    // One on road, one in lot — only while both are in the driveway throat
-    const mouthX = this.mouth?.x ?? a.position.x;
-    return (
-      Math.abs(a.position.x - mouthX) < 2.2 &&
-      Math.abs(b.position.x - mouthX) < 2.2 &&
-      Math.abs(a.position.z - b.position.z) < 2.8
-    );
-  }
-
-  /**
-   * Distance along the car's facing to the nearest vehicle roughly in its lane.
-   * Infinity if nothing ahead.
-   */
-  gapAhead(car, others = null) {
-    const list = others || this.movingVehicleMeshes(car);
-    const yaw = car.rotation.y;
-    const fx = Math.sin(yaw);
-    const fz = Math.cos(yaw);
-    let nearest = Infinity;
-    for (const o of list) {
-      if (o === car || !o.visible) continue;
-      if (!this._sameCorridor(car, o)) continue;
-      const dx = o.position.x - car.position.x;
-      const dz = o.position.z - car.position.z;
-      const along = dx * fx + dz * fz;
-      if (along < 0.35) continue; // behind or beside
-      const lat = Math.abs(dx * fz - dz * fx);
-      if (lat > CAR_LANE) continue;
-      const faceGap = along - CAR_RADIUS;
-      if (faceGap < nearest) nearest = faceGap;
-    }
-    return nearest;
-  }
-
-  /**
-   * 0..1 speed scale from traffic ahead in the same corridor.
-   * No omnidirectional bubble — that jammed the south approach permanently.
-   */
-  trafficScale(car, others = null) {
-    const list = others || this.movingVehicleMeshes(car);
-    const gap = this.gapAhead(car, list);
-    if (gap >= CAR_BRAKE) return { scale: 1, stop: false };
-    if (gap <= CAR_STOP) return { scale: 0, stop: true };
-    return {
-      scale: (gap - CAR_STOP) / (CAR_BRAKE - CAR_STOP),
-      stop: false,
-    };
-  }
-
-  /**
-   * True mesh overlap only (not soft following distance). Keeps cars from
-   * stacking without shoving whole queues sideways off the road.
+   * If two vehicle centres are nearly stacked (through the middle), push them
+   * apart. Light edge contact is allowed on purpose.
    */
   separateVehicles() {
-    const meshes = this.movingVehicleMeshes();
-    const minD = CAR_RADIUS * 1.85;
+    const meshes = this.vehicleMeshes();
     for (let i = 0; i < meshes.length; i++) {
       for (let j = i + 1; j < meshes.length; j++) {
         const a = meshes[i];
         const b = meshes[j];
-        if (!this._sameCorridor(a, b)) continue;
         const dx = a.position.x - b.position.x;
         const dz = a.position.z - b.position.z;
         const d = Math.hypot(dx, dz);
-        if (d < 1e-4 || d >= minD) continue;
-        const push = (minD - d) * 0.5;
+        if (d < 1e-4 || d >= CAR_MIN) continue;
+        const push = (CAR_MIN - d) * 0.5;
         const nx = dx / d;
         const nz = dz / d;
         a.position.x += nx * push;
@@ -630,86 +559,6 @@ export class LifeSystem {
         b.position.x -= nx * push;
         b.position.z -= nz * push;
       }
-    }
-  }
-
-  _honkTexture() {
-    if (this._honkTex) return this._honkTex;
-    const c = document.createElement("canvas");
-    c.width = 128;
-    c.height = 96;
-    const ctx = c.getContext("2d");
-    // Speech bubble
-    ctx.fillStyle = "rgba(20,18,34,0.88)";
-    ctx.beginPath();
-    ctx.moveTo(16, 12);
-    ctx.arcTo(112, 12, 112, 64, 14);
-    ctx.arcTo(112, 64, 16, 64, 14);
-    ctx.lineTo(48, 64);
-    ctx.lineTo(36, 84);
-    ctx.lineTo(40, 64);
-    ctx.arcTo(16, 64, 16, 12, 14);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,0.2)";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    // Sound arcs
-    ctx.strokeStyle = "#ffb454";
-    ctx.lineWidth = 4;
-    ctx.lineCap = "round";
-    for (const [x0, r] of [
-      [52, 10],
-      [58, 18],
-      [64, 26],
-    ]) {
-      ctx.beginPath();
-      ctx.arc(x0, 38, r, -0.7, 0.7);
-      ctx.stroke();
-    }
-    this._honkTex = new THREE.CanvasTexture(c);
-    this._honkTex.colorSpace = THREE.SRGBColorSpace;
-    return this._honkTex;
-  }
-
-  _ensureHonk(trip) {
-    if (trip.honkSprite) return trip.honkSprite;
-    const s = new THREE.Sprite(
-      new THREE.SpriteMaterial({
-        map: this._honkTexture(),
-        transparent: true,
-        depthWrite: false,
-        opacity: 0,
-      })
-    );
-    s.scale.set(0.9, 0.68, 1);
-    s.visible = false;
-    this.root.add(s);
-    trip.honkSprite = s;
-    trip.honkT = 0;
-    return s;
-  }
-
-  _tickHonk(trip, dt, braking) {
-    const s = this._ensureHonk(trip);
-    const car = trip.car.mesh;
-    if (braking) {
-      // Fresh stop → blast the horn
-      if (trip.honkT <= 0) trip.honkT = 0.85;
-    }
-    if (trip.honkT > 0) {
-      trip.honkT -= dt;
-      s.visible = true;
-      const k = trip.honkT / 0.85;
-      s.material.opacity = Math.min(1, k * 2) * (k > 0.3 ? 1 : k / 0.3);
-      s.position.set(car.position.x, 1.55 + (1 - k) * 0.35, car.position.z);
-      s.scale.setScalar(0.75 + (1 - k) * 0.35);
-      // Tiny lurch on the body while honking
-      car.scale.z = 1 + Math.sin((1 - k) * Math.PI * 6) * 0.03 * k;
-    } else {
-      s.visible = false;
-      s.material.opacity = 0;
-      car.scale.z = 1;
     }
   }
 
@@ -763,14 +612,9 @@ export class LifeSystem {
         trip.state = "done";
       }
       if (trip.state === "done") {
-        if (trip.honkSprite) {
-          this.root.remove(trip.honkSprite);
-          trip.honkSprite = null;
-        }
         if (trip.car) {
           trip.car.busy = false;
           trip.car.mesh.visible = false;
-          trip.car.mesh.scale.set(1, 1, 1);
         }
         this._freePed(trip.ped);
         if (trip.spot) trip.spot.occupied = false;
@@ -801,7 +645,7 @@ export class LifeSystem {
     const peds2 = this.pedMeshes();
     for (const m of peds2) this.separatePed(m, peds2);
 
-    // Hard vehicle depenetration (Gaymo included via getExtraVehicles)
+    // Soft nudge only if centres are nearly stacked (Gaymo included via extras)
     this.separateVehicles();
 
     // Trim the rolling arrival log to the last 10 minutes of sim time
@@ -812,10 +656,9 @@ export class LifeSystem {
   }
 
   _carSpeed(trip) {
-    let base = trip.speedRoad;
-    if (trip.state === CS.DRIVE_IN && trip.pathI >= trip.lotFrom) base = trip.speedLot;
-    if (trip.state === CS.DRIVE_OUT && trip.pathI < 4) base = trip.speedLot;
-    return base;
+    if (trip.state === CS.DRIVE_IN && trip.pathI >= trip.lotFrom) return trip.speedLot;
+    if (trip.state === CS.DRIVE_OUT && trip.pathI < 4) return trip.speedLot;
+    return trip.speedRoad;
   }
 
   _tickCar(trip, dt) {
@@ -823,30 +666,16 @@ export class LifeSystem {
 
     switch (trip.state) {
       case CS.DRIVE_IN: {
-        const traffic = this.trafficScale(car);
-        // Deadlock escape: if we've been hard-stopped >6s, creep at 25% so
-        // the south queue can't freeze for the rest of the night.
-        let scale = traffic.scale;
-        if (scale < 0.05) {
-          trip.stuckT = (trip.stuckT || 0) + dt;
-          if (trip.stuckT > 6) scale = 0.25;
-        } else {
-          trip.stuckT = 0;
-        }
-        this._tickHonk(trip, dt, traffic.stop && trip.stuckT < 6);
         const r = this._advance(
           car,
           trip.path,
           trip.pathI,
-          this._carSpeed(trip) * scale,
+          this._carSpeed(trip),
           dt,
           trip.spot.faceY
         );
         trip.pathI = r.pathI;
         if (!r.done) break;
-        trip.stuckT = 0;
-        this._tickHonk(trip, dt, false); // clear any brake pose
-        car.scale.set(1, 1, 1);
         car.rotation.y = trip.spot.faceY;
         const ped = this._takePed();
         if (!ped) {
@@ -867,7 +696,6 @@ export class LifeSystem {
         break;
       }
       case CS.UNLOAD: {
-        this._tickHonk(trip, dt, false);
         if (trip.unloadWait > 0) {
           trip.unloadWait -= dt;
           break;
@@ -934,20 +762,11 @@ export class LifeSystem {
         break;
       }
       case CS.DRIVE_OUT: {
-        const traffic = this.trafficScale(car);
-        let scale = traffic.scale;
-        if (scale < 0.05) {
-          trip.stuckT = (trip.stuckT || 0) + dt;
-          if (trip.stuckT > 6) scale = 0.3;
-        } else {
-          trip.stuckT = 0;
-        }
-        this._tickHonk(trip, dt, traffic.stop && trip.stuckT < 6);
         const r = this._advance(
           car,
           trip.path,
           trip.pathI,
-          this._carSpeed(trip) * scale,
+          this._carSpeed(trip),
           dt
         );
         trip.pathI = r.pathI;

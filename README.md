@@ -80,9 +80,8 @@ the crowd comes back, Gaymo pickup works, and the pill reads `Open · creative`
 when the bar is actually closed. Clock, weather, and events stay real. The toggle
 is remembered in `localStorage`.
 
-Traffic: pedestrians keep personal space (close, never stacked). Cars and the
-Gaymo brake for whatever is ahead in their lane, with a little honk bubble when
-stopped. The lot seeds fuller so it feels busy without mesh-through-mesh pileups.
+Traffic: pedestrians keep personal space. Cars use a simple centre nudge so they
+don't drive fully through each other; light edge overlap is fine.
 
 ### Day/night follows the real sun
 

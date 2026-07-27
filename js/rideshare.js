@@ -1150,24 +1150,15 @@ export class RideshareSystem {
   _tickCar(job, t) {
     if (!job.carPath || !this.waymo.visible) return true;
     this._setIdleHover(false);
-    // Brake for ambient traffic (and they brake for us via getExtraVehicles)
-    let scale = 1;
-    if (this.life?.trafficScale) {
-      const tr = this.life.trafficScale(this.waymo);
-      scale = tr.scale;
-      if (tr.stop && this.waymo.userData.hull) {
-        this.waymo.userData.hull.rotation.x = 0.06;
-      }
-    }
     const r = this._advance(
       this.waymo,
       job.carPath,
       job.carI,
-      this._carSpeed(job) * scale,
+      this._carSpeed(job),
       t
     );
     job.carI = r.pathI;
-    // Depenetrate against life cars this frame (life already moved)
+    // Soft centre nudge only — no braking queues
     this.life?.separateVehicles?.();
     return r.done;
   }
