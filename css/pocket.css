@@ -411,6 +411,17 @@ body { user-select: none; -webkit-user-select: none; }
   color: #6b2d8b;
 }
 
+#taco:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+#taco.on {
+  color: #2a1c06;
+  background: #e8a040;
+  border-color: transparent;
+}
+
 #ufo.done {
   color: #c8f0ff;
 }

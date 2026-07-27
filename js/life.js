@@ -264,6 +264,8 @@ export class LifeSystem {
      * scene so nothing runs through the mess while it's being cleaned.
      */
     this.lotHold = false;
+    /** Taco stand next door is open — slight arrival bonus + attractFrom(). */
+    this.tacoOpen = false;
 
     // Dumpster as a solid obstacle (world-space AABB) — nothing drives through it
     if (dumpUd && this.dumpsterWorld) {
@@ -334,7 +336,41 @@ export class LifeSystem {
    * filled the room — which overshot the target by ~2x before this was added.
    */
   get wantsArrivals() {
-    return this.inside.length + this._pendingArrivals() < this.target;
+    // Taco stand next door draws a few extra bodies into the bar
+    const bonus = this.tacoOpen ? 5 : 0;
+    return this.inside.length + this._pendingArrivals() < this.target + bonus;
+  }
+
+  /**
+   * Someone finishes tacos and walks into Stacy's — sidewalk → porch door.
+   * @param {THREE.Vector3} fromWorld
+   * @returns {boolean}
+   */
+  attractFrom(fromWorld) {
+    const ped = this._takePed();
+    if (!ped) {
+      // Still count them as going inside even without a free mesh
+      this._enterInside(1);
+      return true;
+    }
+    const sx = fromWorld.x;
+    const path = this._clean([
+      new THREE.Vector3(fromWorld.x, 0, fromWorld.z),
+      sidewalkPoint(sx),
+      ...sidewalkPolyline(sx, this.streetDoor.x),
+      this.streetDoor.clone(),
+    ]);
+    ped.mesh.position.copy(path[0]);
+    this.walkers.push({
+      state: PS.TO_DOOR,
+      ped,
+      path,
+      pathI: 0,
+      speed: 1.75 + Math.random() * 0.4,
+      spot: null,
+      dwellLeft: 0,
+    });
+    return true;
   }
 
   /**

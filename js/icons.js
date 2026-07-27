@@ -113,6 +113,16 @@ export const UFO_ICON = svg(
   20
 );
 
+/** Soft taco shell for the festival taco-stand button. */
+export const TACO_ICON = svg(
+  `<path d="M4.5 14.5c0-4.2 3.4-7.6 7.5-7.6s7.5 3.4 7.5 7.6"/>` +
+    `<path d="M5.2 14.5h13.6"/>` +
+    `<path d="M7 12.2c.8-.6 1.6-.9 2.5-.9"/>` +
+    `<path d="M12 10.8c.6 0 1.3.2 2 .6"/>` +
+    `<path d="M9.2 14.5l.8 2.2"/><path d="M12 14.5v2.4"/><path d="M14.8 14.5l-.8 2.2"/>`,
+  20
+);
+
 /**
  * Liquor delivery: bottle silhouette for the stock drop button.
  */

@@ -18,6 +18,7 @@ import {
   MIST_ICON,
   SICK_ICON,
   LIQUOR_ICON,
+  TACO_ICON,
   RIDESHARE_ICON,
   CREATIVE_ICON,
   UFO_ICON,
@@ -36,6 +37,7 @@ import { IncidentSystem } from "./incident.js";
 import { RideshareSystem } from "./rideshare.js";
 import { UfoSystem } from "./ufo.js";
 import { BirdSystem } from "./bird.js";
+import { TacoSystem } from "./taco.js";
 import { FlickerSystem } from "./flicker.js";
 import {
   venueNow,
@@ -594,6 +596,48 @@ function wireSickButton(incident) {
 }
 
 /**
+ * Festival taco stand by the diamond pole sign. Toggle: white SUV unloads and
+ * sets up; customers eat; some wander into the bar. Toggle off to pack up.
+ */
+function wireTacoButton(taco) {
+  const btn = $("taco");
+  btn.innerHTML = TACO_ICON;
+  btn.onclick = () => {
+    if (taco.busy) return;
+    if (taco.open) {
+      if (!taco.stop()) return;
+      btn.classList.remove("on");
+      btn.setAttribute("aria-pressed", "false");
+      btn.disabled = true;
+      const release = () => {
+        if (taco.busy) {
+          requestAnimationFrame(release);
+          return;
+        }
+        btn.disabled = false;
+      };
+      requestAnimationFrame(release);
+      return;
+    }
+    if (!taco.start()) return;
+    beginFocus(taco.focusTarget, { hold: true });
+    btn.disabled = true;
+    const release = () => {
+      if (taco.busy) {
+        requestAnimationFrame(release);
+        return;
+      }
+      btn.disabled = false;
+      if (taco.open) {
+        btn.classList.add("on");
+        btn.setAttribute("aria-pressed", "true");
+      }
+    };
+    requestAnimationFrame(release);
+  };
+}
+
+/**
  * Liquor delivery: one-shot stock drop (box truck or semi). Camera swings to the
  * aisle / curb so the handoff is readable; button locks until the truck leaves.
  */
@@ -972,6 +1016,8 @@ async function boot() {
   wireMistButton(mist);
   wireSickButton(incident);
   wireLiquorButton(life);
+  const taco = new TacoSystem(scene, model, life);
+  wireTacoButton(taco);
   wireRideButton(rideshare);
   wireUfoButton(ufo);
   wireBirdButton(bird);
@@ -1072,6 +1118,7 @@ async function boot() {
     rideshare.update(dt);
     ufo.update(dt);
     bird.update(dt);
+    taco.update(dt);
     mist.update(dt);
     paintFloatSms(rideshare);
 
@@ -1082,7 +1129,8 @@ async function boot() {
         rideshare.busy ||
         ufo.busy ||
         bird.busy ||
-        life.liquorBusy
+        life.liquorBusy ||
+        taco.busy
     );
 
     // Auto-rotate, resuming a few seconds after the last touch. Held off during a

@@ -3381,6 +3381,20 @@ export function createStacys(parcel) {
   const diamondSign = createStacysDiamondPoleSign(diamondSignX, diamondSignZ);
   diamondSign.rotation.y = Math.PI / 2; // ±Z faces → ±X (north / south)
   g.add(diamondSign);
+
+  // Taco stand pad — just off the property next to the tall diamond sign
+  // (street / sidewalk side, north of the mast so the tent doesn't cover it).
+  g.userData.tacoStand = {
+    x: diamondSignX - 1.65,
+    z: diamondSignZ + 1.35,
+    // SUV unloads on the street edge, parks beside the tent
+    unloadX: diamondSignX - 0.4,
+    unloadZ: diamondSignZ + 2.4,
+    parkX: diamondSignX + 0.9,
+    parkZ: diamondSignZ + 1.5,
+    /** Serving face toward the sidewalk / street (+Z). */
+    faceY: 0,
+  };
   // Diamond marquee — white neon text + pink edge glow at night (Boycott-bright)
   diamondSign.traverse((obj) => {
     if (!obj.isMesh || !obj.material?.emissive) return;
