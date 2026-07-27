@@ -3382,11 +3382,11 @@ export function createStacys(parcel) {
   // —— Dumpster @ NE property corner (−X north, −Z east / patio side) ——
   const padEast = padCz - padD * 0.5;
   const padNorth = padCx - padW * 0.5;
-  const dumpster = createDumpster(
-    padNorth + 0.75, // inset from north edge
-    padEast + 0.65 // inset from east edge
-  );
+  const dumpsterX = padNorth + 0.75; // inset from north edge
+  const dumpsterZ = padEast + 0.65; // inset from east edge
+  const dumpster = createDumpster(dumpsterX, dumpsterZ);
   dumpster.rotation.y = Math.PI * 0.5; // face into the lot
+  dumpster.name = "dumpster"; // chores.js animates this
   g.add(dumpster);
 
   // Day: patio neon / marquee / dance lights off · Night: full glow + glimmer + flashes
@@ -3437,6 +3437,17 @@ export function createStacys(parcel) {
     mouthZ: padCz + padD * 0.5,
     aisleX: aisleCenterX,
     aisleZ: nLotZ + northLotSpan * 0.5,
+  };
+
+  // Dumpster, for the take-out-the-trash chore. `approach` is where a worker stands
+  // to toss a bag in — offset into the lot, since the far sides of the dumpster are
+  // up against the property edges.
+  g.userData.dumpster = {
+    x: dumpsterX,
+    z: dumpsterZ,
+    approachX: dumpsterX + 0.95,
+    approachZ: dumpsterZ + 0.55,
+    lidY: 1.08,
   };
 
   // Doors: the carved double door on the street face, and the rear patio door.

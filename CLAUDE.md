@@ -510,6 +510,41 @@ pinned to the bottom of the screen. When that card moved up under the venue name
 bias should have flipped — it was still pushing content up into the header instead of
 down into the free space. Now `+1.6`.
 
+## Done — chores: take out the trash (2026-07-26)
+
+First tap-to-trigger interaction, and the seed for more. Trash-can button, bottom
+left next to auto-rotate: a worker leaves the porch with a bag, walks up the parking
+aisle, tosses it in the dumpster, the dumpster does a happy squash-and-hop, a heart
+sprite floats up and fades, and the worker walks home.
+
+- **`js/chores.js`** — `ChoreSystem`, deliberately separate from `life.js`. That
+  system is ambient and autonomous with anonymous patrons; these are *requested*
+  one-shot performances with a named actor and a scripted beat, so they get their own
+  mesh and state. To add a chore, add a method and a state branch.
+- **`createStacys` publishes `userData.dumpster`** (position, approach point, lid
+  height) and names the dumpster group `"dumpster"` so chores.js can animate it —
+  same pattern as the parking/door metadata.
+- **The route goes out the FRONT and up the aisle**, not out the rear patio door,
+  which would be the obvious short path. The patio is enclosed by purple CMU on three
+  sides, so a worker leaving that way would walk through a wall. The aisle at
+  x ≈ -4.16 threads between the stalls (which end at z ≈ -2.5) and the patio (which
+  starts at x ≈ -3.2), and clears the parked cars (x -7.4..-5.4).
+- **Worker walks at 2.9**, well above a patron's 1.85–2.4. The route is ~14 units each
+  way and at patron pace the round trip ran 13s, too long to watch.
+
+### The payoff was invisible without a camera move
+
+The dumpster is at the NE property corner — north end, rear side — which the default
+az 58 puts squarely behind the building. First working version showed only the heart
+popping above the roofline; the entire toss happened out of sight. `CHORE_VIEW`
+(az 228 / el 26 / zoom 0.85) is where the dumpster, the worker and the mural gable are
+all in frame, and `stepFocus()` eases there and back with exponential smoothing.
+Auto-rotate is held off during the swing or it fights for the azimuth, and any
+`pointerdown` calls `cancelFocus()` so manual input always wins.
+
+Alternative if this ever feels intrusive: move the dumpster somewhere visible from the
+front. It is at the NE corner for authenticity, not necessity.
+
 ## Improvement backlog
 
 Ordered by visible-pixels-per-unit-of-work at the game camera. **Done:** items 2,

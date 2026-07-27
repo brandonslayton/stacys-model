@@ -38,6 +38,13 @@ no lost camera position.
 | Orbit | one-finger drag |
 | Zoom | pinch (or wheel) |
 | Auto-rotate | resumes 4s after you let go; icon button, bottom left |
+| Take out the trash | trash-can button, bottom left |
+
+Tapping the trash can sends a worker out of the porch with a bag, up the parking
+aisle, and into the dumpster — which reacts with a heart. The camera eases round to
+the dumpster for it and back afterwards, because at the default angle that corner is
+behind the building; any drag cancels the swing. `js/chores.js`, built to take more
+interactions later.
 
 Layout: venue name top-left with tonight's event directly under it, and top-right
 an `Open` / `Opens 4:00 PM` pill over a big weekday and date, the venue clock,
@@ -186,6 +193,7 @@ stacys-model/
 │   ├── viewer.js     # workbench: camera, HUD, ref overlay, stats
 │   ├── pocket.js     # phone view: touch, auto-rotate, clock, stats card
 │   ├── life.js       # crowd sim — cars park, people go in, patio fills
+│   ├── chores.js     # tap-to-trigger interactions (take out the trash)
 │   ├── venue.js      # REAL data: Phoenix clock, tonight's event, weather
 │   ├── street.js     # stub of 7th Ave + lane/sidewalk helpers
 │   └── agents.js     # createCar / createPedestrian, from the game

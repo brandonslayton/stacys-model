@@ -53,6 +53,14 @@ export const ROTATE_ICON = svg(
   20
 );
 
+/** A trash can, for the take-out-the-trash chore. */
+export const TRASH_ICON = svg(
+  `<path d="M4 7h16"/><path d="M9.5 7V4.6h5V7"/>` +
+    `<path d="M6.2 7l1 12.2A1.6 1.6 0 0 0 8.8 20.7h6.4a1.6 1.6 0 0 0 1.6-1.5L17.8 7"/>` +
+    `<path d="M10.3 11v5.6"/><path d="M13.7 11v5.6"/>`,
+  20
+);
+
 // ---------------------------------------------------------------- moon phase
 const SYNODIC = 29.530588853; // mean days between new moons
 /** A known new moon: 2000-01-06 18:14 UTC. */

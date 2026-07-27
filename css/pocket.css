@@ -190,7 +190,7 @@ body { user-select: none; -webkit-user-select: none; }
   .ev-time { font-size: 14px; }
   .ev-when { font-size: 11px; }
 
-  #spin {
+  #controls button {
     width: 48px;
     height: 48px;
   }
@@ -303,11 +303,16 @@ body { user-select: none; -webkit-user-select: none; }
   color: var(--dim);
 }
 
-/* ---------------------------------------------------------------- rotate toggle */
-#spin {
+/* ---------------------------------------------------------------- controls */
+#controls {
   position: fixed;
   left: var(--pad);
   bottom: max(16px, env(safe-area-inset-bottom));
+  display: flex;
+  gap: 10px;
+}
+
+#controls button {
   width: 44px; /* 44px is the minimum comfortable touch target */
   height: 44px;
   display: grid;
@@ -321,12 +326,27 @@ body { user-select: none; -webkit-user-select: none; }
   -webkit-backdrop-filter: blur(18px) saturate(140%);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   cursor: pointer;
-  transition: color 0.2s ease, background 0.2s ease;
+  transition: color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+}
+
+#controls button:active {
+  transform: scale(0.92);
 }
 
 #spin.on {
   color: var(--ink);
   background: rgba(255, 255, 255, 0.17);
+}
+
+/* While a chore is running, the button reads as unavailable rather than silently
+   swallowing taps. */
+#trash:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+#trash.done {
+  color: var(--hot);
 }
 
 /* Turn with the model while active, so the control shows its own state */

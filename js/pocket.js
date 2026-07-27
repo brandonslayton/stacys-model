@@ -14,6 +14,7 @@ import { ensureSignFonts } from "./kit.js";
 import {
   WX_ICONS,
   ROTATE_ICON,
+  TRASH_ICON,
   moonPhase,
   moonName,
   moonIllumination,
@@ -22,6 +23,7 @@ import {
 import { createStacys } from "./stacys.js";
 import { createStreet } from "./street.js";
 import { LifeSystem, crowdFactor } from "./life.js";
+import { ChoreSystem } from "./chores.js";
 import {
   venueNow,
   loadEvents,
@@ -163,6 +165,59 @@ function resize() {
 }
 addEventListener("resize", resize);
 
+// ---------------------------------------------------------------- camera focus
+/**
+ * Where to swing the camera to watch a chore.
+ *
+ * The dumpster is at the NE property corner — north end, rear side — which the
+ * default az 58 puts squarely behind the building. Without this you only see the
+ * heart pop above the roofline and miss the entire toss. From here the dumpster, the
+ * worker, and the mural gable are all in frame.
+ */
+const CHORE_VIEW = { az: 228, el: 26, zoom: 0.85 };
+
+/** Eased-to view, or null when the user is in control. */
+let focusTarget = null;
+/** Where to return once the chore finishes. */
+let savedView = null;
+
+/** Shortest signed angular distance, so a swing never takes the long way round. */
+function angleDelta(from, to) {
+  return (((to - from) % 360) + 540) % 360 - 180;
+}
+
+function beginFocus(target) {
+  savedView = { az: view.az, el: view.el, zoom: view.zoom };
+  focusTarget = target;
+}
+
+/** Any manual input hands control straight back. */
+function cancelFocus() {
+  focusTarget = null;
+  savedView = null;
+}
+
+function stepFocus(dt, choreBusy) {
+  if (!focusTarget) return;
+  // Exponential smoothing: framerate-independent and eases out on its own
+  const k = 1 - Math.exp(-dt * 2.4);
+  view.az += angleDelta(view.az, focusTarget.az) * k;
+  view.el += (focusTarget.el - view.el) * k;
+  view.zoom += (focusTarget.zoom - view.zoom) * k;
+  applyCamera();
+
+  if (choreBusy) return;
+  if (focusTarget === savedView || !savedView) {
+    // Heading home — stop once we are close enough to not be noticeable
+    const near =
+      Math.abs(angleDelta(view.az, focusTarget.az)) < 0.4 &&
+      Math.abs(focusTarget.el - view.el) < 0.3;
+    if (near) cancelFocus();
+    return;
+  }
+  focusTarget = savedView;
+}
+
 // ---------------------------------------------------------------- touch + mouse
 let spin = true;
 let idleAt = 0;
@@ -185,6 +240,7 @@ function pinchDist() {
 }
 
 canvas.addEventListener("pointerdown", (e) => {
+  cancelFocus();
   canvas.setPointerCapture(e.pointerId);
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pointers.size === 2) {
@@ -331,6 +387,30 @@ function paintHeader(now) {
 }
 
 /**
+ * Trash button: disabled for the duration of the chore, so a second tap can't
+ * restart the walk halfway through, and briefly tinted on completion.
+ */
+function wireTrashButton(chores) {
+  const btn = $("trash");
+  btn.innerHTML = TRASH_ICON;
+  btn.onclick = () => {
+    if (!chores.takeOutTrash()) return;
+    beginFocus(CHORE_VIEW);
+    btn.disabled = true;
+    const release = () => {
+      if (chores.busy) {
+        requestAnimationFrame(release);
+        return;
+      }
+      btn.disabled = false;
+      btn.classList.add("done");
+      setTimeout(() => btn.classList.remove("done"), 900);
+    };
+    requestAnimationFrame(release);
+  };
+}
+
+/**
  * Crowd size for the sim, zeroed while the doors are shut so the visuals agree
  * with the pill — otherwise people stroll in at noon on a Monday under a
  * "Opens 4:00 PM" badge.
@@ -383,6 +463,13 @@ async function boot() {
   scene.add(model);
 
   const life = new LifeSystem(scene, model);
+  // Reuses LifeSystem's already-resolved world-space anchors rather than
+  // recomputing the door and aisle positions from userData a second time.
+  const chores = new ChoreSystem(scene, model, {
+    streetDoor: life.streetDoor,
+    aisleX: life.aisle ? life.aisle.x : life.streetDoor.x,
+  });
+  wireTrashButton(chores);
   const boot = venueNow();
   life.setCrowd(crowdFor(boot));
   life.seed();
@@ -416,6 +503,7 @@ async function boot() {
     life,
     view,
     perf,
+    chores,
     get nightMix() {
       return nightMix;
     },
@@ -451,9 +539,13 @@ async function boot() {
 
     life.setCrowd(crowdFor(vnow));
     life.update(dt);
+    chores.update(dt);
 
-    // Auto-rotate, resuming a few seconds after the last touch
-    if (spin && now - idleAt > IDLE_RESUME_MS) {
+    stepFocus(dt, chores.busy);
+
+    // Auto-rotate, resuming a few seconds after the last touch. Held off during a
+    // focus swing, which would otherwise fight it for the azimuth.
+    if (!focusTarget && spin && now - idleAt > IDLE_RESUME_MS) {
       view.az += dt * 3.2;
       applyCamera();
     }
