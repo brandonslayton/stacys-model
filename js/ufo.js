@@ -2,11 +2,11 @@
  * ufo.js — one-shot alien abduction on the sidewalk.
  *
  * Beats:
- *   1. A patron walks out of the porch and up the street past the property line.
- *   2. A saucer glides in and hovers over them.
- *   3. Thin laser locks on, then blooms into a gradient light column.
- *   4. Patron floats up, bounces mid-way, then snaps into the craft.
- *   5. Beam thins out; UFO shoots off at high speed.
+ *   1. Patron walks out past the property line.
+ *   2. Saucer glides in and tracks above them while they keep walking.
+ *   3. Thin laser stays on; they walk under it for about a second.
+ *   4. They notice, stop, look up — beam blooms into a full column.
+ *   5. Float, bounce, suck-up; beam dies; UFO warps out.
  */
 import * as THREE from "three";
 import { cyl } from "./kit.js";
@@ -18,9 +18,14 @@ const UFO_CRUISE = 9.5;
 const UFO_ESCAPE = 48;
 
 const ST = {
+  /** Walk out; UFO may arrive mid-walk once past the property line. */
   WALK: "walk",
+  /** Saucer glides in while the patron keeps walking. */
   UFO_IN: "ufo_in",
-  LASER: "laser",
+  /** Beam on, UFO tracks overhead, patron still walking (~1s). */
+  FOLLOW: "follow",
+  /** Patron notices the light and stops. */
+  NOTICE: "notice",
   COLUMN: "column",
   FLOAT: "float",
   SUCK: "suck",
@@ -367,24 +372,27 @@ export class UfoSystem {
   start() {
     if (this.job) return false;
 
-    // Walk either north (−X) or south (+X) just past the property line.
-    // Cap distance from the door so the walk stays watchable (~6–7 units).
+    // Walk either north (−X) or south (+X). UFO joins after the property line;
+    // the path continues further so they can keep walking under the beam.
     const goNorth = Math.random() < 0.5;
     const dir = goNorth ? -1 : 1;
-    const pastLine = (goNorth ? this.padXMin : this.padXMax) + dir * (2.2 + Math.random() * 0.8);
-    const capped = this.streetDoor.x + dir * (5.5 + Math.random() * 1.5);
-    // Pick the closer of "past the line" and "capped walk" so we don't hike forever
-    const spotX = goNorth
-      ? Math.max(pastLine, capped)
-      : Math.min(pastLine, capped);
-    const clampedX = THREE.MathUtils.clamp(
-      spotX,
+    const pastLine =
+      (goNorth ? this.padXMin : this.padXMax) + dir * (1.6 + Math.random() * 0.6);
+    // Extra sidewalk after the line so FOLLOW has room (~2.5–3.5 units)
+    const endX = pastLine + dir * (2.8 + Math.random() * 1.0);
+    const clampedEnd = THREE.MathUtils.clamp(
+      endX,
       STREET.xMin + 2,
       STREET.xMax - 2
     );
-    this.spot = sidewalkPoint(clampedX);
+    const clampedPast = THREE.MathUtils.clamp(
+      pastLine,
+      STREET.xMin + 2,
+      STREET.xMax - 2
+    );
+    this.spot = sidewalkPoint(clampedEnd); // fallback camera target
+    this.dir = dir;
 
-    // Fresh patron each run
     if (this.patron) this.root.remove(this.patron);
     this.patron = createPedestrian(
       PED_COLORS[(Math.random() * PED_COLORS.length) | 0]
@@ -392,13 +400,15 @@ export class UfoSystem {
     this.patron.visible = true;
     this.patron.position.copy(this.streetDoor);
     this.patron.position.y = 0;
+    this.patron.scale.set(1, 1, 1);
+    this.patron.rotation.set(0, 0, 0);
     this.root.add(this.patron);
 
     const path = this._clean([
       this.streetDoor.clone(),
       sidewalkPoint(this.streetDoor.x),
-      ...sidewalkPolyline(this.streetDoor.x, clampedX),
-      this.spot.clone(),
+      ...sidewalkPolyline(this.streetDoor.x, clampedEnd),
+      sidewalkPoint(clampedEnd),
     ]);
 
     this.ufo.visible = false;
@@ -411,7 +421,8 @@ export class UfoSystem {
       t: 0,
       floatY: 0,
       bounceDone: false,
-      // UFO approach / escape
+      pastLineX: clampedPast,
+      dir,
       ufoFrom: null,
       ufoTo: null,
       ufoK: 0,
@@ -419,14 +430,15 @@ export class UfoSystem {
     return true;
   }
 
-  /** Camera target for this run (abduction spot). */
+  /** Camera target — follows the patron when possible. */
   get focusTarget() {
-    if (!this.spot) return null;
+    const p = this.patron?.position || this.spot;
+    if (!p) return null;
     return {
       az: 40 + Math.random() * 20,
-      el: 22,
-      zoom: 0.52,
-      target: [this.spot.x, 1.2, this.spot.z + 0.4],
+      el: 24,
+      zoom: 0.5,
+      target: [p.x, 1.4, p.z + 0.3],
     };
   }
 
@@ -467,20 +479,48 @@ export class UfoSystem {
     return 5.2 + Math.sin(t * 2.4) * 0.12;
   }
 
-  _placeUfoOverSpot(t) {
+  /** Hover UFO directly above the patron (or a fixed x/z). */
+  _placeUfoOver(x, z, t) {
     const y = this._hoverY(t);
-    this.ufo.position.set(this.spot.x, y, this.spot.z);
-    // Gentle hover tilt so the spinning rim reads in profile
+    this.ufo.position.set(x, y, z);
     this.ufo.rotation.x = Math.sin(t * 1.7) * 0.04;
     this.ufo.rotation.z = Math.cos(t * 1.3) * 0.035;
   }
 
-  _aimBeam(personY = 0) {
+  _aimBeamAt(x, z, personY = 0) {
     const top = this.ufo.position.y - 0.2;
     const bot = personY + 0.02;
     const h = Math.max(0.3, top - bot);
-    this.beam.position.set(this.spot.x, bot, this.spot.z);
+    this.beam.position.set(x, bot, z);
     return h;
+  }
+
+  /** True once the patron has crossed the property line in their walk direction. */
+  _pastPropertyLine(job) {
+    const x = this.patron.position.x;
+    if (job.dir < 0) return x <= job.pastLineX;
+    return x >= job.pastLineX;
+  }
+
+  _bobWalk(dt) {
+    this.bob += dt * 9;
+    this.patron.position.y = Math.abs(Math.sin(this.bob)) * 0.04;
+  }
+
+  _spawnUfoApproach(job) {
+    const side = Math.random() < 0.5 ? -1 : 1;
+    const px = this.patron.position.x;
+    const pz = this.patron.position.z;
+    job.ufoFrom = new THREE.Vector3(
+      px + side * (12 + Math.random() * 5),
+      8.5 + Math.random() * 2.5,
+      pz + side * 3.5
+    );
+    job.ufoTo = new THREE.Vector3(px, this._hoverY(this.clock), pz);
+    this.ufo.position.copy(job.ufoFrom);
+    this.ufo.visible = true;
+    this.ufo.scale.setScalar(1);
+    job.ufoK = 0;
   }
 
   update(dt) {
@@ -493,65 +533,107 @@ export class UfoSystem {
 
     switch (job.state) {
       case ST.WALK: {
-        const r = this._advance(
-          this.patron,
-          job.path,
-          job.pathI,
-          WALK,
-          t
-        );
+        const r = this._advance(this.patron, job.path, job.pathI, WALK, t);
         job.pathI = r.pathI;
-        this.bob += t * 9;
-        this.patron.position.y = Math.abs(Math.sin(this.bob)) * 0.04;
-        if (!r.done) break;
-
-        this.patron.position.copy(this.spot);
-        this.patron.position.y = 0;
-        // Spawn UFO high and off to one side
-        const side = Math.random() < 0.5 ? -1 : 1;
-        job.ufoFrom = new THREE.Vector3(
-          this.spot.x + side * (14 + Math.random() * 6),
-          9 + Math.random() * 3,
-          this.spot.z + side * 4
-        );
-        job.ufoTo = new THREE.Vector3(
-          this.spot.x,
-          this._hoverY(this.clock),
-          this.spot.z
-        );
-        this.ufo.position.copy(job.ufoFrom);
-        this.ufo.visible = true;
-        this.ufo.scale.setScalar(1);
-        job.ufoK = 0;
-        job.state = ST.UFO_IN;
+        this._bobWalk(t);
+        // Once past the property line, bring the saucer in — keep walking
+        if (this._pastPropertyLine(job)) {
+          this._spawnUfoApproach(job);
+          job.state = ST.UFO_IN;
+        } else if (r.done) {
+          // Path ended before line (edge case) — still trigger
+          this._spawnUfoApproach(job);
+          job.state = ST.UFO_IN;
+        }
         break;
       }
 
       case ST.UFO_IN: {
-        // Ease in — not linear, so it settles over the victim
-        job.ufoK = Math.min(1, job.ufoK + t * 0.55);
-        const k = 1 - Math.pow(1 - job.ufoK, 2.4);
+        // Patron keeps walking while the saucer eases in above them
+        if (job.pathI < job.path.length) {
+          const r = this._advance(this.patron, job.path, job.pathI, WALK, t);
+          job.pathI = r.pathI;
+          this._bobWalk(t);
+        }
+        job.ufoK = Math.min(1, job.ufoK + t * 0.7);
+        const k = 1 - Math.pow(1 - job.ufoK, 2.2);
+        // Target is live above the walking patron
+        job.ufoTo.set(
+          this.patron.position.x,
+          this._hoverY(this.clock),
+          this.patron.position.z
+        );
         this.ufo.position.lerpVectors(job.ufoFrom, job.ufoTo, k);
-        // Slight bank into the approach
-        this.ufo.rotation.z = (1 - k) * 0.18 * Math.sign(job.ufoFrom.x - this.spot.x || 1);
+        // Also ease the "from" so late approach still tracks
+        if (k > 0.5) {
+          this.ufo.position.x = THREE.MathUtils.lerp(
+            this.ufo.position.x,
+            this.patron.position.x,
+            (k - 0.5) * 0.35
+          );
+          this.ufo.position.z = THREE.MathUtils.lerp(
+            this.ufo.position.z,
+            this.patron.position.z,
+            (k - 0.5) * 0.35
+          );
+        }
+        this.ufo.rotation.z =
+          (1 - k) * 0.16 * Math.sign(job.ufoFrom.x - this.patron.position.x || 1);
         if (job.ufoK < 1) break;
-        this._placeUfoOverSpot(this.clock);
+        // Locked above — thin beam on, keep walking a moment
+        this._placeUfoOver(
+          this.patron.position.x,
+          this.patron.position.z,
+          this.clock
+        );
         this.beam.visible = true;
         job.t = 0;
-        job.state = ST.LASER;
+        job.state = ST.FOLLOW;
         break;
       }
 
-      case ST.LASER: {
+      case ST.FOLLOW: {
+        // Keep walking under a thin tracking beam for ~1.15s, then notice
         job.t += t;
-        this._placeUfoOverSpot(this.clock);
-        const h = this._aimBeam(0);
-        // Thin laser locks on over ~0.7s
-        const lock = Math.min(1, job.t / 0.7);
-        this.beam.userData.setBeam(h, 1, 0, 0.35 + lock * 0.55);
-        // Patron freezes, looks up
-        this.patron.rotation.x = -0.15 * lock;
-        if (job.t < 0.85) break;
+        if (job.pathI < job.path.length) {
+          const r = this._advance(this.patron, job.path, job.pathI, WALK * 0.95, t);
+          job.pathI = r.pathI;
+          this._bobWalk(t);
+        } else {
+          this.patron.position.y = 0;
+        }
+        this._placeUfoOver(
+          this.patron.position.x,
+          this.patron.position.z,
+          this.clock
+        );
+        const h = this._aimBeamAt(
+          this.patron.position.x,
+          this.patron.position.z,
+          0
+        );
+        // Thin laser only — no column yet
+        this.beam.userData.setBeam(h, 1, 0, 0.55 + Math.sin(this.clock * 6) * 0.1);
+        if (job.t < 1.15) break;
+        // Freeze at current sidewalk position
+        this.patron.position.y = 0;
+        this.spot = this.patron.position.clone();
+        this.spot.y = 0;
+        job.t = 0;
+        job.state = ST.NOTICE;
+        break;
+      }
+
+      case ST.NOTICE: {
+        job.t += t;
+        this._placeUfoOver(this.spot.x, this.spot.z, this.clock);
+        const h = this._aimBeamAt(this.spot.x, this.spot.z, 0);
+        const look = Math.min(1, job.t / 0.45);
+        this.beam.userData.setBeam(h, 1, 0, 0.6 + look * 0.2);
+        // Stop and look up at the light
+        this.patron.rotation.x = -0.35 * look;
+        this.patron.rotation.y += (0 - this.patron.rotation.y) * Math.min(1, t * 4);
+        if (job.t < 0.55) break;
         job.t = 0;
         job.state = ST.COLUMN;
         break;
@@ -559,12 +641,11 @@ export class UfoSystem {
 
       case ST.COLUMN: {
         job.t += t;
-        this._placeUfoOverSpot(this.clock);
-        const h = this._aimBeam(0);
-        // Diffuse into full gradient column
+        this._placeUfoOver(this.spot.x, this.spot.z, this.clock);
+        const h = this._aimBeamAt(this.spot.x, this.spot.z, 0);
         const fill = Math.min(1, job.t / 0.9);
         this.beam.userData.setBeam(h, 1 - fill * 0.7, fill, 0.75 + fill * 0.2);
-        this.patron.rotation.x = -0.2;
+        this.patron.rotation.x = -0.25;
         if (job.t < 1.0) break;
         job.t = 0;
         job.floatY = 0;
@@ -575,17 +656,14 @@ export class UfoSystem {
 
       case ST.FLOAT: {
         job.t += t;
-        this._placeUfoOverSpot(this.clock);
+        this._placeUfoOver(this.spot.x, this.spot.z, this.clock);
         const hover = this._hoverY(this.clock);
-        // Rise to ~halfway with a slow ease, then a small bounce
         const mid = hover * 0.48;
         let y;
         if (!job.bounceDone) {
-          // 0..1.4s rise to mid+overshoot, then settle
           const u = Math.min(1, job.t / 1.35);
           const ease = 1 - Math.pow(1 - u, 2.2);
           y = mid * ease;
-          // Overshoot bounce near the end of the rise
           if (u > 0.82) {
             const b = (u - 0.82) / 0.18;
             y = mid + Math.sin(b * Math.PI) * 0.45;
@@ -596,7 +674,6 @@ export class UfoSystem {
             job.floatY = mid;
           }
         } else {
-          // Brief hang after bounce
           y = mid + Math.sin(job.t * 8) * 0.04;
           if (job.t > 0.35) {
             job.t = 0;
@@ -609,23 +686,22 @@ export class UfoSystem {
         this.patron.position.y = y;
         this.patron.rotation.x = -0.25;
         this.patron.rotation.z = Math.sin(this.clock * 5) * 0.12;
-        const h = this._aimBeam(0);
+        const h = this._aimBeamAt(this.spot.x, this.spot.z, 0);
         this.beam.userData.setBeam(h, 0.2, 1, 0.9);
         break;
       }
 
       case ST.SUCK: {
         job.t += t;
-        this._placeUfoOverSpot(this.clock);
+        this._placeUfoOver(this.spot.x, this.spot.z, this.clock);
         const hover = this._hoverY(this.clock);
-        // Snap up into the saucer over ~0.28s
         const u = Math.min(1, job.t / 0.28);
-        const ease = u * u * u; // accelerate into craft
+        const ease = u * u * u;
         const y = job.floatY + (hover - 0.15 - job.floatY) * ease;
         this.patron.position.y = y;
         this.patron.scale.setScalar(1 - ease * 0.85);
         this.patron.rotation.z = ease * 1.2;
-        const h = this._aimBeam(0);
+        const h = this._aimBeamAt(this.spot.x, this.spot.z, 0);
         this.beam.userData.setBeam(h, 0.15, 1 - ease * 0.3, 0.95);
         if (u < 1) break;
         this.patron.visible = false;
@@ -636,10 +712,9 @@ export class UfoSystem {
 
       case ST.FADE: {
         job.t += t;
-        this._placeUfoOverSpot(this.clock);
-        const h = this._aimBeam(0);
+        this._placeUfoOver(this.spot.x, this.spot.z, this.clock);
+        const h = this._aimBeamAt(this.spot.x, this.spot.z, 0);
         const u = Math.min(1, job.t / 0.55);
-        // Thin and die
         this.beam.userData.setBeam(
           h * (1 - u * 0.3),
           u,
@@ -648,8 +723,7 @@ export class UfoSystem {
         );
         if (u < 1) break;
         this.beam.visible = false;
-        // Escape vector — sky + along the street
-        const dir = this.spot.x < this.streetDoor.x ? -1 : 1;
+        const dir = job.dir || (this.spot.x < this.streetDoor.x ? -1 : 1);
         job.ufoFrom = this.ufo.position.clone();
         job.ufoTo = new THREE.Vector3(
           this.ufo.position.x + dir * 40,
