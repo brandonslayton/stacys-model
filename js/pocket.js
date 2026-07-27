@@ -83,28 +83,60 @@ scene.fog = new THREE.Fog(0x8ec0e0, 58, 115);
 
 // ---------------------------------------------------------------- camera
 /**
- * Subject is the building plus its lot and the near half of 7th Ave — roughly
- * x [−9, 4], z [−6, 10], up to the ridge. A portrait phone's *horizontal* FOV is
- * far narrower than its vertical, so distance has to be fit against whichever
- * axis is tighter or the building overflows the sides. zoom is a user multiplier
- * on top of that fit, so pinch behaves the same on any screen.
+ * Framing is fitted to a sphere per orientation. A bounding sphere wildly
+ * overestimates a flat lot — most of it is air — so both radii below are tuned to
+ * the on-screen result rather than computed from the geometry. Distance is fitted
+ * against whichever half-angle is tighter, because a portrait phone's HORIZONTAL
+ * FOV is far narrower than its vertical and the building otherwise overflows the
+ * sides. `zoom` is a user multiplier on top of the fit, so pinch feels the same on
+ * any screen.
+ *
+ * Portrait: the tall-and-narrow case.
  */
-// A sphere overestimates a flat lot badly — most of it is air — so the radius is
-// tuned to the on-screen result, not the geometric bounding sphere. The center
-// sits below grade so the building lands in the upper two thirds, clear of the
-// stats card.
-// az 137 / el 42 is the parent game's map angle, and the angle every detail pass
-// in this project was verified at — so it is what the model is tuned to look best
-// from. Looking down harder also eats some of the dead sky a portrait phone leaves.
-const SUBJECT = { center: new THREE.Vector3(-2.4, -0.8, 1.4), radius: 7.6 };
-const view = { az: 137, el: 42, zoom: 1, target: SUBJECT.center.clone() };
+const SUBJECT_PORTRAIT = {
+  // center.y sits ABOVE grade to push the composition down, clear of the header and
+  // event card. It used to be below grade to lift the building over a card pinned to
+  // the bottom of the screen — when that card moved up under the venue name, this
+  // bias was left pointing the wrong way.
+  center: new THREE.Vector3(-2.4, 1.6, 1.4),
+  radius: 7.6,
+};
+
+/**
+ * Landscape / desktop needs its own framing, not a reused portrait one.
+ *
+ * Two reasons. The vertical half-angle becomes the tighter constraint, which pulls
+ * the camera in close enough that the lot and the far side of 7th Ave fall outside
+ * the fit radius and get cropped off the bottom — hence the larger radius. And the
+ * portrait center's below-grade lift, which exists to clear the header stack on a
+ * tall screen, just reads as off-centre on a wide one.
+ */
+const SUBJECT_LANDSCAPE = {
+  center: new THREE.Vector3(-1.1, 0.5, 1.0),
+  radius: 8.5,
+};
+
+let SUBJECT = SUBJECT_PORTRAIT;
+
+/**
+ * Default framing: az 58 / el 26, matched to a screenshot Brandon picked.
+ *
+ * This deliberately departs from the parent game's map angle (az 137 / el 42),
+ * which every detail pass was verified at. That one looks down on the roof and the
+ * mural gable; this one looks along the street facade, which is where most of the
+ * work actually went — the carved double doors, corbels, iron railing, slat screen,
+ * wall sign, and the Converse shoe are all in frame. The mural gable is not.
+ */
+const view = { az: 58, el: 26, zoom: 1, target: SUBJECT.center.clone() };
 const camera = new THREE.PerspectiveCamera(46, 1, 0.5, 400);
 let fitDist = 60;
 
 function computeFit() {
+  SUBJECT = camera.aspect >= 1 ? SUBJECT_LANDSCAPE : SUBJECT_PORTRAIT;
+  view.target.copy(SUBJECT.center);
   const vHalf = THREE.MathUtils.degToRad(camera.fov) / 2;
   const hHalf = Math.atan(Math.tan(vHalf) * camera.aspect);
-  // 1.06 leaves a little air; the stats card overlays the lower third anyway
+  // 1.06 leaves a little air around the fitted sphere
   fitDist = (SUBJECT.radius * 1.06) / Math.sin(Math.min(vHalf, hHalf));
 }
 

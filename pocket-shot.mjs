@@ -24,6 +24,10 @@ const arg = (k, d) => {
 };
 const settle = arg("settle", 20);
 const hours = args.some((a) => a.startsWith("--hour=")) ? [arg("hour", 22)] : [14, 22];
+// Default is iPhone 16 logical size; --w/--h check desktop and landscape layouts
+const W = arg("w", 402);
+const H = arg("h", 874);
+const MOBILE = W < 600;
 const PORT = process.env.PORT || 8090;
 const urlArg = args.find((a) => a.startsWith("--url="));
 const TARGET = urlArg ? urlArg.slice(6) : `http://localhost:${PORT}/pocket.html`;
@@ -38,10 +42,10 @@ const errors = [];
 
 for (const h of hours) {
   const page = await browser.newPage({
-    viewport: { width: 402, height: 874 }, // iPhone 16 logical size
-    deviceScaleFactor: 2,
-    isMobile: true,
-    hasTouch: true,
+    viewport: { width: W, height: H },
+    deviceScaleFactor: MOBILE ? 2 : 1,
+    isMobile: MOBILE,
+    hasTouch: MOBILE,
   });
   page.on("pageerror", (e) => {
     errors.push(`PAGEERROR: ${e.message}`);
@@ -111,7 +115,7 @@ for (const h of hours) {
       `patio ${s.onPatio}/${s.patioSpots} · outside ${s.outside} · ${s.perf}`
   );
 
-  const out = `shots/pocket-${h}h.png`;
+  const out = `shots/pocket-${h}h${MOBILE ? "" : `-${W}x${H}`}.png`;
   await page.screenshot({ path: out });
   console.log("wrote", out);
   await page.close();

@@ -155,10 +155,61 @@ body { user-select: none; -webkit-user-select: none; }
   #top .when .date { font-size: 23px; }
 }
 
+/* ---------------------------------------------------------------- desktop
+   Every size above is tuned for a ~400px phone at DPR 2. Left alone on a
+   1500px window the whole HUD reads as miniature, so scale it up rather than
+   leaving pixel sizes that only made sense on a handset. */
+@media (min-width: 700px) {
+  :root {
+    --pad: 22px;
+  }
+
+  #top .name { font-size: 26px; }
+
+  #top .when .day,
+  #top .when .date { font-size: 34px; }
+
+  #top .when .time,
+  #top .when .cond .temp { font-size: 19px; }
+
+  #top .when .moonrow .moonname { font-size: 13px; }
+
+  .pill {
+    font-size: 12.5px;
+    padding: 6px 13px;
+  }
+
+  #card {
+    max-width: 380px;
+    margin-top: 13px;
+    padding: 14px 16px 15px;
+    border-radius: 18px;
+  }
+
+  .ev-name { font-size: 23px; }
+  .ev-time { font-size: 14px; }
+  .ev-when { font-size: 11px; }
+
+  #spin {
+    width: 48px;
+    height: 48px;
+  }
+
+  /* The SVGs carry hardcoded width/height, so they need scaling too or they sit
+     undersized next to the larger text. */
+  #top .when .ic svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+
 /* ---------------------------------------------------------------- event card
    Sits inside .ident, directly under the venue name. Because #top is a flex row,
    .ident takes whatever width the date column leaves — no manual max-width. */
 #card {
+  /* .ident is flex:1, so without a cap this stretches to the full width of a
+     desktop window and reads as a letterbox banner with the text crammed left. */
+  max-width: 330px;
   margin-top: 10px;
   padding: 11px 13px 12px;
   border-radius: 16px;

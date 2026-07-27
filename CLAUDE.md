@@ -467,6 +467,49 @@ under it. The bottom card is tonight's event.
 - **FPS readout left the screen.** Still on `window.__pocket.perf`; pocket-shot
   prints it. Real, but developer instrumentation does not belong on an ambient view.
 
+## Done — default angle + responsive pass (2026-07-26)
+
+**Default camera is now az 58 / el 26**, matched to a screenshot Brandon picked. This
+departs from the game's az 137 / el 42 that every detail pass was verified at. Worth
+understanding why it is a good trade: 137/42 looks down on the roof and the mural
+gable, while 58/26 looks along the street facade — the carved double doors, corbels,
+iron railing, slat screen, wall sign and the Converse shoe are all in frame. The
+mural gable is not visible from here at all.
+
+To match an angle from a screenshot, render candidates and compare rather than
+reasoning about it — `/tmp` throwaway scripts driving `window.__pocket.view` +
+`applyCamera()` converge in two rounds. Reading azimuth off a screenshot by tracing
+which faces are visible is unreliable, especially since the workbench is
+orthographic and the pocket view is perspective.
+
+### Desktop was three separate bugs, not one
+
+Brandon reported the event tile "stretches the full width on desktop". Capturing at
+1512x860 showed three:
+
+- **The card stretched to ~1360px.** `#card` sits in `.ident`, which is `flex: 1`, so
+  with no cap it fills a desktop window and reads as a letterbox banner with the text
+  crammed left. Now `max-width: 330px`, 380px on desktop.
+- **All type was sized for a 402px phone at DPR 2**, so the whole HUD read as
+  miniature on a 1500px window. Added a `min-width: 700px` block scaling the name,
+  day/date, clock, temperature, pill, card and rotate button. The SVG icons carry
+  hardcoded width/height, so they need explicit scaling too or they sit undersized
+  next to the larger text.
+- **The model was cropped off the bottom.** In landscape the *vertical* half-angle
+  becomes the tighter constraint, pulling the camera close enough that the lot and the
+  far side of 7th Ave fall outside the fit radius. Hence `SUBJECT_LANDSCAPE`
+  (radius 8.5) picked by `camera.aspect >= 1` in `computeFit()`.
+
+**`pocket-shot.mjs` takes `--w` / `--h`** now — desktop and landscape layouts are not
+checkable at the default phone viewport, and all three needed separate verification.
+
+### The portrait framing bias had been left pointing the wrong way
+
+`SUBJECT_PORTRAIT.center.y` was *below* grade to lift the building over a stats card
+pinned to the bottom of the screen. When that card moved up under the venue name, the
+bias should have flipped — it was still pushing content up into the header instead of
+down into the free space. Now `+1.6`.
+
 ## Improvement backlog
 
 Ordered by visible-pixels-per-unit-of-work at the game camera. **Done:** items 2,

@@ -106,9 +106,18 @@ midnight, so 1am still reads `Open` from the previous evening's session. The
 crowd sim is zeroed while the doors are shut, so nobody strolls in at noon on a
 Monday under an `Opens 4:00 PM` badge.
 
+The default camera is **az 58 / el 26**, looking along the street facade — the porch,
+carved doors, wall sign and Converse shoe. (The game's own map angle, az 137 / el 42,
+looks down on the roof and the mural gable instead.) Framing is fitted per
+orientation: `SUBJECT_PORTRAIT` and `SUBJECT_LANDSCAPE` in `js/pocket.js`, chosen on
+`camera.aspect`, because in landscape the vertical half-angle becomes the tighter
+constraint and a portrait fit crops the lot off the bottom.
+
 ```bash
-node pocket-shot.mjs                 # headless, iPhone size, 2pm + 10pm
+node pocket-shot.mjs                       # headless, iPhone size, 2pm + 10pm
 node pocket-shot.mjs --hour=3 --settle=40
+node pocket-shot.mjs --w=1512 --h=860      # desktop layout
+node pocket-shot.mjs --w=874 --h=402       # landscape phone
 ```
 
 The `fps` readout on the card is deliberate — draw calls are the open performance
