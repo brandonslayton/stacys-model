@@ -53,6 +53,15 @@ export const ROTATE_ICON = svg(
   20
 );
 
+/** Mist / spray, for the patio misting system. */
+export const MIST_ICON = svg(
+  `<path d="M5 6.5h5"/><path d="M13.5 6.5h5.5"/>` +
+    `<path d="M4 10.5h7"/><path d="M14.5 10.5h5"/>` +
+    `<path d="M8.6 15.4v1.5"/><path d="M12 14.6v2.6"/><path d="M15.4 15.4v1.5"/>` +
+    `<path d="M10.3 19.6v1.4"/><path d="M13.7 19.6v1.4"/>`,
+  20
+);
+
 /** A trash can, for the take-out-the-trash chore. */
 export const TRASH_ICON = svg(
   `<path d="M4 7h16"/><path d="M9.5 7V4.6h5V7"/>` +

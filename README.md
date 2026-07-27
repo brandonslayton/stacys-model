@@ -39,12 +39,19 @@ no lost camera position.
 | Zoom | pinch (or wheel) |
 | Auto-rotate | resumes 4s after you let go; icon button, bottom left |
 | Take out the trash | trash-can button, bottom left |
+| Patio misters | mist button, bottom left — on/off |
 
 Tapping the trash can sends a worker out of the porch with a bag, up the parking
 aisle, and into the dumpster — which reacts with a heart. The camera eases round to
 the dumpster for it and back afterwards, because at the default angle that corner is
 behind the building; any drag cancels the swing. `js/chores.js`, built to take more
 interactions later.
+
+The mist button runs the patio misting system — nozzles along the fence rails throwing
+a fog that sinks and pools on the deck, very Phoenix. Switching it on also swings the
+camera to the patio (the rear face, likewise hidden by default); switching it off
+leaves the camera where it is. `js/mist.js` renders the whole thing as a single
+`THREE.Points` with a custom shader, so it costs **one draw call**.
 
 Layout: venue name top-left with tonight's event directly under it, and top-right
 an `Open` / `Opens 4:00 PM` pill over a big weekday and date, the venue clock,
@@ -194,6 +201,7 @@ stacys-model/
 │   ├── pocket.js     # phone view: touch, auto-rotate, clock, stats card
 │   ├── life.js       # crowd sim — cars park, people go in, patio fills
 │   ├── chores.js     # tap-to-trigger interactions (take out the trash)
+│   ├── mist.js       # patio misting system (single-draw-call particles)
 │   ├── venue.js      # REAL data: Phoenix clock, tonight's event, weather
 │   ├── street.js     # stub of 7th Ave + lane/sidewalk helpers
 │   └── agents.js     # createCar / createPedestrian, from the game

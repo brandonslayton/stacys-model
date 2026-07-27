@@ -383,9 +383,9 @@ tight `58 → 115`.
 
 - **Draw calls are now the real bottleneck**, not a hypothetical. 1,395 meshes
   plus 6 cars and 18 pedestrians on a phone CPU is exactly what the merge pass
-  fixes. Untested on a real device — the `fps` readout on the card is there to
-  judge it. (The ~20fps in `pocket-shot.mjs` is swiftshader software rendering and
-  means nothing about phone performance.)
+  fixes. Still untested on a real device — `window.__pocket.perf.fps`, printed by
+  `pocket-shot.mjs`, is there to judge it. (Software rendering under swiftshader
+  runs ~8fps, ~5 with the misters on, and says nothing about phone performance.)
 - Shadow map is 1024 here vs the workbench's 2048; first thing to drop if slow.
 - Nothing persists between visits, per Brandon's call — no history, no streak.
 - Not hosted. Local `serve.py` only, so it is not actually reachable from a phone
@@ -544,6 +544,56 @@ Auto-rotate is held off during the swing or it fights for the azimuth, and any
 
 Alternative if this ever feels intrusive: move the dumpster somewhere visible from the
 front. It is at the NE corner for authenticity, not necessity.
+
+## Done — patio misters (2026-07-26)
+
+Toggle button, third in the controls row. Nozzles along the three fence rails throw a
+fine fog that sinks, pools on the deck and creeps outward, plus a faint cool PointLight
+to sell the cooling. Ramps on and off over ~1.1s rather than snapping.
+
+- **`js/mist.js`** — one `THREE.Points` with a custom `ShaderMaterial`, so the whole
+  effect is **one draw call**. That matters: the model already costs ~1,395 and that is
+  the known bottleneck, so a few hundred `Sprite`s would have been a bad trade.
+- **Why a custom shader:** `PointsMaterial` cannot fade particles individually —
+  per-vertex colour multiplies the texture but alpha comes from the texture alone, so a
+  pool of particles at different ages is inexpressible. The usual dodge is additive
+  blending with colour standing in for brightness, but additive white blows out against
+  a sunlit patio. A `vAlpha` attribute is ~15 lines of GLSL and reads correctly in both
+  daylight and at night (verified at 2pm and 9pm).
+- **`createStacys` publishes `userData.patio`** (interior extents, floor, wall top,
+  fence rail height) — same metadata pattern as the dumpster and parking.
+- **`PATIO_VIEW` uses `beginFocus(..., {hold: true})`.** The patio is the rear (-Z)
+  face, so like the dumpster it is invisible at the default az 58 and switching the
+  misters on would appear to do nothing. Unlike a chore this is a *persistent* toggle,
+  so the swing must not return on its own; `hold` skips saving a return view and
+  releases control on arrival. Switching OFF deliberately does not move the camera.
+
+### Three bugs worth not repeating
+
+- **`size` in the shader is WORLD units, not pixels.** `uScale` is the exact
+  projection factor (`viewportHeightPx / (2·tan(fov/2))`), so seeding sizes with
+  pixel-scale numbers (26–52) produced ~2000px puffs and one opaque white blob
+  swallowing the entire scene. World units are ~0.55–1.05.
+- **Mist expired mid-air.** At `LIFE` 2.4s with gentle velocities it never reached the
+  deck 1.9 units below the rail, so it hung as a band at rail height — a floating haze,
+  not a patio filling up. Now 3.3s with a stronger initial sink and gravity.
+- **Switching off left the object visible** with ~70 mid-life particles at zero
+  opacity: a draw call and a full particle pass for invisible output. Now gated on
+  `uOpacity`, and going fully off parks every particle — otherwise switching back on
+  flashes the stale positions they froze at.
+
+### The fps readout was lying, by about 2.6x
+
+`fpsAcc` accumulated the **clamped** sim `dt` (max 50ms), so any frame slower than that
+under-counted the denominator: a true 8fps reported as 21. Since the entire point of
+that number is deciding whether the merge pass is needed, an inflated one was worse
+than none. It now accumulates wall-clock `elapsed`, with the clamped `dt` still used
+for simulation so a stall cannot teleport agents across the lot.
+
+Note this also means earlier timing judgements made from `pocket-shot.mjs` were
+distorted — sim time runs roughly 2–3x slow under software rendering. The worker's
+walk speed was raised from 2.15 to 2.9 partly on that basis; at 2.9 the round trip is
+~9.6s of sim time, which is right, but the original 2.15 was less bad than it looked.
 
 ## Improvement backlog
 

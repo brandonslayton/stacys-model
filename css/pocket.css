@@ -349,6 +349,14 @@ body { user-select: none; -webkit-user-select: none; }
   color: var(--hot);
 }
 
+/* Misters running — cool tint rather than the plain white "active" of auto-rotate,
+   so the two toggles are distinguishable at a glance. */
+#mist.on {
+  color: #0e1c24;
+  background: var(--cool);
+  border-color: transparent;
+}
+
 /* Turn with the model while active, so the control shows its own state */
 #spin.on svg {
   animation: spin 5s linear infinite;

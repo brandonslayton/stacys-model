@@ -15,6 +15,7 @@ import {
   WX_ICONS,
   ROTATE_ICON,
   TRASH_ICON,
+  MIST_ICON,
   moonPhase,
   moonName,
   moonIllumination,
@@ -24,6 +25,7 @@ import { createStacys } from "./stacys.js";
 import { createStreet } from "./street.js";
 import { LifeSystem, crowdFactor } from "./life.js";
 import { ChoreSystem } from "./chores.js";
+import { MistSystem } from "./mist.js";
 import {
   venueNow,
   loadEvents,
@@ -132,6 +134,8 @@ let SUBJECT = SUBJECT_PORTRAIT;
 const view = { az: 58, el: 26, zoom: 1, target: SUBJECT.center.clone() };
 const camera = new THREE.PerspectiveCamera(46, 1, 0.5, 400);
 let fitDist = 60;
+/** Set once the mist system exists, so resize() can keep its point scale right. */
+let mistRef = null;
 
 function computeFit() {
   SUBJECT = camera.aspect >= 1 ? SUBJECT_LANDSCAPE : SUBJECT_PORTRAIT;
@@ -162,6 +166,7 @@ function resize() {
   camera.updateProjectionMatrix();
   computeFit();
   applyCamera();
+  mistRef?.setProjection(camera.fov, renderer.domElement.height);
 }
 addEventListener("resize", resize);
 
@@ -176,6 +181,16 @@ addEventListener("resize", resize);
  */
 const CHORE_VIEW = { az: 228, el: 26, zoom: 0.85 };
 
+/**
+ * Where to swing to see the patio, for the misters.
+ *
+ * Same problem as the dumpster: the patio is the building's rear (-Z) side, so the
+ * default az 58 hides it completely and switching the misters on would appear to do
+ * nothing. Unlike a chore this is a persistent toggle, so the swing does NOT return
+ * on its own — see the `hold` option.
+ */
+const PATIO_VIEW = { az: 268, el: 30, zoom: 0.86 };
+
 /** Eased-to view, or null when the user is in control. */
 let focusTarget = null;
 /** Where to return once the chore finishes. */
@@ -186,8 +201,10 @@ function angleDelta(from, to) {
   return (((to - from) % 360) + 540) % 360 - 180;
 }
 
-function beginFocus(target) {
-  savedView = { az: view.az, el: view.el, zoom: view.zoom };
+function beginFocus(target, { hold = false } = {}) {
+  // hold = stay put once arrived (a persistent toggle), rather than returning to
+  // where the camera was (a one-shot chore)
+  savedView = hold ? null : { az: view.az, el: view.el, zoom: view.zoom };
   focusTarget = target;
 }
 
@@ -206,16 +223,18 @@ function stepFocus(dt, choreBusy) {
   view.zoom += (focusTarget.zoom - view.zoom) * k;
   applyCamera();
 
-  if (choreBusy) return;
-  if (focusTarget === savedView || !savedView) {
-    // Heading home — stop once we are close enough to not be noticeable
-    const near =
-      Math.abs(angleDelta(view.az, focusTarget.az)) < 0.4 &&
-      Math.abs(focusTarget.el - view.el) < 0.3;
+  const near =
+    Math.abs(angleDelta(view.az, focusTarget.az)) < 0.4 &&
+    Math.abs(focusTarget.el - view.el) < 0.3;
+
+  if (!savedView) {
+    // Held swing, or already on the way home: release once we arrive
     if (near) cancelFocus();
     return;
   }
+  if (choreBusy) return;
   focusTarget = savedView;
+  savedView = null;
 }
 
 // ---------------------------------------------------------------- touch + mouse
@@ -411,6 +430,28 @@ function wireTrashButton(chores) {
 }
 
 /**
+ * Misters toggle. Switching them ON swings the camera round to the patio, since it
+ * faces away by default and the effect would otherwise be invisible. Switching OFF
+ * leaves the camera alone — yanking the view on a "stop doing that" is not what
+ * anyone wants.
+ */
+function wireMistButton(mist) {
+  const btn = $("mist");
+  btn.innerHTML = MIST_ICON;
+  if (!mist.enabled) {
+    btn.disabled = true;
+    btn.title = "Patio bounds unavailable";
+    return;
+  }
+  btn.onclick = () => {
+    const on = mist.toggle();
+    btn.classList.toggle("on", on);
+    btn.setAttribute("aria-pressed", String(on));
+    if (on) beginFocus(PATIO_VIEW, { hold: true });
+  };
+}
+
+/**
  * Crowd size for the sim, zeroed while the doors are shut so the visuals agree
  * with the pill — otherwise people stroll in at noon on a Monday under a
  * "Opens 4:00 PM" badge.
@@ -469,7 +510,11 @@ async function boot() {
     streetDoor: life.streetDoor,
     aisleX: life.aisle ? life.aisle.x : life.streetDoor.x,
   });
+  const mist = new MistSystem(scene, model);
+  mistRef = mist;
+  mist.setProjection(camera.fov, renderer.domElement.height);
   wireTrashButton(chores);
+  wireMistButton(mist);
   const boot = venueNow();
   life.setCrowd(crowdFor(boot));
   life.seed();
@@ -504,6 +549,7 @@ async function boot() {
     view,
     perf,
     chores,
+    mist,
     get nightMix() {
       return nightMix;
     },
@@ -519,6 +565,14 @@ async function boot() {
   let cardAcc = 1e9;
   let eventAcc = 0;
   let frames = 0;
+  /**
+   * Wall-clock seconds, NOT the clamped sim dt.
+   *
+   * Accumulating the clamped value inflates the figure whenever a frame exceeds
+   * 50ms: at ~6 real fps it reported 21, because each 160ms frame only added 50ms
+   * to the denominator. Since the whole point of this number is to answer whether
+   * the merge pass is needed, an over-report by 3x is worse than no number.
+   */
   let fpsAcc = 0;
   let meshCount = 0;
   model.traverse((o) => {
@@ -529,7 +583,9 @@ async function boot() {
   perf.meshes = meshCount;
 
   function frame(now) {
-    const dt = Math.min(0.05, (now - last) / 1000);
+    const elapsed = (now - last) / 1000;
+    // Clamped for simulation so a stall cannot teleport agents across the lot
+    const dt = Math.min(0.05, elapsed);
     last = now;
 
     const vnow = venueNow();
@@ -540,6 +596,7 @@ async function boot() {
     life.setCrowd(crowdFor(vnow));
     life.update(dt);
     chores.update(dt);
+    mist.update(dt);
 
     stepFocus(dt, chores.busy);
 
@@ -550,7 +607,7 @@ async function boot() {
       applyCamera();
     }
 
-    cardAcc += dt;
+    cardAcc += elapsed;
     if (cardAcc >= 1) {
       cardAcc = 0;
       paintHeader(vnow);
@@ -567,7 +624,7 @@ async function boot() {
       paintEvent(currentEvent(events, vnow));
     }
     frames++;
-    fpsAcc += dt;
+    fpsAcc += elapsed;
 
     renderer.render(scene, camera);
     requestAnimationFrame(frame);

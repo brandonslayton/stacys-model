@@ -3439,6 +3439,18 @@ export function createStacys(parcel) {
     aisleZ: nLotZ + northLotSpan * 0.5,
   };
 
+  // Rear patio bounds, for the misting system. Interior extents (inside the CMU),
+  // plus the fence rail height where misting lines actually get mounted.
+  g.userData.patio = {
+    xMin: patX - patW / 2 + wallT,
+    xMax: patX + patW / 2 - wallT,
+    zMin: patZ - patD / 2 + wallT,
+    zMax: patZ + patD / 2,
+    floorY: 0.07,
+    wallTopY: wallH,
+    railY: wallH + fenceH,
+  };
+
   // Dumpster, for the take-out-the-trash chore. `approach` is where a worker stands
   // to toss a bag in — offset into the lot, since the far sides of the dumpster are
   // up against the property edges.
