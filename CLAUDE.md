@@ -440,6 +440,33 @@ under it. The bottom card is tonight's event.
   from `getUTCDate()` is wrong: after 5pm Phoenix, UTC has already rolled over, so
   shots landed on tomorrow's date and tomorrow's event. Shift back 7h first.
 
+## Done — real sun, moon phase, icon pass (2026-07-26)
+
+- **Night now follows the venue's REAL sunrise/sunset**, from the same Open-Meteo
+  call (`daily=sunrise,sunset`). `nightFromSun()` ramps from 20 min before sunset
+  to full night 80 min after. This answers a question Brandon asked directly — the
+  old `nightFromHour` was a fixed ramp inherited from the game, ~right in July but
+  about 90 minutes early in December. At 7:20pm on 26 Jul the real curve gives 0.08
+  where the old one gave 0.43. Kept as the fallback when sun times fail.
+- **The weather icon keys off our own `nightMix`, not the API's `is_day`.** Those
+  can disagree, which would put a sun on screen while the neon is already lit. After
+  dark, clear skies show no weather icon at all — the moon row carries it.
+- **Moon phase is computed locally** (`js/icons.js`), mean synodic month from a
+  known new moon. Checked against a published ephemeris: the Jul 2026 full moon
+  lands within ~1.4h of the real 29 Jul 14:36 UTC. Deliberately no extra API for a
+  decorative detail. The icon draws the true terminator (a half-ellipse with x
+  semi-axis R·|cos 2πp|), but **a gibbous moon is nearly a full disc at 17px**, so
+  the phase name is what actually informs — icon alone reads as a plain circle.
+- **Icons are inline SVG** (`WX_ICONS`, `ROTATE_ICON`), inheriting `currentColor`.
+  The previous text glyphs (☀/☾) were too faint against a bright sky, and emoji
+  render differently per platform and can't take the UI color.
+- **Layout:** event card moved into `.ident` under the venue name — since `#top` is
+  a flex row, `.ident` takes whatever the date column leaves, so no manual
+  max-width. Auto-rotate is a 44px round icon button, bottom-left, that spins while
+  active. Clock and temperature went from 12.5px `--dim` to 16px/700 near-white.
+- **FPS readout left the screen.** Still on `window.__pocket.perf`; pocket-shot
+  prints it. Real, but developer instrumentation does not belong on an ambient view.
+
 ## Improvement backlog
 
 Ordered by visible-pixels-per-unit-of-work at the game camera. **Done:** items 2,

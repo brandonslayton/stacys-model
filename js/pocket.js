@@ -11,6 +11,14 @@
  */
 import * as THREE from "three";
 import { ensureSignFonts } from "./kit.js";
+import {
+  WX_ICONS,
+  ROTATE_ICON,
+  moonPhase,
+  moonName,
+  moonIllumination,
+  moonIcon,
+} from "./icons.js";
 import { createStacys } from "./stacys.js";
 import { createStreet } from "./street.js";
 import { LifeSystem, crowdFactor } from "./life.js";
@@ -128,6 +136,7 @@ let spin = true;
 let idleAt = 0;
 const IDLE_RESUME_MS = 4000;
 
+$("spin").innerHTML = ROTATE_ICON;
 $("spin").onclick = () => {
   spin = !spin;
   $("spin").classList.toggle("on", spin);
@@ -194,7 +203,32 @@ canvas.addEventListener(
 );
 
 // ---------------------------------------------------------------- day / night
-/** Same curve as builders.js nightFactorFromHour. */
+/**
+ * Night mix 0..1 from the venue's REAL sunrise and sunset.
+ *
+ * Neon starts coming on 20 minutes before sunset and reaches full night 80 minutes
+ * after it; mornings mirror that around sunrise. Falls back to the fixed clock ramp
+ * if the sun times are unavailable.
+ *
+ * @param {number} sunriseMin minutes past midnight, venue-local
+ * @param {number} sunsetMin
+ */
+function nightFromSun(now, sunriseMin, sunsetMin) {
+  if (sunriseMin == null || sunsetMin == null) return nightFromHour(now.hourFloat);
+  const mins = now.hour * 60 + now.minute;
+  const clamp = (v) => Math.min(1, Math.max(0, v));
+
+  if (mins <= sunriseMin + 15) {
+    // Full night until ~70 min before sunrise, full day 15 min after
+    return clamp((sunriseMin + 15 - mins) / 85);
+  }
+  if (mins >= sunsetMin - 20) {
+    return clamp((mins - (sunsetMin - 20)) / 100);
+  }
+  return 0;
+}
+
+/** Fallback ramp: the same curve as builders.js nightFactorFromHour. */
 function nightFromHour(hour) {
   const h = ((hour % 24) + 24) % 24;
   if (h >= 17 && h < 20) return ((h - 17) / 3) * 0.55;
@@ -229,14 +263,35 @@ function applyNight(t) {
 // without asserting a figure. Everything shown below is real.
 let weather = null;
 let events = [];
+/** Current night mix 0..1, from real sun times. Drives the lighting and the
+ *  day/night choice of weather icon, so the two can never disagree. */
+let nightMix = 0;
+/** Developer instrumentation, kept off-screen; read by pocket-shot.mjs. */
+const perf = { fps: 0, meshes: 0 };
 
 function paintHeader(now) {
   $("weekday").textContent = now.weekday;
   $("date").textContent = `${now.month} ${now.day}`;
   $("clock").textContent = now.clock;
-  $("wx").textContent = weather
-    ? `${weather.tempF}°${weather.glyph ? " " + weather.glyph : ""}`
-    : "";
+  $("temp").textContent = weather ? `${weather.tempF}°` : "";
+
+  // After dark, clear skies drop the weather icon — the moon row carries it, so
+  // there is no sun beside "9:20 PM" and no crescent duplicating the real phase.
+  //
+  // Keyed off our own computed night mix rather than the API's `is_day`: that flips
+  // on the API's own schedule and can disagree with the model's lighting, which
+  // would put a sun on screen while the neon is already lit.
+  const dark = nightMix >= 0.5;
+  const key = weather?.icon && !(dark && weather.icon === "sun") ? weather.icon : null;
+  $("wx-icon").innerHTML = key ? WX_ICONS[key] || "" : "";
+  $("wx-icon").title = weather?.label || "";
+
+  const p = moonPhase(new Date());
+  $("moon-icon").innerHTML = moonIcon(p);
+  $("moon-name").textContent = moonName(p);
+  $("moon-icon").title = `${moonName(p)} · ${Math.round(
+    moonIllumination(p) * 100
+  )}% lit`;
 
   const state = venueState(now);
   $("state").textContent = state.label;
@@ -328,6 +383,10 @@ async function boot() {
   window.__pocket = {
     life,
     view,
+    perf,
+    get nightMix() {
+      return nightMix;
+    },
     applyCamera,
     applyNight,
     setSpin: (v) => {
@@ -345,13 +404,17 @@ async function boot() {
   model.traverse((o) => {
     if (o.isMesh) meshCount++;
   });
+  // Kept off-screen: real, but it is developer instrumentation, not something to
+  // put on an ambient view. pocket-shot.mjs reads it off window.__pocket.
+  perf.meshes = meshCount;
 
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
 
     const vnow = venueNow();
-    applyNight(nightFromHour(vnow.hourFloat));
+    nightMix = nightFromSun(vnow, weather?.sunriseMin, weather?.sunsetMin);
+    applyNight(nightMix);
     model.userData.tickNight?.(now);
 
     life.setCrowd(crowdFor(vnow));
@@ -367,8 +430,7 @@ async function boot() {
     if (cardAcc >= 1) {
       cardAcc = 0;
       paintHeader(vnow);
-      const fps = frames / Math.max(0.001, fpsAcc);
-      $("perf").textContent = `${fps.toFixed(0)} fps · ${meshCount} meshes`;
+      perf.fps = Math.round(frames / Math.max(0.001, fpsAcc));
       frames = 0;
       fpsAcc = 0;
     }

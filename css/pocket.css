@@ -49,6 +49,7 @@ body { user-select: none; -webkit-user-select: none; }
 }
 
 #top .ident {
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -92,17 +93,59 @@ body { user-select: none; -webkit-user-select: none; }
   opacity: 0.72;
 }
 
-#top .when .meta {
-  margin-top: 4px;
-  font-size: 12.5px;
-  color: var(--dim);
+/* Clock and conditions: deliberately bold and near-white. These were 12.5px in
+   --dim and washed out against a bright daytime sky. */
+#top .when .time {
+  margin-top: 5px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-#top .when .meta span + span::before {
-  content: " · ";
-  opacity: 0.6;
+#top .when .cond {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+  white-space: nowrap;
+}
+
+#top .when .cond .temp {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+#top .when .cond .ic {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* A gibbous moon is nearly a full disc, so at 17px the shape alone is not
+   legible — the phase name is what makes it informative. */
+#top .when .moonrow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: 3px;
+  white-space: nowrap;
+}
+
+#top .when .moonrow .moon {
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.85;
+}
+
+#top .when .moonrow .moonname {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--dim);
+  letter-spacing: 0.01em;
 }
 
 /* Narrow phones: shrink the big type rather than let it wrap or collide. */
@@ -112,21 +155,19 @@ body { user-select: none; -webkit-user-select: none; }
   #top .when .date { font-size: 23px; }
 }
 
-/* ---------------------------------------------------------------- card */
+/* ---------------------------------------------------------------- event card
+   Sits inside .ident, directly under the venue name. Because #top is a flex row,
+   .ident takes whatever width the date column leaves — no manual max-width. */
 #card {
-  position: fixed;
-  left: var(--pad);
-  right: var(--pad);
-  bottom: max(14px, env(safe-area-inset-bottom));
-  padding: 14px 16px 12px;
-  border-radius: 20px;
+  margin-top: 10px;
+  padding: 11px 13px 12px;
+  border-radius: 16px;
   background: var(--glass);
   border: 1px solid var(--edge);
   backdrop-filter: blur(18px) saturate(140%);
   -webkit-backdrop-filter: blur(18px) saturate(140%);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
-  max-width: 460px;
-  margin: 0 auto;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+  text-shadow: none;
 }
 
 /* ---------------------------------------------------------------- event */
@@ -211,36 +252,47 @@ body { user-select: none; -webkit-user-select: none; }
   color: var(--dim);
 }
 
-.foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 12px;
-  padding-top: 11px;
-  border-top: 1px solid var(--edge);
-}
-
-#perf {
-  font-size: 10.5px;
-  color: rgba(167, 157, 192, 0.6);
-  font-variant-numeric: tabular-nums;
-}
-
+/* ---------------------------------------------------------------- rotate toggle */
 #spin {
-  font: inherit;
-  font-size: 11.5px;
-  font-weight: 600;
-  padding: 6px 12px;
-  border-radius: 999px;
+  position: fixed;
+  left: var(--pad);
+  bottom: max(16px, env(safe-area-inset-bottom));
+  width: 44px; /* 44px is the minimum comfortable touch target */
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
   color: var(--dim);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--glass);
   border: 1px solid var(--edge);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease;
 }
 
 #spin.on {
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.17);
+}
+
+/* Turn with the model while active, so the control shows its own state */
+#spin.on svg {
+  animation: spin 5s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #spin.on svg {
+    animation: none;
+  }
 }
 
 /* ---------------------------------------------------------------- boot / error */

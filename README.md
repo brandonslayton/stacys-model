@@ -37,7 +37,31 @@ no lost camera position.
 |---|---|
 | Orbit | one-finger drag |
 | Zoom | pinch (or wheel) |
-| Auto-rotate | resumes 4s after you let go; button to disable |
+| Auto-rotate | resumes 4s after you let go; icon button, bottom left |
+
+Layout: venue name top-left with tonight's event directly under it, and top-right
+an `Open` / `Opens 4:00 PM` pill over a big weekday and date, the venue clock,
+temperature with a weather icon, and the day's moon phase.
+
+### Day/night follows the real sun
+
+The night mix is driven by the venue's **actual sunrise and sunset** from
+Open-Meteo, not a fixed clock ramp — neon starts 20 minutes before sunset and
+reaches full night 80 minutes after. The old ramp was inherited from the game and
+was roughly right in July but about 90 minutes early in December. If the sun times
+fail to load it falls back to that ramp (`nightFromHour`).
+
+Moon phase is computed locally in `js/icons.js` from the mean synodic month — no
+extra API. Verified against a published ephemeris: it puts the July 2026 full moon
+within ~1.4 hours of the real 29 Jul 14:36 UTC. The icon draws the true phase
+shape, but a gibbous moon is nearly a full disc at 17px, so the phase **name**
+carries the information.
+
+### No FPS readout on screen
+
+It's real, but it's developer instrumentation, not something to put on an ambient
+view. It still exists on `window.__pocket.perf` (`{fps, meshes}`) and
+`pocket-shot.mjs` prints it.
 
 ### What's real and what isn't
 

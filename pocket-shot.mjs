@@ -95,12 +95,16 @@ for (const h of hours) {
     const t = (id) => document.getElementById(id).textContent;
     return {
       ...window.__pocket.life.stats(),
-      header: `${t("weekday")} ${t("date")} ${t("clock")} ${t("wx")} [${t("state")}]`,
+      header: `${t("weekday")} ${t("date")} ${t("clock")} ${t("temp")} [${t("state")}]`,
+      wx: document.getElementById("wx-icon").title || "(none)",
+      moon: document.getElementById("moon-icon").title,
       event: `${t("ev-when")}: ${t("ev-name")} — ${t("ev-time")}`,
-      perf: t("perf"),
+      night: window.__pocket.nightMix?.toFixed?.(2) ?? "?",
+      perf: `${window.__pocket.perf.fps} fps · ${window.__pocket.perf.meshes} meshes`,
     };
   });
   console.log(`  header: ${s.header}`);
+  console.log(`  wx:     ${s.wx} | moon: ${s.moon} | night mix ${s.night}`);
   console.log(`  event:  ${s.event}`);
   console.log(
     `  sim:    inside ${s.inside}/${s.target} · parked ${s.carsParked}/${s.stalls} · ` +

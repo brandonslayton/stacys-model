@@ -32,25 +32,31 @@
 <header id="top">
   <div class="ident">
     <div class="name">Stacy's <span>@ Melrose</span></div>
+    <section id="card" hidden>
+      <div class="ev-when" id="ev-when">TONIGHT</div>
+      <div class="ev-name" id="ev-name">&mdash;</div>
+      <div class="ev-time" id="ev-time"></div>
+      <div class="ev-tags" id="ev-tags"></div>
+    </section>
   </div>
+
   <div class="when">
     <div id="state" class="pill">&mdash;</div>
     <div class="day" id="weekday">&mdash;</div>
     <div class="date" id="date">&mdash;</div>
-    <div class="meta"><span id="clock">--:--</span><span id="wx"></span></div>
+    <div class="time" id="clock">--:--</div>
+    <div class="cond">
+      <span class="ic" id="wx-icon"></span>
+      <span class="temp" id="temp"></span>
+    </div>
+    <div class="moonrow">
+      <span class="ic moon" id="moon-icon"></span>
+      <span class="moonname" id="moon-name"></span>
+    </div>
   </div>
 </header>
 
-<section id="card" hidden>
-  <div class="ev-when" id="ev-when">TONIGHT</div>
-  <div class="ev-name" id="ev-name">&mdash;</div>
-  <div class="ev-time" id="ev-time"></div>
-  <div class="ev-tags" id="ev-tags"></div>
-  <div class="foot">
-    <span id="perf">&mdash;</span>
-    <button id="spin" class="on" type="button">Auto-rotate</button>
-  </div>
-</section>
+<button id="spin" class="on" type="button" aria-label="Toggle auto-rotate"></button>
 
 <script type="module" src="js/pocket.js"></script>
 </body>

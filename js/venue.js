@@ -211,41 +211,56 @@ function decorate(e, now) {
 }
 
 // ---------------------------------------------------------------- weather
-/** WMO weather codes -> short label + glyph. */
+/** WMO weather codes -> short label + icon key (see WX_ICONS in icons.js). */
 const WMO = [
-  [[0], "Clear", "☀"],
-  [[1], "Mostly clear", "☀"],
-  [[2], "Partly cloudy", "⛅"],
-  [[3], "Overcast", "☁"],
-  [[45, 48], "Fog", "░"],
-  [[51, 53, 55, 56, 57], "Drizzle", "☔"],
-  [[61, 63, 65, 66, 67], "Rain", "☔"],
-  [[71, 73, 75, 77], "Snow", "❄"],
-  [[80, 81, 82], "Showers", "☔"],
-  [[85, 86], "Snow showers", "❄"],
-  [[95, 96, 99], "Storms", "⚡"],
+  [[0], "Clear", "sun"],
+  [[1], "Mostly clear", "sun"],
+  [[2], "Partly cloudy", "partly"],
+  [[3], "Overcast", "cloud"],
+  [[45, 48], "Fog", "fog"],
+  [[51, 53, 55, 56, 57], "Drizzle", "rain"],
+  [[61, 63, 65, 66, 67], "Rain", "rain"],
+  [[71, 73, 75, 77], "Snow", "snow"],
+  [[80, 81, 82], "Showers", "rain"],
+  [[85, 86], "Snow showers", "snow"],
+  [[95, 96, 99], "Storms", "storm"],
 ];
 
 function describeCode(code, isDay) {
-  for (const [codes, label, glyph] of WMO) {
+  for (const [codes, label, icon] of WMO) {
     if (!codes.includes(code)) continue;
-    // A sun next to "9:20 PM" reads as a bug. Clear skies get a moon after dark;
-    // rain and storms look the same at any hour.
-    if (!isDay && (code === 0 || code === 1)) return { label, glyph: "☾" };
-    return { label, glyph };
+    // A sun next to "9:20 PM" reads as a bug. After dark, clear skies fall through
+    // to the moon-phase icon instead; rain and storms look the same at any hour.
+    if (!isDay && icon === "sun") return { label, icon: null };
+    return { label, icon };
   }
-  return { label: "", glyph: "" };
+  return { label: "", icon: null };
+}
+
+/** "2026-07-26T19:41" -> minutes past midnight. */
+function isoTimeToMinutes(iso) {
+  const m = /T(\d{2}):(\d{2})/.exec(iso || "");
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
 }
 
 /**
- * Current conditions over the venue. Returns null on failure — the caller should
- * treat weather as optional garnish and never block on it.
+ * Current conditions over the venue, plus today's real sunrise and sunset.
+ *
+ * The sun times are what drive the model's day/night state, so the neon comes on at
+ * the venue's actual dusk instead of on a fixed clock ramp — which was inherited
+ * from the game and is roughly right in July but an hour and a half early in
+ * December.
+ *
+ * Returns null on failure. Callers must treat this as optional and never block on
+ * it; the night curve falls back to the fixed ramp.
  */
 export async function fetchWeather() {
   const url =
     "https://api.open-meteo.com/v1/forecast" +
     `?latitude=${VENUE.lat}&longitude=${VENUE.lon}` +
     "&current=temperature_2m,weather_code,is_day" +
+    "&daily=sunrise,sunset&forecast_days=2" +
     `&temperature_unit=fahrenheit&timezone=${encodeURIComponent(VENUE.tz)}`;
   try {
     const res = await fetch(url);
@@ -253,12 +268,27 @@ export async function fetchWeather() {
     const d = await res.json();
     const c = d.current;
     if (!c || typeof c.temperature_2m !== "number") throw new Error("no current");
-    const { label, glyph } = describeCode(c.weather_code, c.is_day === 1);
+    const { label, icon } = describeCode(c.weather_code, c.is_day === 1);
+
+    // Match today's row rather than assuming index 0 — the API's day boundary and
+    // the venue's can disagree around midnight
+    let sunriseMin = null;
+    let sunsetMin = null;
+    const days = d.daily?.time || [];
+    const todayIso = venueNow().isoDate;
+    const i = Math.max(0, days.indexOf(todayIso));
+    if (days.length) {
+      sunriseMin = isoTimeToMinutes(d.daily.sunrise?.[i]);
+      sunsetMin = isoTimeToMinutes(d.daily.sunset?.[i]);
+    }
+
     return {
       tempF: Math.round(c.temperature_2m),
       label,
-      glyph,
+      icon,
       isDay: c.is_day === 1,
+      sunriseMin,
+      sunsetMin,
     };
   } catch (err) {
     console.warn("[venue] weather unavailable", err);
