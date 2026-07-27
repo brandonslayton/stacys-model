@@ -4,9 +4,11 @@
  * Button toggle:
  *   OFF → white SUV rolls up, unloads, pops a square vendor tent + flattop +
  *         tables + A-frame "TACOS $" sign, two vendors open for business.
- *         SUV parks beside the stand while they run.
+ *         SUV parks on the far (north) side of the tent — away from the building.
  *   OPEN → sidewalk customers eat; some linger, some get drawn into Stacy's.
  *   ON → pack up, load the SUV, drive off.
+ *
+ * Camera: pocket.js holds focus while `busy` (arrival → build → park).
  */
 import * as THREE from "three";
 import { box, cyl, canvasTexture, roundRect } from "./kit.js";
@@ -310,19 +312,22 @@ export class TacoSystem {
     this.tent = buildTent();
     this.stand.add(this.tent);
 
+    // Layout is local: +Z = serving face (world +X / toward lot & sign).
+    // Keep props under/near the tent footprint (half ≈ 1.15). SUV parks on
+    // the far north side of the tent, so props can use the street-side apron.
+    //
+    // Flattop sits mid-rear of the tent; the cook stands BEHIND it (−Z), never
+    // on the griddle. Server stands at the serving table on +Z.
     this.flattop = buildFlattop();
-    this.flattop.position.set(-0.15, 0, 0.15);
+    this.flattop.position.set(-0.2, 0, -0.2);
     this.stand.add(this.flattop);
 
-    // Layout is local: +Z = serving face (world +X / toward lot & sign).
-    // Keep props under/near the tent footprint (half ≈ 1.15) so nothing
-    // reaches the sign pole or the SUV parking slot.
     this.table = buildServingTable();
-    this.table.position.set(0.05, 0, 0.55);
+    this.table.position.set(0.2, 0, 0.55);
     this.stand.add(this.table);
 
     this.cooler = buildCooler();
-    this.cooler.position.set(-0.75, 0, 0.25);
+    this.cooler.position.set(-0.85, 0, 0.15);
     this.stand.add(this.cooler);
 
     this.aframe = buildAFrame();
@@ -330,7 +335,7 @@ export class TacoSystem {
     this.stand.add(this.aframe);
 
     this.picnic = [buildPicnicTable(), buildPicnicTable()];
-    // One table in front of the tent, one slightly aside — both clear of the SUV bay
+    // One table in front of the tent, one slightly aside — clear of the north SUV bay
     this.picnic[0].position.set(-0.15, 0, 1.55);
     this.picnic[1].position.set(0.85, 0, 1.55);
     this.stand.add(this.picnic[0], this.picnic[1]);
@@ -350,12 +355,17 @@ export class TacoSystem {
       p.visible = false;
     }
 
+    // Home poses in local stand space (used for work animation).
+    // Cook is fully behind the flattop cart (rear edge ~−0.52, body r≈0.15).
+    this._cookHome = new THREE.Vector3(-0.2, 0, -0.78);
+    this._serverHome = new THREE.Vector3(0.48, 0, 0.38);
+
     this.vendors = [
       buildVendor(VENDOR_COLORS[0]),
       buildVendor(VENDOR_COLORS[1]),
     ];
-    this.vendors[0].position.set(-0.35, 0, 0.35);
-    this.vendors[1].position.set(0.4, 0, 0.55);
+    this.vendors[0].position.copy(this._cookHome);
+    this.vendors[1].position.copy(this._serverHome);
     for (const v of this.vendors) {
       v.visible = false;
       this.stand.add(v);
@@ -374,18 +384,22 @@ export class TacoSystem {
     this.pathI = 0;
     this._spawnAcc = 0;
     this.clock = 0;
+    this._parking = false;
+    this._leaving = false;
 
     // Eat slots at picnic tables (world-updated when open)
     this.eatSlots = [];
   }
 
   get busy() {
+    // Include post-build parking so the camera stays through the full setup
     return (
       this.state === ST.SUV_IN ||
       this.state === ST.UNLOAD ||
       this.state === ST.BUILD ||
       this.state === ST.PACK ||
-      this.state === ST.SUV_OUT
+      this.state === ST.SUV_OUT ||
+      !!this._parking
     );
   }
 
@@ -431,11 +445,18 @@ export class TacoSystem {
     this.pathI = 0;
     this.t = 0;
     this.buildI = 0;
+    this._parking = false;
+    this._leaving = false;
     for (const p of this.buildPieces) {
       p.scale.setScalar(0.01);
       p.visible = false;
     }
-    for (const v of this.vendors) v.visible = false;
+    for (const v of this.vendors) {
+      v.visible = false;
+      v.rotation.set(0, 0, 0);
+    }
+    this.vendors[0].position.copy(this._cookHome);
+    this.vendors[1].position.copy(this._serverHome);
     this.stand.visible = true;
     this.state = ST.SUV_IN;
     if (this.life) this.life.tacoOpen = false;
@@ -518,6 +539,51 @@ export class TacoSystem {
       this.root.remove(c.mesh);
     }
     this.customers = [];
+  }
+
+  /**
+   * Cook works the flattop from behind (−Z of the cart); server works the
+   * counter on the +Z face. Both stay clear of prop volumes — no standing
+   * through the griddle or table.
+   */
+  _animateVendors() {
+    const cook = this.vendors[0];
+    const server = this.vendors[1];
+    const t = this.clock;
+
+    if (cook.visible) {
+      // Side-to-side scrape along the griddle. Lean is small so the body never
+      // crosses into the cart volume (home.z keeps ≥0.15 clear of the rear face).
+      const side = Math.sin(t * 2.1) * 0.12;
+      const reach = Math.abs(Math.sin(t * 2.1)) * 0.04;
+      cook.position.set(
+        this._cookHome.x + side,
+        Math.abs(Math.sin(t * 4.2)) * 0.025,
+        this._cookHome.z + reach
+      );
+      // Face the flattop centre (toward +Z from behind)
+      cook.rotation.y = Math.atan2(
+        this.flattop.position.x - cook.position.x,
+        this.flattop.position.z - cook.position.z
+      );
+      // Tiny torso nod (group tilt) sells the scrape without mesh bones
+      cook.rotation.x = -0.08 - Math.abs(Math.sin(t * 2.1)) * 0.05;
+      cook.rotation.z = Math.sin(t * 2.1) * 0.06;
+    }
+
+    if (server.visible) {
+      // Small step between salsa cups and the customer side
+      const sway = Math.sin(t * 1.4 + 1.2) * 0.08;
+      server.position.set(
+        this._serverHome.x + sway,
+        Math.abs(Math.sin(t * 3.2 + 0.5)) * 0.02,
+        this._serverHome.z + Math.sin(t * 1.4) * 0.03
+      );
+      // Face customers on the serving face (+Z local)
+      server.rotation.y = 0.15 + Math.sin(t * 0.7) * 0.12;
+      server.rotation.x = 0;
+      server.rotation.z = 0;
+    }
   }
 
   _spawnCustomer() {
@@ -615,22 +681,9 @@ export class TacoSystem {
     const t = Math.min(dt, 0.05);
     this.clock += t;
 
-    // Vendor idle when open
+    // Vendor work animation when the stand is up
     if (this.state === ST.OPEN || this.state === ST.BUILD) {
-      for (let i = 0; i < this.vendors.length; i++) {
-        const v = this.vendors[i];
-        if (!v.visible) continue;
-        v.position.y = Math.abs(Math.sin(this.clock * 3 + i)) * 0.02;
-        // Flattop cook faces the griddle
-        if (i === 0) {
-          v.rotation.y = Math.atan2(
-            this.flattop.position.x - v.position.x,
-            this.flattop.position.z - v.position.z
-          );
-        } else {
-          v.rotation.y = 0; // serving face +Z local → face customers
-        }
-      }
+      this._animateVendors();
       // Flattop heat pulse
       this.flattop.traverse((o) => {
         if (o.material?.emissiveIntensity != null && o.material.emissive) {
@@ -697,9 +750,16 @@ export class TacoSystem {
         if (this.buildI < this.buildPieces.length) break;
         if (this.buildPieces.some((p) => p.scale.x < 0.99)) break;
 
-        // Park SUV in its bay (between tent and sign), facing the street
+        // Park SUV on the far (north) side of the tent — swing around the
+        // street-side apron first so the path never cuts through the canopy.
+        const around = new THREE.Vector3(
+          this.park.x,
+          0.02,
+          Math.max(this.suv.position.z, this.park.z) + 1.1
+        );
         this.path = this._clean([
           this.suv.position.clone(),
+          around,
           this.park.clone(),
         ]);
         this.pathI = 0;

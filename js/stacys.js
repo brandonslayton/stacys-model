@@ -3383,18 +3383,21 @@ export function createStacys(parcel) {
   g.add(diamondSign);
 
   // Taco stand — off the road, north of the property line by the diamond pole.
-  // Layout (north −X ←):  [TENT]  gap  [SUV]  gap  [SIGN on pad]
+  // Layout (north −X ←):  [SUV]  gap  [TENT]  gap  [SIGN on pad / building]
+  // SUV parks on the FAR side of the tent from the building so it is not in the
+  // way of the lot, the sign, or the serving face.
   // Tent half-size ~1.15, SUV ~1.2 wide when parked parallel to 7th — keep ≥0.6 clear.
   const tacoTentX = northPadEdge - 3.15;
   const tacoTentZ = diamondSignZ - 0.2;
   g.userData.tacoStand = {
     x: tacoTentX,
     z: tacoTentZ,
-    // Curb approach, then park between tent and sign (not under the canopy)
-    unloadX: northPadEdge - 0.85,
-    unloadZ: diamondSignZ + 0.9,
-    parkX: northPadEdge - 0.95,
-    parkZ: diamondSignZ + 0.15,
+    // Curb approach abeam the tent (unload still near the stand)
+    unloadX: tacoTentX + 0.4,
+    unloadZ: diamondSignZ + 1.15,
+    // Park north of the tent (−X), away from the building and sign
+    parkX: tacoTentX - 2.55,
+    parkZ: tacoTentZ + 0.35,
     /** Tent serving face toward the lot/sign (+X). SUV parks facing the street. */
     faceY: Math.PI / 2,
     parkFaceY: 0,
@@ -3535,9 +3538,12 @@ export function createStacys(parcel) {
     z: dumpsterZ,
     approachX: dumpsterX + 0.95,
     approachZ: dumpsterZ + 0.55,
-    /** Truck stop: aisle-side stand-off so the packer can grab her. */
-    serviceX: dumpsterX + 1.55,
-    serviceZ: dumpsterZ + 1.35,
+    /**
+     * Front-loader stop: further into the lot so the longer nose + forks reach
+     * Leslie without the body clipping the property edge.
+     */
+    serviceX: dumpsterX + 2.85,
+    serviceZ: dumpsterZ + 2.45,
     lidY: 1.08,
   };
 

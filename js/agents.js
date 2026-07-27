@@ -1480,9 +1480,12 @@ export function createLiquorCrate() {
 }
 
 /**
- * Rear-loader garbage truck — comes for Leslie.
- * Local +Z = nose. Lift arms live at the rear (−Z); call
- * `mesh.userData.setLift(t)` with t in 0..1 (0 rest → 1 fully tipped into hopper).
+ * Front-loader garbage truck — comes for Leslie.
+ *
+ * Big blocky isometric toy: fat green packer, cube cab, and two chunky arms on
+ * the NOSE that grab the dumpster, lift it over the cab, and tip into the hopper.
+ * Local +Z = nose. Call `mesh.userData.setLift(t)` with t in 0..1
+ * (0 = forks out front ready to grab, 1 = inverted over the hopper).
  */
 export function createGarbageTruck() {
   const g = new THREE.Group();
@@ -1490,75 +1493,136 @@ export function createGarbageTruck() {
   g.userData.carStyle = "garbage";
   g.userData.kind = "garbage";
   g.userData.delivery = true;
+  g.userData.frontLoader = true;
 
-  const green = 0x2d6b3a;
-  const greenDark = 0x1a4024;
-  const white = 0xecece8;
-  const paint = { roughness: 0.4, metalness: 0.28 };
-  const w = 1.3;
+  // Chunkier than a real packer — reads as a low-poly game icon from any angle.
+  const green = 0x2f7a3c;
+  const greenDark = 0x1a4a28;
+  const greenLite = 0x3d9a4e;
+  const yellow = 0xf0c14d;
+  const steel = 0x6a7078;
+  const steelDark = 0x3a4048;
+  const white = 0xf2f0ea;
+  const paint = { roughness: 0.48, metalness: 0.18 };
+  const flat = { roughness: 0.55, metalness: 0.12 };
+
+  const w = 1.72;
   const halfW = w * 0.5;
-  const cabLen = 1.05;
-  const bodyLen = 2.35;
+  const cabLen = 1.35;
+  const bodyLen = 2.85;
   const totalLen = cabLen + bodyLen;
   const noseZ = totalLen * 0.5;
   const tailZ = -totalLen * 0.5;
-  const stance = 0.08;
-  const cabY = 0.5 + stance;
+  const stance = 0.1;
+  const wheelR = 0.32;
 
-  // Chassis
-  const chassis = box(w * 0.72, 0.12, totalLen * 0.9, 0x2a2a30, DARK);
-  chassis.position.y = 0.28 + stance;
+  // ── Chassis plank ──
+  const chassis = box(w * 0.78, 0.18, totalLen * 0.92, 0x2a2a30, DARK);
+  chassis.position.y = 0.34 + stance;
   g.add(chassis);
-
-  // ── Cab ──
-  const cabZ = noseZ - cabLen * 0.5;
-  const cab = box(w * 0.98, 0.58, cabLen * 0.9, white, paint);
-  cab.position.set(0, cabY, cabZ);
-  g.add(cab);
-  const hood = box(w * 0.92, 0.28, 0.32, white, paint);
-  hood.position.set(0, cabY - 0.06, noseZ - 0.24);
-  g.add(hood);
-  const glass = box(w * 0.9, 0.36, cabLen * 0.65, 0x0c1824, GLASS);
-  glass.position.set(0, cabY + 0.38, cabZ - 0.02);
-  g.add(glass);
-  const wind = box(w * 0.86, 0.32, 0.2, 0x0a141c, GLASS);
-  wind.position.set(0, cabY + 0.36, cabZ + cabLen * 0.28);
-  wind.rotation.x = -0.18;
-  g.add(wind);
-  // Safety stripe on cab doors
+  // Side frame rails — thick isometric “I-beam” read
   for (const side of [-1, 1]) {
-    const stripe = box(0.04, 0.35, cabLen * 0.5, 0xf0c14d, {
-      roughness: 0.45,
-      emissive: 0xc9a020,
-      emissiveIntensity: 0.12,
-    });
-    stripe.position.set(side * (halfW * 0.98), cabY + 0.05, cabZ);
-    g.add(stripe);
+    const rail = box(0.12, 0.22, totalLen * 0.88, steelDark, CHROME);
+    rail.position.set(side * (halfW * 0.72), 0.42 + stance, 0);
+    g.add(rail);
   }
 
-  // ── Packer body / hopper ──
-  const bodyZ = tailZ + bodyLen * 0.5;
-  const bodyH = 1.15;
-  const bodyY = 0.55 + stance + 0.15;
-  const hopper = box(w * 1.05, bodyH, bodyLen * 0.92, green, paint);
+  // ── Cab — almost a cube, white with a big flat windshield ──
+  const cabZ = noseZ - cabLen * 0.48;
+  const cabH = 1.05;
+  const cabY = 0.55 + stance + cabH * 0.5;
+  const cab = box(w * 0.98, cabH, cabLen * 0.88, white, paint);
+  cab.position.set(0, cabY, cabZ);
+  g.add(cab);
+  // Flat roof cap (slightly proud — toy block silhouette)
+  const cabRoof = box(w * 1.02, 0.12, cabLen * 0.92, 0xe4e0d8, flat);
+  cabRoof.position.set(0, cabY + cabH * 0.5 + 0.04, cabZ);
+  g.add(cabRoof);
+  // Big windshield — one flat plane, no curve
+  const wind = box(w * 0.82, 0.55, 0.1, 0x0a1824, GLASS);
+  wind.position.set(0, cabY + 0.08, cabZ + cabLen * 0.4);
+  g.add(wind);
+  // Side windows — two square panes per side
+  for (const side of [-1, 1]) {
+    for (const dz of [-0.18, 0.22]) {
+      const sw = box(0.08, 0.38, 0.32, 0x0c1824, GLASS);
+      sw.position.set(side * (halfW * 0.98), cabY + 0.1, cabZ + dz);
+      g.add(sw);
+    }
+  }
+  // Yellow door blocks
+  for (const side of [-1, 1]) {
+    const door = box(0.06, 0.55, cabLen * 0.42, yellow, {
+      roughness: 0.45,
+      emissive: 0xc9a020,
+      emissiveIntensity: 0.1,
+    });
+    door.position.set(side * (halfW * 0.99), cabY - 0.12, cabZ + 0.05);
+    g.add(door);
+  }
+  // Blocky grille / “face”
+  const grille = box(w * 0.7, 0.38, 0.1, steelDark, CHROME);
+  grille.position.set(0, 0.55 + stance, noseZ - 0.02);
+  g.add(grille);
+  for (const dy of [-0.1, 0, 0.1]) {
+    const bar = box(w * 0.58, 0.04, 0.06, steel, CHROME);
+    bar.position.set(0, 0.55 + stance + dy, noseZ + 0.02);
+    g.add(bar);
+  }
+  // Chunky bumper
+  const fBump = box(w * 1.08, 0.22, 0.22, 0xc8ccd0, CHROME);
+  fBump.position.set(0, 0.28 + stance, noseZ + 0.02);
+  g.add(fBump);
+  // Bumper corners — isometric “L” blocks
+  for (const side of [-1, 1]) {
+    const corner = box(0.18, 0.28, 0.18, yellow, {
+      roughness: 0.4,
+      emissive: 0xd4a020,
+      emissiveIntensity: 0.15,
+    });
+    corner.position.set(side * (halfW * 0.95), 0.32 + stance, noseZ + 0.06);
+    g.add(corner);
+  }
+
+  // ── Packer hopper — tall green brick ──
+  const bodyZ = tailZ + bodyLen * 0.48;
+  const bodyH = 1.55;
+  const bodyY = 0.55 + stance + bodyH * 0.5;
+  const hopper = box(w * 1.08, bodyH, bodyLen * 0.9, green, paint);
   hopper.position.set(0, bodyY, bodyZ);
   g.add(hopper);
-  // Top crown
-  const crown = box(w * 1.0, 0.12, bodyLen * 0.85, greenDark, paint);
-  crown.position.set(0, bodyY + bodyH * 0.5 + 0.02, bodyZ + 0.05);
+  // Top crown + open throat (dumpster tips in from the front/top)
+  const crown = box(w * 1.12, 0.16, bodyLen * 0.78, greenDark, paint);
+  crown.position.set(0, bodyY + bodyH * 0.5 + 0.02, bodyZ - 0.08);
   g.add(crown);
-  // Rear hopper mouth (where Leslie tips in)
-  const mouth = box(w * 0.95, bodyH * 0.75, 0.2, greenDark, paint);
-  mouth.position.set(0, bodyY + 0.05, tailZ + 0.12);
+  // Front-top hopper mouth (where Leslie dumps in after the over-cab lift)
+  const mouth = box(w * 0.95, 0.28, 0.55, greenDark, paint);
+  mouth.position.set(0, bodyY + bodyH * 0.38, bodyZ + bodyLen * 0.32);
   g.add(mouth);
-  // Yellow chevron safety panel on rear
-  const chevron = box(w * 0.85, 0.35, 0.04, 0xf0c14d, {
+  const mouthLip = box(w * 1.0, 0.1, 0.12, greenLite, paint);
+  mouthLip.position.set(0, bodyY + bodyH * 0.52, bodyZ + bodyLen * 0.4);
+  g.add(mouthLip);
+  // Vertical ribs — stamp the brick silhouette
+  for (const dz of [-0.7, -0.15, 0.4]) {
+    const rib = box(w * 1.1, bodyH * 0.92, 0.08, greenDark, paint);
+    rib.position.set(0, bodyY, bodyZ + dz);
+    g.add(rib);
+  }
+  // Yellow chevron safety brick on the rear
+  const chevron = box(w * 0.95, 0.55, 0.1, yellow, {
     roughness: 0.4,
     emissive: 0xd4a020,
-    emissiveIntensity: 0.2,
+    emissiveIntensity: 0.22,
   });
-  chevron.position.set(0, bodyY - 0.15, tailZ + 0.02);
+  chevron.position.set(0, bodyY - 0.15, tailZ + 0.06);
   g.add(chevron);
+  // Diagonal black “caution” bars (just three offset boxes)
+  for (let i = 0; i < 3; i++) {
+    const stripe = box(0.55, 0.1, 0.06, 0x1a1a1e, DARK);
+    stripe.position.set(-0.25 + i * 0.25, bodyY - 0.05 + i * 0.12, tailZ + 0.12);
+    stripe.rotation.z = -0.55;
+    g.add(stripe);
+  }
 
   // Side livery — City of Phoenix Sanitation, loves Leslie
   {
@@ -1566,145 +1630,174 @@ export function createGarbageTruck() {
     c.width = 512;
     c.height = 256;
     const ctx = c.getContext("2d");
-    ctx.fillStyle = "#2d6b3a";
+    ctx.fillStyle = "#2f7a3c";
     ctx.fillRect(0, 0, 512, 256);
     ctx.fillStyle = "#f0c14d";
-    ctx.fillRect(0, 0, 512, 42);
-    ctx.fillRect(0, 214, 512, 42);
+    ctx.fillRect(0, 0, 512, 48);
+    ctx.fillRect(0, 208, 512, 48);
     ctx.fillStyle = "#1a3018";
-    ctx.font = "bold 24px Arial, sans-serif";
+    ctx.font = "bold 26px Arial, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("CITY OF PHOENIX", 256, 30);
+    ctx.fillText("CITY OF PHOENIX", 256, 34);
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 40px Arial, sans-serif";
+    ctx.font = "bold 44px Arial, sans-serif";
     ctx.fillText("SANITATION", 256, 120);
     ctx.fillStyle = "#f0c14d";
-    ctx.font = "bold 22px Arial, sans-serif";
-    ctx.fillText("WE  ♥  LESLIE", 256, 170);
+    ctx.font = "bold 24px Arial, sans-serif";
+    ctx.fillText("WE  ♥  LESLIE", 256, 172);
     ctx.fillStyle = "#1a3018";
-    ctx.font = "bold 18px Arial, sans-serif";
-    ctx.fillText("COMMERCIAL ROUTE", 256, 240);
+    ctx.font = "bold 20px Arial, sans-serif";
+    ctx.fillText("FRONT LOADER · COMMERCIAL", 256, 238);
     const tex = canvasTexture(c, 4);
     for (const side of [-1, 1]) {
-      const decal = sideDecal(tex, bodyLen * 0.7, bodyH * 0.48);
-      decal.position.set(side * (halfW * 1.05 + 0.01), bodyY + 0.05, bodyZ);
+      const decal = sideDecal(tex, bodyLen * 0.72, bodyH * 0.52);
+      decal.position.set(side * (halfW * 1.08 + 0.01), bodyY + 0.02, bodyZ);
       decal.rotation.y = side > 0 ? Math.PI / 2 : -Math.PI / 2;
       g.add(decal);
     }
   }
 
-  // ── Lift arms (rear loader) ──
-  // Pivot near top rear of hopper; arms swing up to tip dumpster in
+  // ── Front-loader arms ──
+  // Pivot just above the cab/nose joint. Arms stick out +Z at rest; setLift
+  // swings them up and over the cab (negative Rx) to tip into the hopper.
   const armRoot = new THREE.Group();
   armRoot.name = "liftArms";
-  armRoot.position.set(0, bodyY + bodyH * 0.25, tailZ + 0.2);
+  const pivotY = cabY + cabH * 0.35;
+  const pivotZ = cabZ + cabLen * 0.15;
+  armRoot.position.set(0, pivotY, pivotZ);
   g.add(armRoot);
 
+  const armLen = 1.85;
+  const armSpread = halfW * 0.92;
+  const steelPaint = { roughness: 0.4, metalness: 0.45 };
+
   for (const side of [-1, 1]) {
-    const arm = box(0.08, 0.1, 1.15, 0x3a3a42, CHROME);
-    arm.position.set(side * (halfW * 0.85), 0, -0.5);
-    armRoot.add(arm);
+    // Thick primary boom
+    const boom = box(0.16, 0.2, armLen, steel, steelPaint);
+    boom.position.set(side * armSpread, 0.05, armLen * 0.48);
+    armRoot.add(boom);
+    // Mid knuckle block
+    const knuckle = box(0.22, 0.26, 0.22, steelDark, steelPaint);
+    knuckle.position.set(side * armSpread, 0.05, armLen * 0.72);
+    armRoot.add(knuckle);
+    // Secondary forearm
+    const forearm = box(0.14, 0.16, 0.7, steel, steelPaint);
+    forearm.position.set(side * armSpread, -0.08, armLen * 0.95);
+    armRoot.add(forearm);
   }
-  // Crossbar + forks that grab Leslie
-  const bar = box(w * 0.95, 0.08, 0.1, 0x4a4a52, CHROME);
-  bar.position.set(0, 0, -1.05);
+  // Crossbar tying the forks
+  const bar = box(w * 1.05, 0.14, 0.16, steelDark, steelPaint);
+  bar.position.set(0, -0.05, armLen * 1.05);
   armRoot.add(bar);
+  // Chunky forks / grab pads that hug Leslie's side pockets
   for (const side of [-1, 1]) {
-    const fork = box(0.1, 0.08, 0.45, 0x5a5a62, CHROME);
-    fork.position.set(side * 0.35, -0.05, -1.25);
+    const fork = box(0.18, 0.14, 0.7, 0x5a6068, steelPaint);
+    fork.position.set(side * 0.42, -0.12, armLen * 1.25);
     armRoot.add(fork);
-  }
-  // Grab pads
-  for (const side of [-1, 1]) {
-    const pad = box(0.12, 0.2, 0.12, 0x1a1a1e, DARK);
-    pad.position.set(side * 0.35, -0.12, -1.4);
+    const tine = box(0.12, 0.45, 0.14, 0x4a5058, steelPaint);
+    tine.position.set(side * 0.42, -0.35, armLen * 1.42);
+    armRoot.add(tine);
+    const pad = box(0.2, 0.28, 0.16, 0x1a1a1e, DARK);
+    pad.position.set(side * 0.42, -0.22, armLen * 1.52);
     armRoot.add(pad);
+  }
+  // Hydraulic rams (just decorative cylinders along each boom)
+  for (const side of [-1, 1]) {
+    const ram = cyl(0.05, 0.05, armLen * 0.55, 0x8a9098, CHROME, 6);
+    ram.rotation.x = Math.PI / 2;
+    ram.position.set(side * (armSpread - 0.18), 0.18, armLen * 0.4);
+    armRoot.add(ram);
   }
 
   g.userData.liftArms = armRoot;
+  /**
+   * t=0: arms forward, forks low — ready to grab Leslie in front of the cab.
+   * t=1: arms swung up and over the roof — dumpster inverted over the hopper.
+   */
   g.userData.setLift = (t) => {
     const k = THREE.MathUtils.clamp(t, 0, 1);
-    // 0 = arms back/low ready to grab, 1 = fully inverted into hopper
-    armRoot.rotation.x = -0.15 + k * (-2.35);
+    // Ease a touch so the mid-lift hangs longer (iconic front-loader pose)
+    const e = k * k * (3 - 2 * k);
+    // Rest: slight down-reach (+Rx moves +Z toward −Y). Full: big −Rx over the cab.
+    armRoot.rotation.x = 0.55 + e * (-3.05);
   };
   g.userData.setLift(0);
 
-  // Lights
+  // Lights — big square blocks
   ensureLights(g, {
     neonHeavy: true,
-    baseHead: 1.15,
-    baseNeon: 1.2,
-    baseTail: 1.0,
-    baseMarker: 0.85,
+    baseHead: 1.2,
+    baseNeon: 1.25,
+    baseTail: 1.05,
+    baseMarker: 0.9,
   });
   for (const side of [-1, 1]) {
-    const hl = box(0.2, 0.1, 0.08, 0xf0f6ff, {
+    const hl = box(0.28, 0.16, 0.1, 0xf0f6ff, {
       roughness: 0.15,
       metalness: 0.45,
       emissive: 0xd8ecff,
-      emissiveIntensity: 1.1,
+      emissiveIntensity: 1.15,
     });
-    hl.position.set(side * (halfW * 0.65), cabY - 0.02, noseZ - 0.02);
+    hl.position.set(side * (halfW * 0.55), 0.62 + stance, noseZ + 0.02);
     g.add(hl);
     pushLight(g, hl, "head");
-    // Amber beacon-ish markers
-    const am = box(0.1, 0.08, 0.08, 0xffa020, {
+    const am = box(0.14, 0.12, 0.1, 0xffa020, {
       roughness: 0.3,
       emissive: 0xff8010,
-      emissiveIntensity: 0.9,
+      emissiveIntensity: 0.95,
     });
-    am.position.set(side * (halfW * 0.7), bodyY + bodyH * 0.45, bodyZ);
+    am.position.set(side * (halfW * 0.92), bodyY + bodyH * 0.42, bodyZ + 0.2);
     g.add(am);
     pushLight(g, am, "marker");
-    const tl = box(0.14, 0.12, 0.06, 0xff2030, {
+    const tl = box(0.2, 0.18, 0.08, 0xff2030, {
       roughness: 0.25,
       metalness: 0.25,
       emissive: 0xff1028,
-      emissiveIntensity: 1.0,
+      emissiveIntensity: 1.05,
     });
-    tl.position.set(side * (halfW * 0.75), bodyY - 0.3, tailZ + 0.04);
+    tl.position.set(side * (halfW * 0.78), bodyY - 0.4, tailZ + 0.06);
     g.add(tl);
     pushLight(g, tl, "tail");
   }
-  const drl = box(w * 0.7, 0.035, 0.05, 0xb0f4ff, {
+  const drl = box(w * 0.78, 0.05, 0.06, 0xb0f4ff, {
     roughness: 0.12,
     metalness: 0.55,
     emissive: 0x50e8ff,
-    emissiveIntensity: 1.25,
+    emissiveIntensity: 1.3,
   });
-  drl.position.set(0, cabY + 0.15, noseZ - 0.01);
+  drl.position.set(0, cabY + 0.22, noseZ - 0.06);
   g.add(drl);
   pushLight(g, drl, "neon");
-  // Roof beacon
-  const beacon = cyl(0.08, 0.08, 0.1, 0xffa010, {
-    roughness: 0.25,
-    emissive: 0xff8010,
-    emissiveIntensity: 1.1,
-  }, 10);
-  beacon.position.set(0, cabY + 0.65, cabZ);
-  g.add(beacon);
-  pushLight(g, beacon, "marker");
+  // Twin roof beacons — big candy cylinders
+  for (const side of [-1, 1]) {
+    const beacon = cyl(0.1, 0.1, 0.14, 0xffa010, {
+      roughness: 0.25,
+      emissive: 0xff8010,
+      emissiveIntensity: 1.15,
+    }, 8);
+    beacon.position.set(side * 0.28, cabY + cabH * 0.5 + 0.18, cabZ);
+    g.add(beacon);
+    pushLight(g, beacon, "marker");
+  }
 
-  const fBump = box(w * 1.02, 0.14, 0.16, 0xc8ccd0, CHROME);
-  fBump.position.set(0, 0.22 + stance, noseZ - 0.04);
-  g.add(fBump);
-
-  const wheelR = 0.22;
+  // Fat dual rears + solid fronts — toy truck stance
   addCarWheels(
     g,
     [
-      [-halfW * 0.85, noseZ - cabLen * 0.45],
-      [halfW * 0.85, noseZ - cabLen * 0.45],
-      [-halfW * 0.85, bodyZ + 0.35],
-      [halfW * 0.85, bodyZ + 0.35],
-      [-halfW * 0.85, bodyZ - 0.55],
-      [halfW * 0.85, bodyZ - 0.55],
+      [-halfW * 0.88, noseZ - cabLen * 0.35],
+      [halfW * 0.88, noseZ - cabLen * 0.35],
+      [-halfW * 0.88, bodyZ + 0.55],
+      [halfW * 0.88, bodyZ + 0.55],
+      [-halfW * 0.88, bodyZ - 0.15],
+      [halfW * 0.88, bodyZ - 0.15],
+      [-halfW * 0.88, bodyZ - 0.85],
+      [halfW * 0.88, bodyZ - 0.85],
     ],
     wheelR,
-    0.17
+    0.22
   );
 
-  attachRearPlate(g, makePlate("PHX-01", { skyBlue: true }), tailZ - 0.01, 0.38);
+  attachRearPlate(g, makePlate("PHX-01", { skyBlue: true }), tailZ - 0.02, 0.42);
 
   return g;
 }

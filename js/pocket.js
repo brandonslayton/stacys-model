@@ -598,6 +598,11 @@ function wireSickButton(incident) {
 /**
  * Festival taco stand by the diamond pole sign. Toggle: white SUV unloads and
  * sets up; customers eat; some wander into the bar. Toggle off to pack up.
+ *
+ * Camera uses a normal (non-hold) focus so stepFocus keeps the swing locked
+ * while `taco.busy` — arrival through full build and parking — then eases back.
+ * hold:true would release as soon as the angle is reached and auto-rotate
+ * would spin off mid-setup.
  */
 function wireTacoButton(taco) {
   const btn = $("taco");
@@ -609,6 +614,8 @@ function wireTacoButton(taco) {
       btn.classList.remove("on");
       btn.setAttribute("aria-pressed", "false");
       btn.disabled = true;
+      // Watch pack-up + drive-off the same way as setup
+      beginFocus(taco.focusTarget);
       const release = () => {
         if (taco.busy) {
           requestAnimationFrame(release);
@@ -620,7 +627,7 @@ function wireTacoButton(taco) {
       return;
     }
     if (!taco.start()) return;
-    beginFocus(taco.focusTarget, { hold: true });
+    beginFocus(taco.focusTarget);
     btn.disabled = true;
     const release = () => {
       if (taco.busy) {

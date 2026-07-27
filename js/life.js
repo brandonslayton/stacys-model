@@ -608,8 +608,8 @@ export class LifeSystem {
   // ── Spawning ──────────────────────────────────────────────────────
 
   /**
-   * City sanitation truck pulls into the rear lot and empties Leslie
-   * (lift → tip into hopper → set her back down → leave).
+   * City sanitation truck pulls into the rear lot and empties Leslie.
+   * Front-loader: nose faces her, arms grab, lift over the cab into the hopper.
    */
   _trySpawnGarbage() {
     if (this.lotHold) return;
@@ -621,13 +621,12 @@ export class LifeSystem {
     const unit = this.garbageTruck;
     const spawnX = this.mouth.x + 13 + Math.random() * 4;
     const stop = this.leslieService.clone();
-    // Face so the rear (−local Z) points roughly at Leslie
     const leslieWorld = new THREE.Vector3();
     this.leslie.getWorldPosition(leslieWorld);
-    // Truck nose points away from dumpster so rear loader faces her
-    const awayX = stop.x - leslieWorld.x;
-    const awayZ = stop.z - leslieWorld.z;
-    const stopFaceY = Math.atan2(awayX, awayZ);
+    // Front-loader: nose (+local Z) faces Leslie so the forks reach her
+    const towardX = leslieWorld.x - stop.x;
+    const towardZ = leslieWorld.z - stop.z;
+    const stopFaceY = Math.atan2(towardX, towardZ);
 
     const path = this._clean([
       ...roadPolyline(spawnX, this.mouth.x, -1),
@@ -1357,17 +1356,18 @@ export class LifeSystem {
         break;
       }
       case GS.LIFT: {
-        // Raise and tip her into the hopper
+        // Raise over the cab and tip her into the hopper (front-loader arc)
         job.t += dt;
-        const k = Math.min(1, job.t / 2.2);
+        const k = Math.min(1, job.t / 2.4);
         const ease = k * k * (3 - 2 * k); // smoothstep
         truck.userData.setLift?.(0.22 + ease * 0.78);
         if (leslie && home) {
-          leslie.position.y = home.y + ease * 1.85;
-          leslie.rotation.x = home.rotX + ease * 1.35;
-          leslie.rotation.z = Math.sin(ease * Math.PI) * 0.08;
+          // Higher apex — clears the taller blocky cab before tipping in
+          leslie.position.y = home.y + ease * 2.55;
+          leslie.rotation.x = home.rotX + ease * 1.55;
+          leslie.rotation.z = Math.sin(ease * Math.PI) * 0.1;
           // Soft squash as she goes inverted
-          const sq = 1 + Math.sin(ease * Math.PI) * 0.06;
+          const sq = 1 + Math.sin(ease * Math.PI) * 0.07;
           leslie.scale.set(sq, 1 / sq, sq);
         }
         if (k < 1) break;
@@ -1383,13 +1383,13 @@ export class LifeSystem {
         const shake = Math.sin(job.shake * 28) * 0.06;
         truck.userData.setLift?.(1.0);
         if (leslie && home) {
-          leslie.position.y = home.y + 1.85 + Math.abs(Math.sin(job.shake * 20)) * 0.05;
-          leslie.rotation.x = home.rotX + 1.35;
+          leslie.position.y = home.y + 2.55 + Math.abs(Math.sin(job.shake * 20)) * 0.05;
+          leslie.rotation.x = home.rotX + 1.55;
           leslie.rotation.z = shake;
           leslie.scale.set(1.05, 0.92, 1.05);
         }
         // Brief hopper pulse via scale on truck (reads as packer kicking)
-        truck.scale.y = 1 + Math.sin(job.shake * 16) * 0.015;
+        truck.scale.y = 1 + Math.sin(job.shake * 16) * 0.018;
         if (job.t < 1.6) break;
         truck.scale.y = 1;
         job.t = 0;
@@ -1398,12 +1398,12 @@ export class LifeSystem {
       }
       case GS.LOWER: {
         job.t += dt;
-        const k = Math.min(1, job.t / 2.0);
+        const k = Math.min(1, job.t / 2.1);
         const ease = k * k * (3 - 2 * k);
         truck.userData.setLift?.(1.0 - ease);
         if (leslie && home) {
-          leslie.position.y = home.y + (1 - ease) * 1.85;
-          leslie.rotation.x = home.rotX + (1 - ease) * 1.35;
+          leslie.position.y = home.y + (1 - ease) * 2.55;
+          leslie.rotation.x = home.rotX + (1 - ease) * 1.55;
           leslie.rotation.z = (1 - ease) * 0.04;
           const s = 1 + (1 - ease) * 0.04;
           leslie.scale.set(s, 1 / s, s);
