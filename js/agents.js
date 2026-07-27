@@ -94,13 +94,36 @@ function pushLight(g, mesh, channel) {
   L[channel].push(mesh.material);
 }
 
+/** Kill all emissive channels — parked / engine off. */
+export function setCarLightsOff(g) {
+  const L = g?.userData?.lights;
+  if (!L) return;
+  L.engineOn = false;
+  for (const mat of L.head) mat.emissiveIntensity = 0;
+  for (const mat of L.tail) mat.emissiveIntensity = 0;
+  for (const mat of L.neon) mat.emissiveIntensity = 0;
+  for (const mat of L.marker) mat.emissiveIntensity = 0;
+}
+
 /**
- * Drive neon + flash on a car mesh. Call once per frame for visible cars.
- * Occasional strobe / pulse bursts so the lot reads alive at night.
+ * Drive neon + flash on a car mesh. Call once per frame for *running* cars.
+ * Pass `engineOn: false` (or call setCarLightsOff) when the car is parked and
+ * the owners are inside — headlights stay dark at night.
+ *
+ * @param {THREE.Object3D} g
+ * @param {number} now
+ * @param {{ engineOn?: boolean }} [opts]
  */
-export function tickCarLights(g, now) {
+export function tickCarLights(g, now, opts = {}) {
   const L = g?.userData?.lights;
   if (!L || !g.visible) return;
+
+  // Explicit engineOff wins; otherwise lights run (and clear any prior off flag).
+  if (opts.engineOn === false) {
+    setCarLightsOff(g);
+    return;
+  }
+  L.engineOn = true;
 
   if (now >= L.nextFlashAt) {
     L.flashKind = Math.random() < 0.55 ? "strobe" : "pulse";

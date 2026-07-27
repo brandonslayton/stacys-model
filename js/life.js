@@ -30,6 +30,7 @@ import {
   createGarbageTruck,
   createPedestrian,
   tickCarLights,
+  setCarLightsOff,
   CAR_COLORS,
   CAR_STYLES,
   PHX_SUV_COLORS,
@@ -1061,8 +1062,10 @@ export class LifeSystem {
         if (trip.spot) trip.spot.occupied = false;
         this.carTrips.splice(i, 1);
       } else if (trip.car?.mesh?.visible) {
-        // Neon DRL breathe + occasional flash (Phoenix SUVs hit harder)
-        tickCarLights(trip.car.mesh, this.now);
+        // Running only while driving. Parked + patrons inside → lights off.
+        const engineOn =
+          trip.state === CS.DRIVE_IN || trip.state === CS.DRIVE_OUT;
+        tickCarLights(trip.car.mesh, this.now, { engineOn });
       }
     }
 
@@ -1542,6 +1545,8 @@ export class LifeSystem {
         trip.pathI = r.pathI;
         if (!r.done) break;
         car.rotation.y = trip.spot.faceY;
+        // Parked — kill headlights while patrons are out / inside
+        setCarLightsOff(car);
         const ped = this._takePed();
         if (!ped) {
           // No mesh free — the party walks in "off-camera"
