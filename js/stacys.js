@@ -608,14 +608,18 @@ export function createStacysDiamondPoleSign(x = 0, z = 0) {
   baseCap.position.y = 0.2;
   g.add(baseCap);
 
-  // Steel pole
+  // Steel pole — smooth round tube (no low-poly ridges)
   const poleH = 3.6;
-  const pole = cyl(0.07, 0.09, poleH, steel, { metalness: 0.4, roughness: 0.45 }, 8);
+  const pole = cyl(0.07, 0.09, poleH, steel, { metalness: 0.4, roughness: 0.45 }, 20);
+  pole.material.flatShading = false;
+  pole.material.needsUpdate = true;
   pole.position.y = 0.22 + poleH / 2;
   g.add(pole);
-  // Pole collar rings
+  // Pole collar rings (also smooth)
   for (const y of [1.1, 2.0, 2.85]) {
-    const ring = cyl(0.1, 0.1, 0.08, 0x4a5058, { metalness: 0.35, roughness: 0.5 }, 8);
+    const ring = cyl(0.1, 0.1, 0.08, 0x4a5058, { metalness: 0.35, roughness: 0.5 }, 20);
+    ring.material.flatShading = false;
+    ring.material.needsUpdate = true;
     ring.position.y = y;
     g.add(ring);
   }
