@@ -339,21 +339,8 @@ body { user-select: none; -webkit-user-select: none; }
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
   scroll-snap-type: x proximity;
-  /* Room to scroll past the last button without hugging the edge */
+  /* Room so the first/last button aren't flush against the screen edge */
   padding: 4px 2px 6px;
-  /* Soft fade on the trailing edge hints that more buttons exist */
-  mask-image: linear-gradient(
-    to right,
-    #000 0%,
-    #000 calc(100% - 28px),
-    transparent 100%
-  );
-  -webkit-mask-image: linear-gradient(
-    to right,
-    #000 0%,
-    #000 calc(100% - 28px),
-    transparent 100%
-  );
   /* Hide the scrollbar but keep swipe/scroll working */
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* legacy Edge */
