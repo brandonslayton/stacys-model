@@ -237,6 +237,21 @@ function beginFocus(target, { hold = false } = {}) {
   focusTarget = target;
 }
 
+/**
+ * Keep the camera locked on a moving subject (e.g. UFO patron on mobile).
+ * `getTarget` returns {x,y,z} or [x,y,z] each frame.
+ */
+function beginFollow(getTarget, opts = {}) {
+  savedView = { az: view.az, el: view.el, zoom: view.zoom };
+  focusTarget = {
+    az: opts.az ?? 55,
+    el: opts.el ?? 22,
+    zoom: opts.zoom ?? 0.4,
+    getTarget,
+    follow: true,
+  };
+}
+
 /** Any manual input hands control straight back. */
 function cancelFocus() {
   focusTarget = null;
@@ -246,13 +261,22 @@ function cancelFocus() {
 const focusPoint = new THREE.Vector3();
 
 function stepFocus(dt, choreBusy) {
-  const k = 1 - Math.exp(-dt * 2.4);
+  // Follow mode tracks a moving subject snappier so they stay on-screen on a phone
+  const follow = !!focusTarget?.follow;
+  const k = 1 - Math.exp(-dt * (follow ? 4.5 : 2.4));
 
-  // Look-at point eases toward the focus view's own target, or back to the subject
-  // centre once released. Runs even with no active focus so releasing glides home.
-  const want = focusTarget?.target
-    ? focusPoint.set(...focusTarget.target)
-    : SUBJECT.center;
+  // Look-at: live getter, static target array, or subject centre
+  let want = SUBJECT.center;
+  if (focusTarget?.getTarget) {
+    const t = focusTarget.getTarget();
+    if (t) {
+      if (Array.isArray(t)) focusPoint.set(t[0], t[1], t[2]);
+      else focusPoint.set(t.x, t.y ?? 0.8, t.z);
+      want = focusPoint;
+    }
+  } else if (focusTarget?.target) {
+    want = focusPoint.set(...focusTarget.target);
+  }
   if (view.target.distanceToSquared(want) > 1e-5) {
     view.target.lerp(want, k);
     applyCamera();
@@ -271,6 +295,14 @@ function stepFocus(dt, choreBusy) {
   if (!savedView) {
     // Held swing, or already on the way home: release once we arrive
     if (near) cancelFocus();
+    return;
+  }
+  // Follow stays locked until the chore ends
+  if (follow) {
+    if (!choreBusy) {
+      focusTarget = savedView;
+      savedView = null;
+    }
     return;
   }
   if (choreBusy) return;
@@ -762,16 +794,19 @@ function wireRideButton(rideshare) {
 }
 
 /**
- * UFO abduction. One-shot: patron walks past the property line, saucer beams
- * them up, craft warps out. Camera follows the sidewalk spot for this run.
+ * UFO abduction. Side-door exit, saucer follows while they walk, then beam-up.
+ * Camera *tracks* the patron the whole time so mobile doesn't lose them.
  */
 function wireUfoButton(ufo) {
   const btn = $("ufo");
   btn.innerHTML = UFO_ICON;
   btn.onclick = () => {
     if (!ufo.start()) return;
-    const focus = ufo.focusTarget || UFO_VIEW;
-    beginFocus(focus);
+    beginFollow(() => ufo.followPoint?.() || ufo.focusTarget?.target, {
+      az: 62,
+      el: 20,
+      zoom: 0.38,
+    });
     btn.disabled = true;
     const release = () => {
       if (ufo.busy) {

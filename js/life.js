@@ -350,6 +350,19 @@ export class LifeSystem {
     ]);
   }
 
+  /**
+   * Just inside the street door. People start here when leaving so they read as
+   * walking *out* of the building, not spawning on the porch.
+   */
+  _doorInside() {
+    // Street face is +Z; interior is −Z from the porch threshold
+    return new THREE.Vector3(
+      this.streetDoor.x,
+      0,
+      this.streetDoor.z - 0.95
+    );
+  }
+
   /** Porch door back out to the sidewalk and off-screen. */
   _pathDoorToOffscreen() {
     const dir = Math.random() > 0.5 ? 1 : -1;
@@ -358,6 +371,7 @@ export class LifeSystem {
         ? Math.min(STREET.xMax - 1, this.streetDoor.x + 9 + Math.random() * 5)
         : Math.max(STREET.xMin + 1, this.streetDoor.x - 9 - Math.random() * 5);
     return this._clean([
+      this._doorInside(),
       this.streetDoor,
       sidewalkPoint(this.streetDoor.x),
       ...sidewalkPolyline(this.streetDoor.x, exitX),
@@ -447,11 +461,18 @@ export class LifeSystem {
         return false;
       }
       spot.occupied = true;
-      ped.mesh.position.copy(this.patioDoor);
+      // Start a step inside the patio door so they emerge, not teleport
+      const patioInside = this.patioDoor.clone();
+      patioInside.z -= 0.7;
+      ped.mesh.position.copy(patioInside);
       this.walkers.push({
         state: PS.TO_PATIO,
         ped,
-        path: [this.patioDoor.clone(), spot.pos.clone()],
+        path: this._clean([
+          patioInside,
+          this.patioDoor.clone(),
+          spot.pos.clone(),
+        ]),
         pathI: 0,
         speed: 1.5 + Math.random() * 0.4,
         spot,
@@ -460,6 +481,7 @@ export class LifeSystem {
       return true;
     }
     const path = this._pathDoorToOffscreen();
+    // path[0] is inside the porch — they walk through the doorway
     ped.mesh.position.copy(path[0]);
     this.walkers.push({
       state: PS.LEAVING,
@@ -803,9 +825,12 @@ export class LifeSystem {
           break;
         }
         trip.ped = ped;
-        ped.mesh.position.copy(this.streetDoor);
+        // Start inside and walk out the door so the exit is readable
+        const inside = this._doorInside();
+        ped.mesh.position.copy(inside);
         const end = this._pedBesideCar(car);
         trip.path = this._clean([
+          inside,
           this.streetDoor,
           this.yardCorner,
           new THREE.Vector3(this.aisle.x, 0, end.z),

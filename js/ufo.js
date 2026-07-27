@@ -18,7 +18,9 @@ const UFO_CRUISE = 9.5;
 const UFO_ESCAPE = 48;
 
 const ST = {
-  /** Walk out; UFO may arrive mid-walk once past the property line. */
+  /** Side door swings open. */
+  DOOR_OPEN: "door_open",
+  /** Walk from inside → outside → sidewalk → past property line. */
   WALK: "walk",
   /** Saucer glides in while the patron keeps walking. */
   UFO_IN: "ufo_in",
@@ -333,6 +335,7 @@ export class UfoSystem {
     parent.add(this.root);
 
     this.streetDoor = anchors.streetDoor.clone();
+    this.venue = venue;
     venue.updateWorldMatrix(true, true);
     const m = venue.matrixWorld;
     const pad = venue.userData.pad;
@@ -348,6 +351,28 @@ export class UfoSystem {
       this.padXMin = this.streetDoor.x - 6;
       this.padXMax = this.streetDoor.x + 6;
     }
+
+    // North side door (lot side) — same one the sick scene uses
+    const nd = venue.userData.northDoor;
+    this.sideDoor = nd
+      ? {
+          x: nd.x,
+          z: nd.z,
+          outsideX: nd.outsideX,
+          outsideZ: nd.outsideZ,
+          openAngle: nd.openAngle ?? -1.35,
+        }
+      : null;
+    // World-space door points (venue may be Z-shifted)
+    if (this.sideDoor) {
+      const inside = new THREE.Vector3(nd.x + 0.55, 0, nd.z).applyMatrix4(m);
+      const outside = new THREE.Vector3(nd.outsideX, 0, nd.outsideZ).applyMatrix4(m);
+      this.sideDoor.inside = inside;
+      this.sideDoor.outside = outside;
+    }
+    this.doorPivot = venue.getObjectByName("northDoorPivot");
+    this.doorAngle = 0;
+    this.doorTarget = 0;
 
     this.patron = null;
     this.ufo = createSaucer();
@@ -372,25 +397,17 @@ export class UfoSystem {
   start() {
     if (this.job) return false;
 
-    // Walk either north (−X) or south (+X). UFO joins after the property line;
-    // the path continues further so they can keep walking under the beam.
-    const goNorth = Math.random() < 0.5;
-    const dir = goNorth ? -1 : 1;
-    const pastLine =
-      (goNorth ? this.padXMin : this.padXMax) + dir * (1.6 + Math.random() * 0.6);
-    // Extra sidewalk after the line so FOLLOW has room (~2.5–3.5 units)
-    const endX = pastLine + dir * (2.8 + Math.random() * 1.0);
-    const clampedEnd = THREE.MathUtils.clamp(
-      endX,
-      STREET.xMin + 2,
-      STREET.xMax - 2
-    );
-    const clampedPast = THREE.MathUtils.clamp(
-      pastLine,
-      STREET.xMin + 2,
-      STREET.xMax - 2
-    );
-    this.spot = sidewalkPoint(clampedEnd); // fallback camera target
+    // Prefer side door exit; fall back to porch if missing
+    const useSide = !!(this.sideDoor && this.doorPivot);
+
+    // After exiting, walk along the sidewalk north (−X) past the property line
+    // (north is the natural way out from the parking-side door).
+    const dir = -1;
+    const pastLine = this.padXMin + dir * (1.8 + Math.random() * 0.5);
+    const endX = pastLine + dir * (2.6 + Math.random() * 0.9);
+    const clampedEnd = THREE.MathUtils.clamp(endX, STREET.xMin + 2, STREET.xMax - 2);
+    const clampedPast = THREE.MathUtils.clamp(pastLine, STREET.xMin + 2, STREET.xMax - 2);
+    this.spot = sidewalkPoint(clampedEnd);
     this.dir = dir;
 
     if (this.patron) this.root.remove(this.patron);
@@ -398,47 +415,120 @@ export class UfoSystem {
       PED_COLORS[(Math.random() * PED_COLORS.length) | 0]
     );
     this.patron.visible = true;
-    this.patron.position.copy(this.streetDoor);
-    this.patron.position.y = 0;
     this.patron.scale.set(1, 1, 1);
     this.patron.rotation.set(0, 0, 0);
     this.root.add(this.patron);
 
-    const path = this._clean([
-      this.streetDoor.clone(),
-      sidewalkPoint(this.streetDoor.x),
-      ...sidewalkPolyline(this.streetDoor.x, clampedEnd),
-      sidewalkPoint(clampedEnd),
-    ]);
+    let path;
+    if (useSide) {
+      const d = this.sideDoor;
+      // Start INSIDE so the exit is readable
+      this.patron.position.copy(d.inside);
+      this.patron.position.y = 0;
+      this.patron.rotation.y = -Math.PI / 2; // facing out into the lot (−X)
+      // Lot apron → front yard sidewalk → along street past the line
+      const lotOut = d.outside.clone();
+      const toYard = new THREE.Vector3(
+        d.outside.x,
+        0,
+        this.streetDoor.z + 0.3
+      );
+      path = this._clean([
+        d.inside.clone(),
+        d.outside.clone(),
+        lotOut,
+        toYard,
+        sidewalkPoint(this.streetDoor.x),
+        ...sidewalkPolyline(this.streetDoor.x, clampedEnd),
+        sidewalkPoint(clampedEnd),
+      ]);
+      this.doorTarget = d.openAngle;
+      this.job = {
+        state: ST.DOOR_OPEN,
+        path,
+        pathI: 0,
+        wait: 0.45,
+        t: 0,
+        floatY: 0,
+        bounceDone: false,
+        pastLineX: clampedPast,
+        dir,
+        ufoFrom: null,
+        ufoTo: null,
+        ufoK: 0,
+        useSide: true,
+      };
+    } else {
+      // Fallback: porch, still start a step inside
+      const inside = this.streetDoor.clone();
+      inside.z -= 0.85;
+      this.patron.position.copy(inside);
+      this.patron.position.y = 0;
+      path = this._clean([
+        inside,
+        this.streetDoor.clone(),
+        sidewalkPoint(this.streetDoor.x),
+        ...sidewalkPolyline(this.streetDoor.x, clampedEnd),
+        sidewalkPoint(clampedEnd),
+      ]);
+      this.job = {
+        state: ST.WALK,
+        path,
+        pathI: 0,
+        wait: 0,
+        t: 0,
+        floatY: 0,
+        bounceDone: false,
+        pastLineX: clampedPast,
+        dir,
+        ufoFrom: null,
+        ufoTo: null,
+        ufoK: 0,
+        useSide: false,
+      };
+    }
 
     this.ufo.visible = false;
     this.beam.visible = false;
-    this.job = {
-      state: ST.WALK,
-      path,
-      pathI: 0,
-      wait: 0,
-      t: 0,
-      floatY: 0,
-      bounceDone: false,
-      pastLineX: clampedPast,
-      dir,
-      ufoFrom: null,
-      ufoTo: null,
-      ufoK: 0,
-    };
     return true;
+  }
+
+  /** Live camera follow point (patron, or UFO during beam-up). */
+  followPoint() {
+    if (this.patron?.visible) {
+      const p = this.patron.position;
+      const y = Math.max(0.9, p.y + 0.9);
+      // Bias a little toward the UFO when it's overhead so both stay framed
+      if (this.ufo?.visible) {
+        return {
+          x: p.x * 0.65 + this.ufo.position.x * 0.35,
+          y: (y + this.ufo.position.y * 0.25) * 0.85,
+          z: p.z * 0.7 + this.ufo.position.z * 0.3,
+        };
+      }
+      return { x: p.x, y, z: p.z };
+    }
+    if (this.ufo?.visible) {
+      return {
+        x: this.ufo.position.x,
+        y: this.ufo.position.y * 0.4,
+        z: this.ufo.position.z,
+      };
+    }
+    return this.spot
+      ? { x: this.spot.x, y: 1.2, z: this.spot.z }
+      : null;
   }
 
   /** Camera target — follows the patron when possible. */
   get focusTarget() {
-    const p = this.patron?.position || this.spot;
+    const p = this.followPoint();
     if (!p) return null;
     return {
-      az: 40 + Math.random() * 20,
-      el: 24,
-      zoom: 0.5,
-      target: [p.x, 1.4, p.z + 0.3],
+      az: 62,
+      el: 20,
+      zoom: 0.38,
+      target: [p.x, p.y, p.z],
     };
   }
 
@@ -528,20 +618,43 @@ export class UfoSystem {
     this.clock += t;
     if (this.ufo.visible) this.ufo.userData.tickSpin?.(t, this.clock);
 
+    // Side door eases open/closed
+    if (this.doorPivot) {
+      const da = this.doorTarget - this.doorAngle;
+      if (Math.abs(da) > 0.001) {
+        this.doorAngle += da * (1 - Math.exp(-t * 6));
+        this.doorPivot.rotation.y = this.doorAngle;
+      }
+    }
+
     const job = this.job;
     if (!job) return;
 
     switch (job.state) {
+      case ST.DOOR_OPEN: {
+        job.wait -= t;
+        if (job.wait > 0) break;
+        job.state = ST.WALK;
+        break;
+      }
+
       case ST.WALK: {
         const r = this._advance(this.patron, job.path, job.pathI, WALK, t);
         job.pathI = r.pathI;
         this._bobWalk(t);
+        // Close the side door once they're clear of it
+        if (
+          job.useSide &&
+          this.sideDoor &&
+          this.patron.position.distanceTo(this.sideDoor.outside) > 1.4
+        ) {
+          this.doorTarget = 0;
+        }
         // Once past the property line, bring the saucer in — keep walking
         if (this._pastPropertyLine(job)) {
           this._spawnUfoApproach(job);
           job.state = ST.UFO_IN;
         } else if (r.done) {
-          // Path ended before line (edge case) — still trigger
           this._spawnUfoApproach(job);
           job.state = ST.UFO_IN;
         }
@@ -762,6 +875,7 @@ export class UfoSystem {
     if (this.patron) {
       this.patron.visible = false;
     }
+    this.doorTarget = 0;
     this.job = null;
   }
 }
