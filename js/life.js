@@ -22,9 +22,12 @@ import * as THREE from "three";
 import {
   createCar,
   createRamTruck,
+  createPhxSuv,
   createPedestrian,
+  tickCarLights,
   CAR_COLORS,
   CAR_STYLES,
+  PHX_SUV_COLORS,
   PED_COLORS,
 } from "./agents.js";
 import {
@@ -35,7 +38,9 @@ import {
   sidewalkPolyline,
 } from "./street.js";
 
-const POOL_CARS = 8;
+/** 1 Ram + several Phoenix SUVs + mixed body styles. */
+const POOL_CARS = 10;
+const POOL_PHX_SUV = 4;
 const POOL_PEDS = 18;
 const MAX_CAR_TRIPS = 7;
 /** Soft occupancy ceiling. Far above the game's 5 — see note 1 above. */
@@ -284,10 +289,20 @@ export class LifeSystem {
     this.root.add(ram);
     this.carPool.push({ mesh: ram, busy: false, kind: "ram" });
 
-    // Rest of the pool: mixed body styles + paint
-    for (let i = 1; i < POOL_CARS; i++) {
-      const style = CAR_STYLES[(i - 1) % CAR_STYLES.length];
-      const color = CAR_COLORS[i % CAR_COLORS.length];
+    // Typical Phoenix SUVs — majority of the lot look
+    for (let i = 0; i < POOL_PHX_SUV; i++) {
+      const mesh = createPhxSuv(PHX_SUV_COLORS[i % PHX_SUV_COLORS.length]);
+      mesh.visible = false;
+      mesh.castShadow = false;
+      this.root.add(mesh);
+      this.carPool.push({ mesh, busy: false, kind: "phxSuv" });
+    }
+
+    // Remaining slots: mixed body styles + paint
+    const mixed = POOL_CARS - 1 - POOL_PHX_SUV;
+    for (let i = 0; i < mixed; i++) {
+      const style = CAR_STYLES[i % CAR_STYLES.length];
+      const color = CAR_COLORS[(i + 2) % CAR_COLORS.length];
       const mesh = createCar({ color, style });
       mesh.visible = false;
       mesh.castShadow = false;
@@ -304,15 +319,18 @@ export class LifeSystem {
   }
 
   /**
-   * Grab a free car. Bias slightly toward the Ram when it's available so the
-   * signature truck parks at the bar with some regularity without monopolising
-   * every arrival.
+   * Grab a free car. Bias toward the Ram and Phoenix SUVs so the lot reads
+   * like a real Central Ave night without locking out the other styles.
    */
   _takeCar() {
     const free = this.carPool.filter((c) => !c.busy);
     if (!free.length) return null;
     const ram = free.find((c) => c.kind === "ram");
-    if (ram && Math.random() < 0.28) return ram;
+    if (ram && Math.random() < 0.22) return ram;
+    const phx = free.filter((c) => c.kind === "phxSuv");
+    if (phx.length && Math.random() < 0.55) {
+      return phx[(Math.random() * phx.length) | 0];
+    }
     return free[(Math.random() * free.length) | 0];
   }
 
@@ -757,6 +775,9 @@ export class LifeSystem {
         this._freePed(trip.ped);
         if (trip.spot) trip.spot.occupied = false;
         this.carTrips.splice(i, 1);
+      } else if (trip.car?.mesh?.visible) {
+        // Neon DRL breathe + occasional flash (Phoenix SUVs hit harder)
+        tickCarLights(trip.car.mesh, this.now);
       }
     }
 

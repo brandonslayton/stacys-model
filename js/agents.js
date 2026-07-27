@@ -27,6 +27,20 @@ export const CAR_COLORS = [
 /** Body styles cycled through the ambient pool. */
 export const CAR_STYLES = ["sedan", "hatch", "coupe", "suv", "compact"];
 
+/**
+ * Typical Phoenix lot paint — pearl white, silver, desert sand, charcoal.
+ * Heat + sun mean light colours dominate the freeways out here.
+ */
+export const PHX_SUV_COLORS = [
+  0xf4f1ea, // pearl white
+  0xe8ecf0, // cool white
+  0xc8ced4, // silver
+  0xb8a890, // desert sand
+  0x3a3c42, // charcoal
+  0x5c6a78, // blue-grey
+  0xd4c4a8, // beige
+];
+
 /** COLORS.ped from the game's config.js. */
 export const PED_COLORS = [0xffb6c1, 0x7ec8e3, 0xc5a3ff, 0xffd580, 0x98d8aa];
 
@@ -49,6 +63,81 @@ function paintOpts(color, extras = {}) {
   };
 }
 
+/** Per-car light bookkeeping for neon glow + occasional flash. */
+function ensureLights(g, opts = {}) {
+  if (!g.userData.lights) {
+    g.userData.lights = {
+      head: [],
+      tail: [],
+      neon: [],
+      marker: [],
+      baseHead: opts.baseHead ?? 0.9,
+      baseTail: opts.baseTail ?? 0.72,
+      baseNeon: opts.baseNeon ?? 1.05,
+      baseMarker: opts.baseMarker ?? 0.42,
+      /** Heavier cyan DRL package (Phoenix SUVs). */
+      neonHeavy: !!opts.neonHeavy,
+      phase: Math.random() * Math.PI * 2,
+      nextFlashAt: 2 + Math.random() * 8,
+      flashUntil: 0,
+      flashKind: "strobe",
+    };
+  }
+  return g.userData.lights;
+}
+
+function pushLight(g, mesh, channel) {
+  if (!mesh?.material) return;
+  const L = ensureLights(g);
+  if (!L[channel]) L[channel] = [];
+  L[channel].push(mesh.material);
+}
+
+/**
+ * Drive neon + flash on a car mesh. Call once per frame for visible cars.
+ * Occasional strobe / pulse bursts so the lot reads alive at night.
+ */
+export function tickCarLights(g, now) {
+  const L = g?.userData?.lights;
+  if (!L || !g.visible) return;
+
+  if (now >= L.nextFlashAt) {
+    L.flashKind = Math.random() < 0.55 ? "strobe" : "pulse";
+    L.flashUntil = now + (L.flashKind === "strobe" ? 0.45 + Math.random() * 0.55 : 0.7 + Math.random() * 0.6);
+    L.nextFlashAt = L.flashUntil + 3.5 + Math.random() * 10;
+  }
+
+  let headMul = 1;
+  let tailMul = 1;
+  let neonMul = 1;
+  // Idle neon breathing so DRLs always feel a little alive
+  const breathe = 0.92 + 0.08 * Math.sin(now * 2.1 + L.phase);
+  neonMul *= breathe;
+
+  if (now < L.flashUntil) {
+    const u = now * (L.flashKind === "strobe" ? 14 : 6) + L.phase;
+    const wave = L.flashKind === "strobe"
+      ? (Math.sin(u * Math.PI * 2) > 0.15 ? 1 : 0.15)
+      : 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(u * Math.PI * 2));
+    headMul = 0.7 + wave * (L.neonHeavy ? 2.8 : 2.0);
+    neonMul = 0.5 + wave * (L.neonHeavy ? 3.2 : 2.4);
+    tailMul = 0.85 + wave * 1.6;
+  } else if (L.neonHeavy) {
+    // Phoenix SUVs keep a stronger idle neon
+    neonMul *= 1.25;
+    headMul *= 1.08;
+  }
+
+  const h = L.baseHead * headMul;
+  const t = L.baseTail * tailMul;
+  const n = L.baseNeon * neonMul;
+  const m = L.baseMarker * (0.85 + 0.15 * breathe);
+  for (const mat of L.head) mat.emissiveIntensity = h;
+  for (const mat of L.tail) mat.emissiveIntensity = t;
+  for (const mat of L.neon) mat.emissiveIntensity = n;
+  for (const mat of L.marker) mat.emissiveIntensity = m;
+}
+
 function addCarWheels(g, positions, radius = 0.17, width = 0.14) {
   for (const [wx, wz] of positions) {
     const wheel = cyl(radius, radius, width, 0x141414, RUBBER, 10);
@@ -63,27 +152,47 @@ function addCarWheels(g, positions, radius = 0.17, width = 0.14) {
   }
 }
 
-/** Shared front/rear lighting so every body style reads the same way. */
-function addCarLights(g, { halfW, noseZ, tailZ, lightY = 0.38 }) {
+/** Shared front/rear lighting — neon-emissive, registered for flash ticks. */
+function addCarLights(g, { halfW, noseZ, tailZ, lightY = 0.38, neon = false }) {
+  ensureLights(g, {
+    neonHeavy: neon,
+    baseHead: neon ? 1.05 : 0.85,
+    baseNeon: neon ? 1.35 : 0.95,
+    baseTail: neon ? 0.9 : 0.7,
+  });
+
   // Headlights — bright, wide, clearly the front
   for (const side of [-1, 1]) {
     const hl = box(0.2, 0.07, 0.06, 0xf0f6ff, {
-      roughness: 0.18,
-      metalness: 0.35,
+      roughness: 0.16,
+      metalness: 0.4,
       emissive: 0xd8e8ff,
-      emissiveIntensity: 0.75,
+      emissiveIntensity: neon ? 1.05 : 0.85,
     });
     hl.position.set(side * (halfW * 0.72), lightY, noseZ);
     g.add(hl);
+    pushLight(g, hl, "head");
     // Amber marker under each headlight
     const am = box(0.08, 0.035, 0.04, 0xffa040, {
-      roughness: 0.35,
+      roughness: 0.32,
       emissive: 0xff8020,
-      emissiveIntensity: 0.35,
+      emissiveIntensity: 0.4,
     });
     am.position.set(side * (halfW * 0.78), lightY - 0.06, noseZ - 0.01);
     g.add(am);
+    pushLight(g, am, "marker");
   }
+
+  // Slim neon DRL bar across the nose
+  const drl = box(halfW * 1.55, 0.03, 0.04, neon ? 0xa8f0ff : 0xe8f4ff, {
+    roughness: 0.14,
+    metalness: 0.5,
+    emissive: neon ? 0x5ef0ff : 0xc8e8ff,
+    emissiveIntensity: neon ? 1.4 : 0.95,
+  });
+  drl.position.set(0, lightY + 0.06, noseZ + 0.01);
+  g.add(drl);
+  pushLight(g, drl, "neon");
 
   // Grille block between the lights
   const grille = box(halfW * 0.9, 0.12, 0.05, 0x1a1a1e, DARK);
@@ -101,25 +210,27 @@ function addCarLights(g, { halfW, noseZ, tailZ, lightY = 0.38 }) {
   bumper.position.set(0, 0.18, noseZ - 0.02);
   g.add(bumper);
 
-  // Taillights — red, clearly the rear
+  // Taillights — red neon, clearly the rear
   for (const side of [-1, 1]) {
     const tl = box(0.18, 0.08, 0.05, 0xff2030, {
-      roughness: 0.3,
-      metalness: 0.2,
-      emissive: 0xff1020,
-      emissiveIntensity: 0.65,
+      roughness: 0.26,
+      metalness: 0.25,
+      emissive: 0xff1028,
+      emissiveIntensity: neon ? 0.95 : 0.72,
     });
     tl.position.set(side * (halfW * 0.72), lightY, tailZ);
     g.add(tl);
+    pushLight(g, tl, "tail");
   }
-  // Centre rear reflector strip
-  const strip = box(halfW * 0.55, 0.03, 0.04, 0xaa1520, {
-    roughness: 0.35,
-    emissive: 0x880010,
-    emissiveIntensity: 0.25,
+  // Centre rear neon strip
+  const strip = box(halfW * 0.7, 0.035, 0.04, 0xff2040, {
+    roughness: 0.28,
+    emissive: 0xff1030,
+    emissiveIntensity: neon ? 0.85 : 0.45,
   });
   strip.position.set(0, lightY, tailZ);
   g.add(strip);
+  pushLight(g, strip, "neon");
 
   // Rear bumper
   const rearBump = box(halfW * 2.0, 0.09, 0.1, 0x222226, DARK);
@@ -334,6 +445,7 @@ export function createCar(colorOrOpts = 0xe85d5d) {
     noseZ: noseZ - 0.02,
     tailZ: tailZ + 0.02,
     lightY: bodyY - 0.02,
+    neon: style === "suv",
   });
 
   // Generic rear plate (random-ish short tag) unless caller supplies one
@@ -356,6 +468,222 @@ export function createCar(colorOrOpts = 0xe85d5d) {
     ],
     s.wheelR,
     style === "suv" ? 0.16 : 0.13
+  );
+
+  return g;
+}
+
+/**
+ * Typical Phoenix midsize SUV / crossover — the lot staple.
+ *
+ * Pearl/sand/silver paint, black lower cladding, roof rails, and a full-width
+ * cyan-white neon DRL bar (with matching red rear light bar) that breathes and
+ * flashes. Local +Z = nose.
+ *
+ * @param {number} [color]
+ */
+export function createPhxSuv(color) {
+  const paintColor =
+    color ?? PHX_SUV_COLORS[(Math.random() * PHX_SUV_COLORS.length) | 0];
+  const g = new THREE.Group();
+  g.name = "car";
+  g.userData.carStyle = "phxSuv";
+  g.userData.kind = "phxSuv";
+
+  const paint = { roughness: 0.38, metalness: 0.28 };
+  const cladding = 0x1a1c20;
+  const w = 1.28;
+  const halfW = w * 0.5;
+  const stance = 0.07;
+  const len = 2.35;
+  const noseZ = len * 0.5;
+  const tailZ = -len * 0.5;
+  const bodyY = 0.4 + stance;
+  const bh = 0.44;
+  const ch = 0.42;
+
+  // Black plastic lower body cladding (very "every RAV4 in Scottsdale")
+  const clad = box(w + 0.06, 0.2, len * 0.96, cladding, DARK);
+  clad.position.y = 0.22 + stance;
+  g.add(clad);
+  // Wheel-arch bulges
+  for (const wz of [len * 0.28, -len * 0.28]) {
+    for (const side of [-1, 1]) {
+      const arch = box(0.1, 0.22, 0.42, cladding, DARK);
+      arch.position.set(side * (halfW + 0.02), 0.28 + stance, wz);
+      g.add(arch);
+    }
+  }
+
+  // Main body
+  const body = box(w, bh, len * 0.9, paintColor, paint);
+  body.position.y = bodyY;
+  g.add(body);
+
+  // Hood
+  const hood = box(w * 0.94, bh * 0.5, 0.52, paintColor, paint);
+  hood.position.set(0, bodyY + 0.06, noseZ - 0.38);
+  g.add(hood);
+
+  // Greenhouse — tall, upright (crossover, not a coupe-SUV)
+  const cabin = box(w * 0.9, ch, 1.28, 0x0e1620, {
+    ...GLASS,
+    emissiveIntensity: 0.08,
+  });
+  cabin.position.set(0, bodyY + bh * 0.5 + ch * 0.42, -0.02);
+  g.add(cabin);
+
+  const wind = box(w * 0.86, ch * 0.88, 0.36, 0x0a1218, GLASS);
+  wind.position.set(0, bodyY + bh * 0.5 + ch * 0.4, 0.58);
+  wind.rotation.x = -0.18;
+  g.add(wind);
+
+  const rearG = box(w * 0.84, ch * 0.8, 0.3, 0x0a1218, GLASS);
+  rearG.position.set(0, bodyY + bh * 0.5 + ch * 0.38, -0.62);
+  rearG.rotation.x = 0.14;
+  g.add(rearG);
+
+  // Roof + rails
+  const roof = box(w * 0.86, 0.05, 1.15, paintColor, paint);
+  roof.position.set(0, bodyY + bh * 0.5 + ch * 0.88, -0.04);
+  g.add(roof);
+  for (const side of [-1, 1]) {
+    const rail = box(0.04, 0.035, 1.05, 0x2a2c32, DARK);
+    rail.position.set(side * (halfW * 0.55), bodyY + bh * 0.5 + ch * 0.98, -0.04);
+    g.add(rail);
+    // Rail feet
+    for (const z of [0.4, -0.4]) {
+      const foot = box(0.05, 0.04, 0.08, 0x1a1a1e, DARK);
+      foot.position.set(side * (halfW * 0.55), bodyY + bh * 0.5 + ch * 0.92, z);
+      g.add(foot);
+    }
+  }
+
+  // Roof spoiler lip
+  const spoiler = box(w * 0.82, 0.04, 0.12, paintColor, paint);
+  spoiler.position.set(0, bodyY + bh * 0.5 + ch * 0.85, -0.68);
+  g.add(spoiler);
+
+  addDoorCreases(g, halfW, bodyY + 0.02, 0.55, -0.55, 4);
+
+  // Side mirrors
+  for (const side of [-1, 1]) {
+    const mir = box(0.09, 0.06, 0.12, cladding, DARK);
+    mir.position.set(side * (halfW + 0.05), bodyY + bh * 0.55, 0.4);
+    g.add(mir);
+  }
+
+  // ── Neon light package (the whole point of a Phoenix night lot) ──
+  ensureLights(g, {
+    neonHeavy: true,
+    baseHead: 1.15,
+    baseNeon: 1.55,
+    baseTail: 0.95,
+    baseMarker: 0.5,
+  });
+
+  // Full-width neon DRL light bar
+  const drlBar = box(w * 0.92, 0.045, 0.055, 0xb8f8ff, {
+    roughness: 0.12,
+    metalness: 0.55,
+    emissive: 0x60f0ff,
+    emissiveIntensity: 1.6,
+  });
+  drlBar.position.set(0, bodyY + 0.08, noseZ - 0.01);
+  g.add(drlBar);
+  pushLight(g, drlBar, "neon");
+
+  // Twin projector headlights
+  for (const side of [-1, 1]) {
+    const hl = box(0.24, 0.1, 0.08, 0xf4f8ff, {
+      roughness: 0.14,
+      metalness: 0.45,
+      emissive: 0xe0f0ff,
+      emissiveIntensity: 1.15,
+    });
+    hl.position.set(side * (halfW * 0.62), bodyY - 0.02, noseZ - 0.02);
+    g.add(hl);
+    pushLight(g, hl, "head");
+    // Outer neon accent hook
+    const hook = box(0.06, 0.16, 0.05, 0xa0f4ff, {
+      roughness: 0.14,
+      metalness: 0.5,
+      emissive: 0x48e8ff,
+      emissiveIntensity: 1.45,
+    });
+    hook.position.set(side * (halfW * 0.88), bodyY + 0.02, noseZ - 0.02);
+    g.add(hook);
+    pushLight(g, hook, "neon");
+    // Amber marker
+    const am = box(0.08, 0.04, 0.04, 0xffa030, {
+      roughness: 0.3,
+      emissive: 0xff8010,
+      emissiveIntensity: 0.5,
+    });
+    am.position.set(side * (halfW * 0.9), bodyY - 0.1, noseZ - 0.03);
+    g.add(am);
+    pushLight(g, am, "marker");
+  }
+
+  // Dark grille mesh
+  const grille = box(w * 0.55, 0.16, 0.06, 0x121418, DARK);
+  grille.position.set(0, bodyY - 0.06, noseZ - 0.03);
+  g.add(grille);
+  for (let i = 0; i < 4; i++) {
+    const bar = box(w * 0.48, 0.012, 0.03, 0x3a3e46, CHROME);
+    bar.position.set(0, bodyY - 0.12 + i * 0.035, noseZ - 0.01);
+    g.add(bar);
+  }
+
+  // Front bumper + skid plate
+  const fBump = box(w * 1.02, 0.14, 0.16, cladding, DARK);
+  fBump.position.set(0, 0.2 + stance, noseZ - 0.04);
+  g.add(fBump);
+  const skid = box(w * 0.45, 0.04, 0.1, 0x8a9098, CHROME);
+  skid.position.set(0, 0.16 + stance, noseZ + 0.02);
+  g.add(skid);
+
+  // Vertical neon taillights + spanning red bar
+  for (const side of [-1, 1]) {
+    const tl = box(0.1, 0.28, 0.07, 0xff1840, {
+      roughness: 0.22,
+      metalness: 0.3,
+      emissive: 0xff1040,
+      emissiveIntensity: 1.05,
+    });
+    tl.position.set(side * (halfW * 0.82), bodyY + 0.06, tailZ + 0.02);
+    g.add(tl);
+    pushLight(g, tl, "tail");
+  }
+  const rearBar = box(w * 0.75, 0.04, 0.05, 0xff2850, {
+    roughness: 0.2,
+    metalness: 0.35,
+    emissive: 0xff1848,
+    emissiveIntensity: 1.2,
+  });
+  rearBar.position.set(0, bodyY + 0.12, tailZ + 0.02);
+  g.add(rearBar);
+  pushLight(g, rearBar, "neon");
+
+  const rBump = box(w * 1.0, 0.12, 0.12, cladding, DARK);
+  rBump.position.set(0, 0.2 + stance, tailZ + 0.03);
+  g.add(rBump);
+
+  // AZ plate
+  attachRearPlate(g, makePlate("· PHX ·", { skyBlue: true }), tailZ - 0.01, 0.32);
+
+  // Slightly larger crossover wheels
+  const wb = len * 0.3;
+  addCarWheels(
+    g,
+    [
+      [-halfW * 0.84, wb],
+      [halfW * 0.84, wb],
+      [-halfW * 0.84, -wb],
+      [halfW * 0.84, -wb],
+    ],
+    0.2,
+    0.16
   );
 
   return g;
@@ -489,16 +817,18 @@ export function createRamTruck() {
   g.add(badge);
 
   // Quad headlights (C-shaped blocks simplified to stacked pairs)
+  ensureLights(g, { neonHeavy: true, baseHead: 1.1, baseNeon: 1.2, baseTail: 0.9 });
   for (const side of [-1, 1]) {
     for (const row of [0.07, -0.05]) {
       const hl = box(0.16, 0.09, 0.07, 0xf2f6ff, {
         roughness: 0.16,
         metalness: 0.4,
         emissive: 0xd0e4ff,
-        emissiveIntensity: 0.85,
+        emissiveIntensity: 0.95,
       });
       hl.position.set(side * (halfW * 0.72), bodyY + row, grilleZ + 0.02);
       g.add(hl);
+      pushLight(g, hl, "head");
     }
     // Amber marker
     const am = box(0.07, 0.05, 0.04, 0xff9020, {
@@ -508,7 +838,18 @@ export function createRamTruck() {
     });
     am.position.set(side * (halfW * 0.88), bodyY - 0.1, grilleZ);
     g.add(am);
+    pushLight(g, am, "marker");
   }
+  // Thin neon DRL under the crosshair
+  const ramDrl = box(w * 0.7, 0.03, 0.04, 0xb0f0ff, {
+    roughness: 0.14,
+    metalness: 0.5,
+    emissive: 0x50e8ff,
+    emissiveIntensity: 1.2,
+  });
+  ramDrl.position.set(0, bodyY - 0.14, grilleZ + 0.05);
+  g.add(ramDrl);
+  pushLight(g, ramDrl, "neon");
 
   // Front bumper / chin
   const fBump = box(w * 1.02, 0.14, 0.18, 0x1a1a1e, DARK);
@@ -524,10 +865,11 @@ export function createRamTruck() {
       roughness: 0.28,
       metalness: 0.2,
       emissive: 0xff1020,
-      emissiveIntensity: 0.7,
+      emissiveIntensity: 0.85,
     });
     tl.position.set(side * (halfW * 0.85), bodyY + 0.08, tailZ + 0.04);
     g.add(tl);
+    pushLight(g, tl, "tail");
   }
   const rBump = box(w * 0.98, 0.12, 0.12, 0x1a1a1e, DARK);
   rBump.position.set(0, 0.2 + stance, tailZ + 0.04);
