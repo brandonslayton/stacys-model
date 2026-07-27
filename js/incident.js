@@ -3,12 +3,12 @@
  *
  * Beats, in order:
  *   1. The north side door swings open and a patron staggers out into the lot.
- *   2. They stop in the middle of the parking lot, hunch, and are sick. Bright green.
+ *   2. They stop, hunch, and pour bright green — a short downward stream that hits
+ *      the middle of a growing stain, with a ground splash (not a flying spray).
  *   3. They straighten up and walk off down the street.
  *   4. A barback comes out the same door with a mop and bucket.
- *   5. They mop; the puddle shrinks away and the spot sparkles.
- *   6. Stars flourish, everyone standing nearby throws hearts and rainbows, and the
- *      barback carries the bucket back inside.
+ *   5. They mop the stain out (no celebration yet).
+ *   6. Once clean: stars + bystander hearts/rainbows; barback heads back inside.
  *
  * Separate from chores.js because that class models a *single* actor doing one errand
  * with one state machine. This has two actors with an object persisting between them
@@ -54,7 +54,10 @@ const ST = {
   BARBACK_BACK: "barback_back",
 };
 
-/** An irregular splat, flat on the asphalt. */
+/**
+ * An irregular splat centered at origin — the pour aims at the middle of this.
+ * One main pool + a few tight satellites so it reads as a mess, not confetti.
+ */
 function puddleMesh() {
   const g = new THREE.Group();
   const blob = (r, jitter, colour, y) => {
@@ -81,15 +84,16 @@ function puddleMesh() {
     m.position.y = y;
     return m;
   };
-  g.add(blob(0.42, 0.3, 0x86e01e, 0.021));
-  g.add(blob(0.24, 0.42, 0xa8f03a, 0.023));
-  // A couple of satellite spatters
+  // Main stain — stream lands in the centre of this
+  g.add(blob(0.38, 0.22, 0x86e01e, 0.021));
+  g.add(blob(0.2, 0.28, 0xa8f03a, 0.023));
+  // Tight satellites only — still part of the same mess, not far-flung
   for (const [dx, dz, r] of [
-    [0.5, 0.16, 0.1],
-    [-0.42, -0.3, 0.08],
-    [0.2, -0.5, 0.07],
+    [0.22, 0.1, 0.08],
+    [-0.18, -0.14, 0.07],
+    [0.08, -0.2, 0.055],
   ]) {
-    const s = blob(r, 0.35, 0x86e01e, 0.021);
+    const s = blob(r, 0.28, 0x86e01e, 0.021);
     s.position.set(dx, 0.021, dz);
     g.add(s);
   }
@@ -238,8 +242,12 @@ export class IncidentSystem {
     return g;
   }
 
+  /**
+   * Green pour + splash as one Points draw call.
+   * kind: 0 = stream (mouth → puddle), 1 = splash (radial on impact).
+   */
   _buildSpray() {
-    const COUNT = 90;
+    const COUNT = 140;
     const pos = new Float32Array(COUNT * 3);
     // Park inactive particles under the map so they never draw at the origin
     for (let i = 0; i < COUNT; i++) {
@@ -249,7 +257,7 @@ export class IncidentSystem {
     geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
     const mat = new THREE.PointsMaterial({
       color: 0x9ff03a,
-      size: 0.09,
+      size: 0.085,
       sizeAttenuation: true,
       transparent: true,
       opacity: 0.95,
@@ -265,7 +273,8 @@ export class IncidentSystem {
       count: COUNT,
       vel: new Float32Array(COUNT * 3),
       age: new Float32Array(COUNT).fill(Infinity),
-      life: 0.95,
+      life: new Float32Array(COUNT).fill(0.9),
+      kind: new Uint8Array(COUNT), // 0 stream, 1 splash
     };
   }
 
@@ -278,6 +287,9 @@ export class IncidentSystem {
     this.patron.visible = true;
     this.puddle.visible = false;
     this.puddle.scale.setScalar(0.01);
+    this.puddle.traverse((o) => {
+      if (o.material) o.material.emissiveIntensity = 0.22;
+    });
     this.spot = { ...SPOT };
     this.doorTarget = d.openAngle;
     // Hold lot traffic until the mop is done and the spot is clean
@@ -328,62 +340,128 @@ export class IncidentSystem {
   }
 
   /**
-   * Spray direction: horizontal facing of the person + a mild downward bias.
-   * Using pure torso-local +Z when hunched points almost into the ground
-   * (looked like a shoe fountain).
+   * Lock the stain a short step in front of the patron's feet — the pour aims
+   * at this point so every drop hits the middle of the mess that grows there.
    */
-  _pukeDir(out = new THREE.Vector3()) {
+  _lockPuddleSpot() {
     const yaw = this.patron.rotation.y;
-    out.set(Math.sin(yaw), -0.28, Math.cos(yaw));
-    out.normalize();
-    return out;
+    // Close enough that a vertical pour from a hunched head lands in the centre
+    const reach = 0.42;
+    this.spot = {
+      x: this.patron.position.x + Math.sin(yaw) * reach,
+      z: this.patron.position.z + Math.cos(yaw) * reach,
+    };
+    this.puddle.position.set(this.spot.x, this.groundY, this.spot.z);
+    this.puddle.scale.setScalar(0.08);
+    this.puddle.visible = true;
   }
 
-  _emitSpray(from, dir) {
+  /** Spawn a few free particles from the pool. Returns how many launched. */
+  _spawnParticles(n, setup) {
     const s = this.spray;
     let launched = 0;
-    for (let i = 0; i < s.count && launched < 18; i++) {
-      if (s.age[i] < s.life) continue;
-      const j = i * 3;
-      s.geo.attributes.position.array[j] = from.x + (Math.random() - 0.5) * 0.04;
-      s.geo.attributes.position.array[j + 1] = from.y + (Math.random() - 0.5) * 0.03;
-      s.geo.attributes.position.array[j + 2] = from.z + (Math.random() - 0.5) * 0.04;
-      // Strong forward burst out of the mouth, mild arc, then gravity
-      const speed = 2.6 + Math.random() * 1.2;
-      s.vel[j] = dir.x * speed + (Math.random() - 0.5) * 0.4;
-      s.vel[j + 1] = 0.85 + Math.random() * 0.7; // initial loft so stream arcs
-      s.vel[j + 2] = dir.z * speed + (Math.random() - 0.5) * 0.4;
-      s.age[i] = 0;
+    for (let i = 0; i < s.count && launched < n; i++) {
+      if (s.age[i] < s.life[i]) continue;
+      setup(i, i * 3);
       launched++;
     }
-    s.points.visible = true;
+    if (launched) s.points.visible = true;
+    return launched;
+  }
+
+  /**
+   * Continuous green pour: almost straight down from the mouth, with a gentle
+   * steer so the column lands on the puddle centre (like water from a faucet,
+   * not a projectile spit).
+   */
+  _emitPour(from) {
+    const tx = this.spot.x;
+    const tz = this.spot.z;
+    const dx = tx - from.x;
+    const dz = tz - from.z;
+    // Time-of-flight so gravity drops them near the stain centre
+    const drop = Math.max(0.12, from.y - (this.groundY + 0.03));
+    const fallT = Math.sqrt((2 * drop) / 14); // g≈14 in particle sim
+
+    this._spawnParticles(14, (i, j) => {
+      const arr = this.spray.geo.attributes.position.array;
+      // Tight column at the mouth
+      arr[j] = from.x + (Math.random() - 0.5) * 0.05;
+      arr[j + 1] = from.y - 0.02 + (Math.random() - 0.5) * 0.04;
+      arr[j + 2] = from.z + (Math.random() - 0.5) * 0.05;
+      // Mostly downward; horizontal vel aims the column at the stain centre
+      this.spray.vel[j] = dx / Math.max(0.08, fallT) * 0.85 + (Math.random() - 0.5) * 0.12;
+      this.spray.vel[j + 1] = -1.2 - Math.random() * 0.9; // pour, not loft
+      this.spray.vel[j + 2] = dz / Math.max(0.08, fallT) * 0.85 + (Math.random() - 0.5) * 0.12;
+      this.spray.age[i] = 0;
+      this.spray.life[i] = 0.55 + Math.random() * 0.25;
+      this.spray.kind[i] = 0;
+    });
+  }
+
+  /** Radial splash where the stream hits the middle of the stain. */
+  _emitSplash(x, z) {
+    this._spawnParticles(10, (i, j) => {
+      const arr = this.spray.geo.attributes.position.array;
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.random() * 0.06;
+      arr[j] = x + Math.cos(a) * r;
+      arr[j + 1] = this.groundY + 0.03;
+      arr[j + 2] = z + Math.sin(a) * r;
+      const speed = 0.55 + Math.random() * 0.85;
+      this.spray.vel[j] = Math.cos(a) * speed;
+      this.spray.vel[j + 1] = 0.9 + Math.random() * 1.1; // little bounce
+      this.spray.vel[j + 2] = Math.sin(a) * speed;
+      this.spray.age[i] = 0;
+      this.spray.life[i] = 0.35 + Math.random() * 0.2;
+      this.spray.kind[i] = 1;
+    });
   }
 
   _updateSpray(dt) {
     const s = this.spray;
     let any = false;
     const arr = s.geo.attributes.position.array;
+    const gy = this.groundY + 0.022;
     for (let i = 0; i < s.count; i++) {
-      if (s.age[i] >= s.life) {
-        // Hide spent particles
+      if (s.age[i] >= s.life[i]) {
         if (arr[i * 3 + 1] > -10) arr[i * 3 + 1] = -50;
         continue;
       }
       any = true;
       s.age[i] += dt;
       const j = i * 3;
-      s.vel[j + 1] -= 5.5 * dt;
+      // Stream falls hard; splash drifts lighter
+      s.vel[j + 1] -= (s.kind[i] === 1 ? 9.5 : 14) * dt;
       arr[j] += s.vel[j] * dt;
       arr[j + 1] += s.vel[j + 1] * dt;
       arr[j + 2] += s.vel[j + 2] * dt;
-      if (arr[j + 1] < this.groundY + 0.025) {
-        // Settle into the puddle area ahead of the feet, not under them
-        arr[j + 1] = this.groundY + 0.025;
-        s.vel[j] *= 0.25;
-        s.vel[j + 2] *= 0.25;
-        s.vel[j + 1] = 0;
-        // Expire quickly once puddled so the shoe-pile doesn't build up
-        if (s.age[i] < s.life - 0.15) s.age[i] = s.life - 0.12;
+
+      if (arr[j + 1] <= gy) {
+        arr[j + 1] = gy;
+        if (s.kind[i] === 0) {
+          // Stream hits — pull toward stain centre, splash, leave a wet bead
+          const toCx = this.spot.x - arr[j];
+          const toCz = this.spot.z - arr[j + 2];
+          const dist = Math.hypot(toCx, toCz);
+          if (dist > 0.06) {
+            arr[j] += toCx * 0.45;
+            arr[j + 2] += toCz * 0.45;
+          }
+          // Rate-limit splash so the pool doesn't explode every frame
+          if (Math.random() < 0.4) this._emitSplash(arr[j], arr[j + 2]);
+          s.vel[j] = (Math.random() - 0.5) * 0.12;
+          s.vel[j + 1] = 0;
+          s.vel[j + 2] = (Math.random() - 0.5) * 0.12;
+          s.kind[i] = 1; // settled droplet on the stain
+          s.life[i] = s.age[i] + 0.5;
+        } else {
+          // Splash droplet settles and fades on the stain
+          s.vel[j] *= 0.3;
+          s.vel[j + 2] *= 0.3;
+          s.vel[j + 1] = 0;
+          if (s.age[i] < s.life[i] - 0.18) s.life[i] = s.age[i] + 0.2;
+        }
       }
     }
     s.geo.attributes.position.needsUpdate = true;
@@ -449,13 +527,9 @@ export class IncidentSystem {
         const sway = Math.sin(job.t * 4.5) * 0.5;
         if (this._walk(this.patron, SPOT.x, SPOT.z + sway, WALK, t, 6)) {
           this.doorTarget = 0; // door shuts behind them
-          // The stagger's target sways, so they stop up to ~0.5 off SPOT. Put the
-          // puddle where they actually are or the spray lands beside it.
-          this.spot = {
-            x: this.patron.position.x,
-            z: this.patron.position.z,
-          };
-          this.puddle.position.set(this.spot.x, this.groundY, this.spot.z);
+          // Plant feet; lock the stain centre in front of them before the pour
+          this.patron.position.y = this.groundY;
+          this._lockPuddleSpot();
           job.state = ST.HUNCH;
           job.wait = 0.7;
         }
@@ -463,42 +537,47 @@ export class IncidentSystem {
       }
       case ST.HUNCH: {
         job.wait -= t;
-        // Fold torso forward (hips planted)
+        // Fold torso forward (hips planted) — mouth drops toward the stain
         const k = 1 - Math.max(0, job.wait) / 0.7;
-        this._setHunch(k * 0.95);
+        this._setHunch(k * 1.05);
         this.patron.position.y = this.groundY;
         if (job.wait > 0) break;
         job.state = ST.PUKE;
-        job.wait = 1.5;
-        job.sprayed = 0;
+        job.wait = 1.65;
+        job.pourAcc = 0;
+        job.heave = 0;
         break;
       }
       case ST.PUKE: {
         job.wait -= t;
-        // Heaving torso — mouth marker rides along
-        this._setHunch(0.95 + Math.sin(job.t * 22) * 0.1);
+        // Three heaves: deep fold on each pulse, pour while the gut clenches
+        const elapsed = 1.65 - Math.max(0, job.wait);
+        const heavePhase = (elapsed % 0.5) / 0.5; // 0..1 within each retch
+        const heaveFold = heavePhase < 0.45
+          ? heavePhase / 0.45
+          : 1 - (heavePhase - 0.45) / 0.55;
+        this._setHunch(0.95 + heaveFold * 0.22);
         this.patron.position.y = this.groundY;
-        // Three retches rather than one continuous stream
-        const beat = Math.floor((1.5 - job.wait) / 0.42);
-        if (beat > job.sprayed && beat <= 3) {
-          job.sprayed = beat;
-          this._emitSpray(this._mouthWorld(), this._pukeDir());
+
+        // Pour mostly during the clench of each heave (not a continuous firehose)
+        const pouring = heavePhase > 0.12 && heavePhase < 0.72;
+        if (pouring) {
+          job.pourAcc += t;
+          // Dense green column — several packets per second while pouring
+          if (job.pourAcc >= 0.045) {
+            job.pourAcc = 0;
+            this._emitPour(this._mouthWorld());
+          }
+        } else {
+          job.pourAcc = 0.04; // ready to fire next heave
         }
+
+        // Stain grows under the hit point as the mess accumulates
         this.puddle.visible = true;
-        // Puddle slightly in front of feet (where the stream lands)
-        const yaw = this.patron.rotation.y;
-        this.puddle.position.set(
-          this.patron.position.x + Math.sin(yaw) * 0.55,
-          this.groundY,
-          this.patron.position.z + Math.cos(yaw) * 0.55
-        );
-        this.spot = {
-          x: this.puddle.position.x,
-          z: this.puddle.position.z,
-        };
-        this.puddle.scale.setScalar(
-          Math.min(1, 0.15 + (1.5 - Math.max(0, job.wait)) / 1.1)
-        );
+        this.puddle.position.set(this.spot.x, this.groundY, this.spot.z);
+        const grow = Math.min(1, 0.12 + elapsed / 1.35);
+        this.puddle.scale.setScalar(grow);
+
         if (job.wait > 0) break;
         job.state = ST.RECOVER;
         job.wait = 0.9;
@@ -550,10 +629,11 @@ export class IncidentSystem {
         break;
       }
       case ST.BARBACK_OUT: {
+        // Approach from a stand-off so they face the mess to mop, not stand in it
         const arrived = this._walk(
           this.barback,
-          this.spot.x + 0.75,
-          SPOT.z + 0.5,
+          this.spot.x + 0.85,
+          this.spot.z + 0.55,
           BARBACK_WALK,
           t,
           9
@@ -561,63 +641,116 @@ export class IncidentSystem {
         this._carry();
         if (!arrived) break;
         this.doorTarget = 0;
-        // Bucket goes down beside them; the mop stays in hand
+        // Face the stain, plant the bucket at their side
+        this.barback.rotation.y = Math.atan2(
+          this.spot.x - this.barback.position.x,
+          this.spot.z - this.barback.position.z
+        );
+        const yaw = this.barback.rotation.y;
         this.bucket.position.set(
-          this.barback.position.x + 0.42,
+          this.barback.position.x + Math.cos(yaw) * 0.38,
           this.groundY,
-          this.barback.position.z + 0.22
+          this.barback.position.z - Math.sin(yaw) * 0.38
         );
         job.state = ST.MOP;
-        job.wait = 3.0;
-        job.sparkleAt = 0;
+        job.wait = 3.6;
+        job.mopPhase = 0; // 0 scrub, 1 dunk, 2 scrub, 3 final wipe
+        job.phaseT = 0;
         break;
       }
       case ST.MOP: {
+        // Phased cleanup — no stars until the stain is fully gone
         job.wait -= t;
-        const k = 1 - Math.max(0, job.wait) / 3.0;
-        // Mop sweeps across the puddle
-        const sweep = Math.sin(job.t * 5.5);
-        // Face the mess first, then point the mop the same way — the reverse order
-        // left the mop a frame behind the body it belongs to.
-        this.barback.rotation.y =
-          Math.atan2(
-            this.spot.x - this.barback.position.x,
-            this.spot.z - this.barback.position.z
-          ) + sweep * 0.18;
-        this.mop.position.set(
-          this.spot.x + sweep * 0.42,
-          this.groundY,
-          this.spot.z + Math.cos(job.t * 2.7) * 0.2
-        );
-        this.mop.rotation.set(0, this.barback.rotation.y, 0.4 + sweep * 0.22);
+        job.phaseT += t;
+        const total = 3.6;
+        const done = 1 - Math.max(0, job.wait) / total;
 
-        // Puddle shrinks and dulls as it goes
-        this.puddle.scale.setScalar(Math.max(0.001, 1 - k));
+        // Cycle: scrub → dunk in bucket → scrub → finish wipe
+        const cycle = job.phaseT % 1.15;
+        const dunking = cycle > 0.72 && cycle < 0.95;
+        const faceYaw = Math.atan2(
+          this.spot.x - this.barback.position.x,
+          this.spot.z - this.barback.position.z
+        );
+
+        if (dunking) {
+          // Pull mop back to the bucket for a wet dunk
+          const bx = this.bucket.position.x;
+          const bz = this.bucket.position.z;
+          this.barback.rotation.y = Math.atan2(
+            bx - this.barback.position.x,
+            bz - this.barback.position.z
+          );
+          this.mop.position.set(bx, this.groundY + 0.12, bz);
+          this.mop.rotation.set(0.55, this.barback.rotation.y, 0.15);
+          // Tiny dip
+          this.bucket.position.y = this.groundY + Math.sin((cycle - 0.72) / 0.23 * Math.PI) * 0.04;
+        } else {
+          this.bucket.position.y = this.groundY;
+          // Two-axis scrub across the stain — figure-8-ish stroke
+          const sweep = Math.sin(job.phaseT * 6.2);
+          const push = Math.cos(job.phaseT * 3.8);
+          this.barback.rotation.y = faceYaw + sweep * 0.22;
+          // Lean into the work
+          const torso = this.barback.userData.torso;
+          if (torso) torso.rotation.x = 0.35 + Math.abs(sweep) * 0.12;
+
+          this.mop.position.set(
+            this.spot.x + sweep * 0.38,
+            this.groundY + 0.02,
+            this.spot.z + push * 0.22
+          );
+          this.mop.rotation.set(
+            0.15,
+            faceYaw + sweep * 0.35,
+            0.55 + sweep * 0.28
+          );
+          // Small step-in as they work (don't stand glued to one pixel)
+          const stepIn = 0.04 * Math.sin(job.phaseT * 2.4);
+          this.barback.position.x =
+            this.spot.x + 0.85 + Math.cos(faceYaw) * stepIn;
+          this.barback.position.z =
+            this.spot.z + 0.55 - Math.sin(faceYaw) * stepIn;
+          this.barback.position.y = this.groundY;
+        }
+
+        // Stain shrinks and dulls — fully gone only at the end
+        this.puddle.scale.setScalar(Math.max(0.001, 1 - done * done));
         this.puddle.traverse((o) => {
-          if (o.material) o.material.emissiveIntensity = 0.22 * (1 - k);
+          if (o.material) o.material.emissiveIntensity = 0.22 * (1 - done);
         });
 
-        // Sparkles trail the mop head
-        if (job.t > job.sparkleAt) {
-          job.sparkleAt = job.t + 0.22;
-          this.stars.play(this.mop.position.x, this.groundY + 0.16, this.mop.position.z, 0.3);
-        }
         if (job.wait > 0) break;
+        // Clean: straighten up, hide the mess, THEN celebrate
+        const torso = this.barback.userData.torso;
+        if (torso) torso.rotation.x = 0;
         this.puddle.visible = false;
+        this.bucket.position.y = this.groundY;
         job.state = ST.SPARKLE;
-        job.wait = 1.0;
+        job.wait = 1.15;
         job.burst = false;
         break;
       }
       case ST.SPARKLE: {
         job.wait -= t;
+        // Stars only after the floor is clean — not during the mop
         if (!job.burst) {
           job.burst = true;
-          for (let i = 0; i < 7; i++) {
-            this.stars.play(this.spot.x, this.groundY + 0.2 + Math.random() * 0.5, this.spot.z, 0.55);
+          for (let i = 0; i < 8; i++) {
+            this.stars.play(
+              this.spot.x,
+              this.groundY + 0.15 + Math.random() * 0.55,
+              this.spot.z,
+              0.5
+            );
           }
           this._cheerBystanders();
         }
+        // Stand proud over the clean spot with mop planted
+        this.barback.rotation.y = Math.atan2(
+          this.spot.x - this.barback.position.x,
+          this.spot.z - this.barback.position.z
+        );
         this._carryMopOnly();
         if (job.wait > 0) break;
         this.doorTarget = this.door.openAngle;
@@ -625,6 +758,8 @@ export class IncidentSystem {
         break;
       }
       case ST.BARBACK_BACK: {
+        const torso = this.barback.userData.torso;
+        if (torso) torso.rotation.x = 0;
         const home = this._walk(
           this.barback,
           this.door.outsideX,
