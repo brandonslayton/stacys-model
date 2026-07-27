@@ -28,86 +28,201 @@ const ST = {
   UFO_OUT: "ufo_out",
 };
 
-/** Classic low-poly saucer: disc hull, glass dome, rim lights. */
+/**
+ * Sleek chrome saucer: thin multi-tier hull, glass cockpit, spinning light ring.
+ * Body spins slowly; the rim ring spins fast so motion reads even while hovering.
+ */
 function createSaucer() {
   const g = new THREE.Group();
   g.name = "ufo";
 
-  // Main disc
-  const hull = cyl(1.35, 1.55, 0.22, 0xc8d0d8, {
-    roughness: 0.35,
-    metalness: 0.55,
-    emissive: 0x334455,
-    emissiveIntensity: 0.15,
-  }, 24);
-  hull.position.y = 0;
-  g.add(hull);
+  const body = new THREE.Group();
+  body.name = "ufoBody";
+  g.add(body);
 
-  // Upper dish
-  const upper = cyl(0.55, 1.2, 0.18, 0xa8b4c0, {
+  const chrome = {
+    roughness: 0.28,
+    metalness: 0.72,
+    emissive: 0x1a2838,
+    emissiveIntensity: 0.12,
+  };
+  const dark = {
     roughness: 0.4,
+    metalness: 0.55,
+    emissive: 0x0a1018,
+    emissiveIntensity: 0.08,
+  };
+
+  // Thin main saucer disc — flatter / sleeker than a fat cylinder
+  const hull = cyl(1.55, 1.72, 0.11, 0xd0d8e0, chrome, 32);
+  hull.position.y = 0;
+  body.add(hull);
+
+  // Upper taper
+  const upper = cyl(0.62, 1.42, 0.14, 0xb8c4d0, chrome, 28);
+  upper.position.y = 0.11;
+  body.add(upper);
+
+  // Lower taper
+  const lower = cyl(1.42, 0.7, 0.12, 0x8a96a4, dark, 28);
+  lower.position.y = -0.1;
+  body.add(lower);
+
+  // Dark equatorial band (reads as a seam / panel line)
+  const band = cyl(1.74, 1.74, 0.045, 0x1c2430, {
+    roughness: 0.35,
+    metalness: 0.65,
+    emissive: 0x3ec8ff,
+    emissiveIntensity: 0.22,
+  }, 32);
+  band.position.y = 0.01;
+  body.add(band);
+
+  // Cockpit dome — taller glass bubble
+  const dome = cyl(0.38, 0.52, 0.42, 0x5ad4ff, {
+    roughness: 0.08,
     metalness: 0.45,
-  }, 20);
-  upper.position.y = 0.16;
-  g.add(upper);
-
-  // Glass dome
-  const dome = cyl(0.42, 0.48, 0.38, 0x6ec8ff, {
-    roughness: 0.12,
-    metalness: 0.35,
-    emissive: 0x3a90c0,
-    emissiveIntensity: 0.45,
+    emissive: 0x2a90c8,
+    emissiveIntensity: 0.55,
     transparent: true,
-    opacity: 0.75,
-  }, 16);
+    opacity: 0.72,
+  }, 20);
   dome.position.y = 0.42;
-  g.add(dome);
+  body.add(dome);
 
-  // Cap
-  const cap = cyl(0.12, 0.28, 0.08, 0xe8f4ff, {
+  // Inner glow under glass
+  const cockpitGlow = cyl(0.28, 0.34, 0.12, 0xa8f0ff, {
+    roughness: 0.2,
+    metalness: 0.2,
+    emissive: 0x66e0ff,
+    emissiveIntensity: 0.85,
+  }, 14);
+  cockpitGlow.position.y = 0.28;
+  body.add(cockpitGlow);
+
+  // Needle antenna
+  const ant = cyl(0.025, 0.04, 0.28, 0xe8f4ff, {
     roughness: 0.3,
-    metalness: 0.4,
+    metalness: 0.5,
     emissive: 0xaad4ff,
-    emissiveIntensity: 0.35,
-  }, 12);
-  cap.position.y = 0.62;
-  g.add(cap);
-
-  // Underside well
-  const well = cyl(0.55, 0.35, 0.12, 0x1a2030, {
-    roughness: 0.5,
-    metalness: 0.3,
-    emissive: 0x204060,
     emissiveIntensity: 0.4,
-  }, 16);
-  well.position.y = -0.14;
-  g.add(well);
+  }, 8);
+  ant.position.y = 0.72;
+  body.add(ant);
+  const antTip = cyl(0.05, 0.02, 0.06, 0xff66cc, {
+    roughness: 0.25,
+    emissive: 0xff66cc,
+    emissiveIntensity: 1.0,
+  }, 8);
+  antTip.position.y = 0.88;
+  body.add(antTip);
 
-  // Rim running lights
+  // Underside bay (beam emitter)
+  const well = cyl(0.48, 0.28, 0.1, 0x121820, {
+    roughness: 0.4,
+    metalness: 0.4,
+    emissive: 0x204868,
+    emissiveIntensity: 0.5,
+  }, 18);
+  well.position.y = -0.2;
+  body.add(well);
+
+  const wellCore = cyl(0.18, 0.22, 0.06, 0x66eeff, {
+    roughness: 0.2,
+    emissive: 0x44ddff,
+    emissiveIntensity: 1.1,
+  }, 12);
+  wellCore.position.y = -0.24;
+  body.add(wellCore);
+
+  // ── Spinning rim ring (the “it’s rotating” read) ───────────────────
+  const spinner = new THREE.Group();
+  spinner.name = "ufoSpinner";
+  g.add(spinner);
+
+  // Thin chrome lip that spins
+  const lip = cyl(1.78, 1.82, 0.035, 0xe8eef4, {
+    roughness: 0.22,
+    metalness: 0.8,
+    emissive: 0x6088a8,
+    emissiveIntensity: 0.2,
+  }, 36);
+  lip.position.y = -0.02;
+  spinner.add(lip);
+
+  // Outer light ring — many small emitters so rotation is obvious
   const lights = [];
-  const N = 10;
+  const N = 18;
   for (let i = 0; i < N; i++) {
     const a = (i / N) * Math.PI * 2;
-    const col = i % 2 === 0 ? 0x3ec8ff : 0xff66cc;
-    const bulb = cyl(0.06, 0.06, 0.05, col, {
-      roughness: 0.25,
-      emissive: col,
-      emissiveIntensity: 0.9,
+    const hue = i / N;
+    const col = new THREE.Color().setHSL(hue * 0.15 + 0.52, 0.9, 0.55); // cyan→blue band
+    const hex = col.getHex();
+    const bulb = cyl(0.055, 0.055, 0.04, hex, {
+      roughness: 0.2,
+      emissive: hex,
+      emissiveIntensity: 1.0,
     }, 8);
-    bulb.position.set(Math.cos(a) * 1.28, -0.02, Math.sin(a) * 1.28);
-    g.add(bulb);
+    bulb.position.set(Math.cos(a) * 1.68, -0.05, Math.sin(a) * 1.68);
+    spinner.add(bulb);
     lights.push(bulb);
+
+    // Accent every 3rd: slightly larger magenta notch
+    if (i % 3 === 0) {
+      const notch = cyl(0.04, 0.04, 0.07, 0xff55aa, {
+        roughness: 0.25,
+        emissive: 0xff55aa,
+        emissiveIntensity: 0.95,
+      }, 6);
+      notch.position.set(Math.cos(a) * 1.55, 0.06, Math.sin(a) * 1.55);
+      spinner.add(notch);
+    }
   }
 
+  // Underside spinning vane marks (visible when looking up at hover)
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const vane = boxishFin(0.55, 0.03, 0.12, 0x3ec8ff);
+    vane.position.set(Math.cos(a) * 0.85, -0.16, Math.sin(a) * 0.85);
+    vane.rotation.y = a;
+    spinner.add(vane);
+  }
+
+  g.userData.body = body;
+  g.userData.spinner = spinner;
   g.userData.rimLights = lights;
-  g.userData.tickLights = (t) => {
+  g.userData.wellCore = wellCore;
+
+  /** Continuous spin: body slow, rim fast + pulsing lights. */
+  g.userData.tickSpin = (dt, t) => {
+    body.rotation.y += dt * 0.85;
+    spinner.rotation.y += dt * 3.6;
     for (let i = 0; i < lights.length; i++) {
-      const pulse = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(t * 6 + i * 0.7));
+      const pulse = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(t * 8 + i * 0.55));
       lights[i].material.emissiveIntensity = pulse;
+    }
+    if (wellCore.material) {
+      wellCore.material.emissiveIntensity =
+        0.7 + 0.45 * (0.5 + 0.5 * Math.sin(t * 5.5));
     }
   };
 
   return g;
+}
+
+/** Small rectangular fin built from a box without importing box into every call site. */
+function boxishFin(w, h, d, color) {
+  return new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, d),
+    new THREE.MeshStandardMaterial({
+      color,
+      roughness: 0.3,
+      metalness: 0.4,
+      emissive: color,
+      emissiveIntensity: 0.45,
+      flatShading: true,
+    })
+  );
 }
 
 /**
@@ -355,7 +470,9 @@ export class UfoSystem {
   _placeUfoOverSpot(t) {
     const y = this._hoverY(t);
     this.ufo.position.set(this.spot.x, y, this.spot.z);
-    this.ufo.rotation.y = t * 0.35;
+    // Gentle hover tilt so the spinning rim reads in profile
+    this.ufo.rotation.x = Math.sin(t * 1.7) * 0.04;
+    this.ufo.rotation.z = Math.cos(t * 1.3) * 0.035;
   }
 
   _aimBeam(personY = 0) {
@@ -369,7 +486,7 @@ export class UfoSystem {
   update(dt) {
     const t = Math.min(dt, 0.05);
     this.clock += t;
-    if (this.ufo.visible) this.ufo.userData.tickLights?.(this.clock);
+    if (this.ufo.visible) this.ufo.userData.tickSpin?.(t, this.clock);
 
     const job = this.job;
     if (!job) return;
@@ -415,8 +532,8 @@ export class UfoSystem {
         job.ufoK = Math.min(1, job.ufoK + t * 0.55);
         const k = 1 - Math.pow(1 - job.ufoK, 2.4);
         this.ufo.position.lerpVectors(job.ufoFrom, job.ufoTo, k);
-        this.ufo.rotation.y = this.clock * 0.5;
-        // Face slightly toward approach
+        // Slight bank into the approach
+        this.ufo.rotation.z = (1 - k) * 0.18 * Math.sign(job.ufoFrom.x - this.spot.x || 1);
         if (job.ufoK < 1) break;
         this._placeUfoOverSpot(this.clock);
         this.beam.visible = true;
@@ -549,7 +666,11 @@ export class UfoSystem {
         // Ease-in: slow then warp
         const k = job.ufoK * job.ufoK * job.ufoK;
         this.ufo.position.lerpVectors(job.ufoFrom, job.ufoTo, k);
-        this.ufo.rotation.y += t * 4;
+        // Spin harder on escape (body/spinner already spin; boost via extra yaw)
+        if (this.ufo.userData.spinner) {
+          this.ufo.userData.spinner.rotation.y += t * 6;
+        }
+        this.ufo.rotation.x = k * 0.25;
         this.ufo.scale.setScalar(1 - k * 0.35);
         if (job.ufoK < 1) break;
         this._finish();
