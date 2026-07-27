@@ -63,19 +63,37 @@ const HOUR_CURVE = [
 ];
 
 /** Sun–Sat multiplier. Friday and Saturday carry the week. */
-const DAY_WEIGHT = [0.78, 0.5, 0.55, 0.62, 0.74, 1.0, 1.0];
+const DAY_WEIGHT = {
+  sunday: 0.78,
+  monday: 0.5,
+  tuesday: 0.55,
+  wednesday: 0.62,
+  thursday: 0.74,
+  friday: 1.0,
+  saturday: 1.0,
+};
 
-/** Smooth crowd factor 0..1 for a Date, interpolating between hours. */
-export function crowdFactor(date) {
-  const h = date.getHours();
-  const frac = date.getMinutes() / 60;
+/**
+ * Smooth crowd factor 0..1, interpolating between hours.
+ *
+ * Takes the VENUE's hour and weekday (see venue.js venueNow), not a Date — the
+ * phone's own timezone would make the room busy at the wrong time if you checked
+ * in from another state.
+ *
+ * @param {number} hourFloat 0..24 in venue-local time
+ * @param {string} weekday e.g. "Sunday"
+ */
+export function crowdFactor(hourFloat, weekday) {
+  const h = Math.floor(((hourFloat % 24) + 24) % 24);
+  const frac = hourFloat - Math.floor(hourFloat);
   const a = HOUR_CURVE[h];
   const b = HOUR_CURVE[(h + 1) % 24];
-  return (a + (b - a) * frac) * DAY_WEIGHT[date.getDay()];
+  const weight = DAY_WEIGHT[String(weekday).toLowerCase()] ?? 0.7;
+  return (a + (b - a) * frac) * weight;
 }
 
-export function isOpen(date) {
-  return crowdFactor(date) > 0.02;
+export function isOpen(hourFloat, weekday) {
+  return crowdFactor(hourFloat, weekday) > 0.02;
 }
 
 export class LifeSystem {

@@ -40,14 +40,23 @@ body { user-select: none; -webkit-user-select: none; }
   top: max(12px, env(safe-area-inset-top));
   left: var(--pad);
   right: var(--pad);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
   pointer-events: none;
-  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.75);
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.8);
+}
+
+#top .ident {
+  min-width: 0;
 }
 
 #top .name {
-  font-size: 22px;
+  font-size: 21px;
   font-weight: 700;
   letter-spacing: -0.01em;
+  line-height: 1.1;
 }
 
 #top .name span {
@@ -55,11 +64,58 @@ body { user-select: none; -webkit-user-select: none; }
   opacity: 0.66;
 }
 
-#top .sub {
-  margin-top: 2px;
+#top .addr {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--dim);
+}
+
+/* Right-hand stack: open state, then the big day/date, then time + weather. */
+#top .when {
+  text-align: right;
+  flex: 0 0 auto;
+}
+
+#top .when .pill {
+  margin-bottom: 5px;
+}
+
+#top .when .day {
+  font-size: 27px;
+  font-weight: 700;
+  line-height: 0.98;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+#top .when .date {
+  font-size: 27px;
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.72;
+}
+
+#top .when .meta {
+  margin-top: 4px;
   font-size: 12.5px;
   color: var(--dim);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+#top .when .meta span + span::before {
+  content: " · ";
+  opacity: 0.6;
+}
+
+/* Narrow phones: shrink the big type rather than let it wrap or collide. */
+@media (max-width: 370px) {
+  #top .name { font-size: 18px; }
+  #top .when .day,
+  #top .when .date { font-size: 23px; }
 }
 
 /* ---------------------------------------------------------------- card */
@@ -79,24 +135,56 @@ body { user-select: none; -webkit-user-select: none; }
   margin: 0 auto;
 }
 
-#card .row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+/* ---------------------------------------------------------------- event */
+.ev-when {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--hot);
+  text-transform: uppercase;
 }
 
-#card .occ strong {
-  font-size: 40px;
+.ev-name {
+  margin-top: 5px;
+  font-size: 21px;
   font-weight: 700;
-  line-height: 1;
-  letter-spacing: -0.02em;
+  line-height: 1.18;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+.ev-time {
+  margin-top: 5px;
+  font-size: 13px;
+  color: var(--ink);
+  opacity: 0.82;
   font-variant-numeric: tabular-nums;
 }
 
-#card .occ span {
-  margin-left: 8px;
-  font-size: 13px;
+.ev-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 9px;
+}
+
+.ev-tags i {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--edge);
+  background: rgba(255, 255, 255, 0.07);
   color: var(--dim);
+}
+
+.ev-tags i.live {
+  color: #0e1a12;
+  background: var(--hot);
+  border-color: transparent;
 }
 
 .pill {
@@ -118,65 +206,24 @@ body { user-select: none; -webkit-user-select: none; }
   border-color: transparent;
 }
 
+/* Doors not open yet but an event is scheduled later today */
+.pill.soon {
+  color: #2a1c06;
+  background: var(--warm);
+  border-color: transparent;
+}
+
 .pill.closed {
   color: var(--dim);
-}
-
-.bar {
-  margin: 12px 0 6px;
-  height: 7px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.09);
-  overflow: hidden;
-}
-
-.bar i {
-  display: block;
-  height: 100%;
-  width: 0%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--cool), var(--warm) 55%, var(--hot));
-  transition: width 0.7s ease;
-}
-
-.vibe {
-  font-size: 12.5px;
-  color: var(--dim);
-}
-
-#card .stats {
-  margin-top: 13px;
-  padding-top: 12px;
-  border-top: 1px solid var(--edge);
-  gap: 6px;
-}
-
-#card .stats > div {
-  flex: 1;
-  text-align: center;
-  min-width: 0;
-}
-
-#card .stats b {
-  display: block;
-  font-size: 16px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-#card .stats span {
-  display: block;
-  margin-top: 2px;
-  font-size: 10.5px;
-  color: var(--dim);
-  letter-spacing: 0.02em;
 }
 
 .foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 11px;
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--edge);
 }
 
 #perf {

@@ -54,13 +54,26 @@ for (const h of hours) {
     }
   });
 
-  // Freeze the wall clock at <h>:20 today, before any module runs. performance.now()
-  // is untouched, so the frame loop's dt still advances and the sim still runs.
+  // Freeze the wall clock at <h>:20 PHOENIX time today, before any module runs.
+  // The page renders the venue's clock via Intl/America/Phoenix, so the instant has
+  // to be built in UTC (Arizona is UTC-7 year-round, no DST) rather than in this
+  // machine's local zone — otherwise --hour=22 shows some other hour on the card.
+  // performance.now() is untouched, so dt still advances and the sim still runs.
   await page.addInitScript((hour) => {
     const Real = Date;
-    const base = new Real();
-    base.setHours(hour, 20, 0, 0);
-    const fixed = base.getTime();
+    // Shift back 7h so the UTC getters read out Phoenix's calendar date. Reading
+    // getUTCDate() directly is wrong: after 5pm Phoenix it has already rolled to
+    // tomorrow in UTC, which lands the shot on the wrong day and event.
+    const phx = new Real(Real.now() - 7 * 3600 * 1000);
+    const fixed = Real.UTC(
+      phx.getUTCFullYear(),
+      phx.getUTCMonth(),
+      phx.getUTCDate(),
+      hour + 7,
+      20,
+      0,
+      0
+    );
     const Patched = new Proxy(Real, {
       construct(target, a) {
         return a.length ? new target(...a) : new target(fixed);
@@ -78,15 +91,20 @@ for (const h of hours) {
   console.log(`${h}h — running sim ${settle}s...`);
   await page.waitForTimeout(settle * 1000);
 
-  const s = await page.evaluate(() => ({
-    ...window.__pocket.life.stats(),
-    perf: document.getElementById("perf").textContent,
-    clock: document.getElementById("clock").textContent,
-  }));
+  const s = await page.evaluate(() => {
+    const t = (id) => document.getElementById(id).textContent;
+    return {
+      ...window.__pocket.life.stats(),
+      header: `${t("weekday")} ${t("date")} ${t("clock")} ${t("wx")} [${t("state")}]`,
+      event: `${t("ev-when")}: ${t("ev-name")} — ${t("ev-time")}`,
+      perf: t("perf"),
+    };
+  });
+  console.log(`  header: ${s.header}`);
+  console.log(`  event:  ${s.event}`);
   console.log(
-    `${h}h (${s.clock}) — inside ${s.inside}/${s.target} of ${s.capacity} · ` +
-      `parked ${s.carsParked}/${s.stalls} · patio ${s.onPatio}/${s.patioSpots} · ` +
-      `outside ${s.outside} · arrivals ${s.arrivals10m} · ${s.perf}`
+    `  sim:    inside ${s.inside}/${s.target} · parked ${s.carsParked}/${s.stalls} · ` +
+      `patio ${s.onPatio}/${s.patioSpots} · outside ${s.outside} · ${s.perf}`
   );
 
   const out = `shots/pocket-${h}h.png`;

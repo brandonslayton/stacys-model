@@ -13,7 +13,14 @@ import * as THREE from "three";
 import { ensureSignFonts } from "./kit.js";
 import { createStacys } from "./stacys.js";
 import { createStreet } from "./street.js";
-import { LifeSystem, crowdFactor, isOpen } from "./life.js";
+import { LifeSystem, crowdFactor } from "./life.js";
+import {
+  venueNow,
+  loadEvents,
+  currentEvent,
+  venueState,
+  fetchWeather,
+} from "./venue.js";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("c");
@@ -215,47 +222,57 @@ function applyNight(t) {
   model?.userData?.setNight?.(t);
 }
 
-// ---------------------------------------------------------------- stats card
-// Kept free of specific claims (patio, parking, queue) — the stat row sits right
-// underneath and would contradict them.
-const VIBES = [
-  [0.02, "Closed. Chairs up, neon off."],
-  [0.12, "Dead quiet."],
-  [0.28, "A few regulars in. Taking it easy."],
-  [0.48, "Filling in nicely."],
-  [0.7, "Busy. Steady flow through the door."],
-  [0.88, "Packed."],
-  [Infinity, "Rammed."],
-];
+// ---------------------------------------------------------------- header + card
+// No crowd numbers here on purpose. The sim is invented, so reporting "41 inside"
+// dressed it up as data; the agents walking in and parking convey the same thing
+// without asserting a figure. Everything shown below is real.
+let weather = null;
+let events = [];
 
-function vibeText(f) {
-  for (const [lim, text] of VIBES) if (f < lim) return text;
-  return VIBES[VIBES.length - 1][1];
+function paintHeader(now) {
+  $("weekday").textContent = now.weekday;
+  $("date").textContent = `${now.month} ${now.day}`;
+  $("clock").textContent = now.clock;
+  $("wx").textContent = weather
+    ? `${weather.tempF}°${weather.glyph ? " " + weather.glyph : ""}`
+    : "";
+
+  const state = venueState(events, now);
+  $("state").textContent = state.label;
+  $("state").className = `pill ${state.tone}`;
 }
 
-function fmtClock(d) {
-  let h = d.getHours();
-  const ap = h < 12 ? "AM" : "PM";
-  h = h % 12 === 0 ? 12 : h % 12;
-  return `${h}:${String(d.getMinutes()).padStart(2, "0")} ${ap}`;
-}
+function paintEvent(ev) {
+  if (!ev) {
+    $("ev-when").textContent = "TODAY";
+    $("ev-name").textContent = "No event listed";
+    $("ev-time").textContent = "";
+    $("ev-tags").replaceChildren();
+    return;
+  }
+  $("ev-when").textContent = ev.when;
+  $("ev-name").textContent = ev.name;
 
-function paintCard(life, date) {
-  const s = life.stats();
-  const open = isOpen(date);
-  $("clock").textContent = fmtClock(date);
-  $("inside").textContent = s.inside;
-  $("bar-fill").style.width = `${Math.min(100, (s.inside / s.capacity) * 100)}%`;
-  $("vibe").textContent = vibeText(open ? s.inside / s.capacity : 0);
+  const bits = [];
+  if (ev.startLabel) {
+    bits.push(ev.endLabel ? `${ev.startLabel} – ${ev.endLabel}` : ev.startLabel);
+  }
+  if (ev.ageRestriction) bits.push(ev.ageRestriction);
+  if (ev.coverAmount) bits.push(`$${ev.coverAmount} cover`);
+  $("ev-time").textContent = bits.join(" · ");
 
-  const state = $("state");
-  state.textContent = open ? "Open" : "Closed";
-  state.className = `pill ${open ? "open" : "closed"}`;
-
-  $("s-cars").textContent = `${s.carsParked}/${s.stalls}`;
-  $("s-patio").textContent = `${s.onPatio}/${s.patioSpots}`;
-  $("s-out").textContent = s.outside;
-  $("s-arr").textContent = s.arrivals10m;
+  const tags = ev.tags.map((t) => {
+    const el = document.createElement("i");
+    el.textContent = t;
+    return el;
+  });
+  if (ev.started) {
+    const live = document.createElement("i");
+    live.className = "live";
+    live.textContent = "On now";
+    tags.unshift(live);
+  }
+  $("ev-tags").replaceChildren(...tags);
 }
 
 // ---------------------------------------------------------------- boot
@@ -268,8 +285,30 @@ async function boot() {
   scene.add(model);
 
   const life = new LifeSystem(scene, model);
-  life.setCrowd(crowdFactor(new Date()));
+  const boot = venueNow();
+  life.setCrowd(crowdFactor(boot.hourFloat, boot.weekday));
   life.seed();
+
+  // Real data. Both are optional garnish — a failure must not stop the render, so
+  // neither is awaited before the first frame.
+  paintHeader(boot);
+  loadEvents()
+    .then((list) => {
+      events = list;
+      const n = venueNow();
+      paintEvent(currentEvent(events, n));
+      paintHeader(n); // the state pill needs the schedule
+    })
+    .catch(() => paintEvent(null));
+  const refreshWeather = () =>
+    fetchWeather().then((w) => {
+      if (w) {
+        weather = w;
+        paintHeader(venueNow());
+      }
+    });
+  refreshWeather();
+  setInterval(refreshWeather, 15 * 60 * 1000);
 
   resize();
   $("card").hidden = false;
@@ -290,6 +329,7 @@ async function boot() {
 
   let last = performance.now();
   let cardAcc = 1e9;
+  let eventAcc = 0;
   let frames = 0;
   let fpsAcc = 0;
   let meshCount = 0;
@@ -301,12 +341,11 @@ async function boot() {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
 
-    const date = new Date();
-    const hour = date.getHours() + date.getMinutes() / 60;
-    applyNight(nightFromHour(hour));
+    const vnow = venueNow();
+    applyNight(nightFromHour(vnow.hourFloat));
     model.userData.tickNight?.(now);
 
-    life.setCrowd(crowdFactor(date));
+    life.setCrowd(crowdFactor(vnow.hourFloat, vnow.weekday));
     life.update(dt);
 
     // Auto-rotate, resuming a few seconds after the last touch
@@ -318,11 +357,19 @@ async function boot() {
     cardAcc += dt;
     if (cardAcc >= 1) {
       cardAcc = 0;
-      paintCard(life, date);
+      paintHeader(vnow);
       const fps = frames / Math.max(0.001, fpsAcc);
       $("perf").textContent = `${fps.toFixed(0)} fps · ${meshCount} meshes`;
       frames = 0;
       fpsAcc = 0;
+    }
+
+    // Re-evaluate which event is current every minute, so it rolls over at
+    // midnight and flips to "On now" when the show starts
+    eventAcc += dt;
+    if (eventAcc >= 60) {
+      eventAcc = 0;
+      paintEvent(currentEvent(events, vnow));
     }
     frames++;
     fpsAcc += dt;

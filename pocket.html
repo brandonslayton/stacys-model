@@ -30,29 +30,23 @@
 <div id="err" hidden></div>
 
 <header id="top">
-  <div class="name">Stacy's <span>@ Melrose</span></div>
-  <div class="sub"><span id="clock">--:--</span> &middot; 4343 N 7th Ave</div>
+  <div class="ident">
+    <div class="name">Stacy's <span>@ Melrose</span></div>
+    <div class="addr">4343 N 7th Ave</div>
+  </div>
+  <div class="when">
+    <div id="state" class="pill">&mdash;</div>
+    <div class="day" id="weekday">&mdash;</div>
+    <div class="date" id="date">&mdash;</div>
+    <div class="meta"><span id="clock">--:--</span><span id="wx"></span></div>
+  </div>
 </header>
 
 <section id="card" hidden>
-  <div class="row head">
-    <div class="occ">
-      <strong id="inside">0</strong>
-      <span>inside now</span>
-    </div>
-    <div id="state" class="pill">&mdash;</div>
-  </div>
-
-  <div class="bar"><i id="bar-fill"></i></div>
-  <div class="vibe" id="vibe">&mdash;</div>
-
-  <div class="row stats">
-    <div><b id="s-cars">0/0</b><span>parked</span></div>
-    <div><b id="s-patio">0/0</b><span>on patio</span></div>
-    <div><b id="s-out">0</b><span>outside</span></div>
-    <div><b id="s-arr">0</b><span>arrived/10m</span></div>
-  </div>
-
+  <div class="ev-when" id="ev-when">TONIGHT</div>
+  <div class="ev-name" id="ev-name">&mdash;</div>
+  <div class="ev-time" id="ev-time"></div>
+  <div class="ev-tags" id="ev-tags"></div>
   <div class="foot">
     <span id="perf">&mdash;</span>
     <button id="spin" class="on" type="button">Auto-rotate</button>

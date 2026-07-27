@@ -39,10 +39,41 @@ no lost camera position.
 | Zoom | pinch (or wheel) |
 | Auto-rotate | resumes 4s after you let go; button to disable |
 
-The crowd is simulated — there is no live feed from the real venue. Occupancy
-follows an hourly curve times a day-of-week weight (`HOUR_CURVE` / `DAY_WEIGHT` in
-`js/life.js`), so a Sunday afternoon is quiet and a Friday midnight is packed.
-Nothing persists between visits.
+### What's real and what isn't
+
+**Real:** the date, the venue's clock, the weather, the open/closed state, and
+tonight's event. **Invented:** the people and cars. The sim's crowd size follows
+an hourly curve times a day-of-week weight (`HOUR_CURVE` / `DAY_WEIGHT` in
+`js/life.js`) so evenings look busier, but no count is ever shown on screen —
+agents walking in convey it without asserting a figure. Nothing persists between
+visits.
+
+Everything time-based runs on **America/Phoenix**, not the phone's timezone, so
+the neon lights at the venue's dusk even if you check in from another state.
+Arizona has no DST, which makes this a fixed -7 offset.
+
+### Data sources
+
+| | |
+|---|---|
+| Events | Stacy's own `/api/events`, mirrored to `data/events.json` |
+| Weather | [Open-Meteo](https://open-meteo.com) — no API key, fetched live |
+
+The events endpoint sends **no `Access-Control-Allow-Origin` header**, so the page
+cannot call it from a browser. `.github/workflows/refresh-events.yml` fetches it
+server-side once a day and commits the result, which the page then reads
+same-origin. You can also trigger it by hand from the Actions tab.
+
+Two query details worth keeping: `days=30` rather than `upcoming_only=true`,
+because `upcoming_only` drops events that already started today and so hid the
+noon Sunday drag brunch from an evening check-in; and matching on `instance_date`
+rather than `recurrence_day`, whose casing is inconsistent (`"Friday"` vs
+`"sunday"`) and which one-off events lack entirely. Days can hold more than one
+event.
+
+Open/closed is derived from the **event schedule**, not from the sim's curve —
+Stacy's publishes no opening hours anywhere findable, so the pill reports what the
+schedule supports (`Open`, `Opens 8:00 PM`, or `Closed`) rather than guessing.
 
 ```bash
 node pocket-shot.mjs                 # headless, iPhone size, 2pm + 10pm
@@ -115,8 +146,11 @@ stacys-model/
 │   ├── viewer.js     # workbench: camera, HUD, ref overlay, stats
 │   ├── pocket.js     # phone view: touch, auto-rotate, clock, stats card
 │   ├── life.js       # crowd sim — cars park, people go in, patio fills
+│   ├── venue.js      # REAL data: Phoenix clock, tonight's event, weather
 │   ├── street.js     # stub of 7th Ave + lane/sidewalk helpers
 │   └── agents.js     # createCar / createPedestrian, from the game
+├── data/events.json  # mirrored schedule, refreshed daily by CI
+├── .github/workflows/refresh-events.yml
 ├── refs/             # reference photos
 ├── shots/            # headless screenshot output
 ├── shot.mjs          # workbench screenshots

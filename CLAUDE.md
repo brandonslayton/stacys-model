@@ -391,6 +391,52 @@ tight `58 → 115`.
 - Not hosted. Local `serve.py` only, so it is not actually reachable from a phone
   yet; that was a deliberate "decide later".
 
+## Done — real data layer (2026-07-26)
+
+The pocket card stopped reporting invented numbers and started showing real ones.
+Brandon's call: "hide the stats, as they are fake, but I like seeing that it looks
+like people are going to the bar." So the sim still runs and is still visible —
+only the *reporting* of it went away.
+
+Layout now: venue name top-left, and top-right an `Open` / `Opens 8:00 PM` /
+`Closed` pill over a big bold weekday + date, with the venue clock and temperature
+under it. The bottom card is tonight's event.
+
+- **`js/venue.js`** — real data only. `venueNow()` returns the venue's wall-clock
+  parts via `Intl` on **America/Phoenix**, not the phone's zone, so the neon lights
+  at the venue's dusk wherever you are (AZ has no DST, so it's a fixed -7).
+  `currentEvent()`, `venueState()`, `fetchWeather()`.
+- **`crowdFactor(hourFloat, weekday)`** in life.js was refactored off `Date` for the
+  same reason — it used to read the phone's `getHours()`/`getDay()`.
+- **Weather** is Open-Meteo: no API key, and it *does* send `allow-origin: *`, so
+  it's fetched live. `is_day` picks a moon glyph after dark — a sun next to
+  "9:20 PM" reads as a bug.
+- **Events** come from Stacy's own `/api/events`, which their site calls
+  client-side. It sends **no CORS header**, so the page cannot call it; the
+  `refresh-events` workflow mirrors it daily into `data/events.json` and the page
+  reads that same-origin. The workflow validates the payload shape before
+  overwriting, so an error page can't wipe a good schedule.
+- **Open/closed comes from the event schedule, not the sim curve.** Stacy's
+  publishes no opening hours anywhere findable (their site has none; Yelp 403s), so
+  the pill reports what the schedule supports instead of inventing hours. Never
+  wire the sim's `crowdFactor` into anything presented as fact.
+
+### API gotchas that cost time
+
+- **`upcoming_only=true` drops events that already started today.** That hid the
+  noon Sunday drag brunch from any evening check-in. Use `days=30`.
+- **Match on `instance_date`, not `recurrence_day`** — its casing is inconsistent
+  (`"Friday"` vs `"sunday"`) and one-off events have none. Also, a day can hold
+  more than one event (Sundays have brunch at noon *and* karaoke at 8pm), so
+  "today's event" is a list plus a pick, not a lookup.
+- **The site is a `created.app` embed, not the Divi WordPress shell.** The schedule
+  is nowhere in the served HTML — the first scrape attempts found only tag
+  definitions and nav labels. Rendering it in Playwright and watching the network
+  tab is what surfaced the JSON endpoint.
+- **`pocket-shot.mjs --hour=N` means Phoenix hour.** Building the frozen instant
+  from `getUTCDate()` is wrong: after 5pm Phoenix, UTC has already rolled over, so
+  shots landed on tomorrow's date and tomorrow's event. Shift back 7h first.
+
 ## Improvement backlog
 
 Ordered by visible-pixels-per-unit-of-work at the game camera. **Done:** items 2,

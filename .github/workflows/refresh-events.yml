@@ -1,0 +1,57 @@
+name: Refresh events
+
+# Stacy's own site fetches its schedule from /api/events, but that endpoint sends
+# no Access-Control-Allow-Origin header, so pocket.html cannot call it from a
+# browser. This job fetches it server-side (where CORS does not apply) and commits
+# the result, so the page can read it same-origin from Pages.
+#
+# Uses days=30 rather than upcoming_only=true on purpose: upcoming_only drops events
+# that already started today, which hid the noon Sunday drag brunch from an evening
+# check-in. days=30 returns the whole day regardless of the current time.
+
+on:
+  schedule:
+    # 08:00 UTC = 1am Phoenix (AZ has no DST, so this is stable year-round)
+    - cron: "0 8 * * *"
+  workflow_dispatch: # lets you refresh on demand from the Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch events
+        run: |
+          curl -sS --fail --max-time 45 \
+            "https://www.stacysatmelrose.com/api/events?status=published&days=30&limit=80" \
+            -o /tmp/events.json
+
+          # Reject anything that isn't the shape we expect, so a maintenance page
+          # or an error body can never overwrite a good schedule
+          node -e "
+            const d = JSON.parse(require('fs').readFileSync('/tmp/events.json','utf8'));
+            if (!d.success || !Array.isArray(d.events) || d.events.length === 0) {
+              throw new Error('unexpected payload: ' + JSON.stringify(d).slice(0,200));
+            }
+            if (!d.events[0].instance_date || !d.events[0].name) {
+              throw new Error('missing expected fields on first event');
+            }
+            console.log('ok, ' + d.events.length + ' events');
+          "
+          mv /tmp/events.json data/events.json
+
+      - name: Commit if changed
+        run: |
+          if git diff --quiet -- data/events.json; then
+            echo "schedule unchanged"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/events.json
+          git commit -m "Refresh events schedule"
+          git push
