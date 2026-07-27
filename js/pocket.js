@@ -17,6 +17,7 @@ import {
   TRASH_ICON,
   MIST_ICON,
   SICK_ICON,
+  RIDESHARE_ICON,
   moonPhase,
   moonName,
   moonIllumination,
@@ -28,6 +29,7 @@ import { LifeSystem, crowdFactor } from "./life.js";
 import { ChoreSystem } from "./chores.js";
 import { MistSystem } from "./mist.js";
 import { IncidentSystem } from "./incident.js";
+import { RideshareSystem } from "./rideshare.js";
 import { FlickerSystem } from "./flicker.js";
 import {
   venueNow,
@@ -204,6 +206,12 @@ const PATIO_VIEW = { az: 268, el: 30, zoom: 0.86, target: [0, 0.9, -3.9] };
  * this spot at the frame edge.
  */
 const INCIDENT_VIEW = { az: 186, el: 30, zoom: 0.5, target: [-5.4, 0.6, 3.1] };
+
+/**
+ * Curb in front of the porch — where the Waymo stops. Default az 58 already faces
+ * the street facade, so this is a mild zoom-in rather than a hard swing.
+ */
+const RIDESHARE_VIEW = { az: 38, el: 16, zoom: 0.48, target: [-1.5, 0.35, 6.8] };
 
 /** Eased-to view, or null when the user is in control. */
 let focusTarget = null;
@@ -506,6 +514,113 @@ function wireMistButton(mist) {
 }
 
 /**
+ * Waymo button.
+ *
+ *   tap            → guests leave the bar, wait, get picked up
+ *   double-tap     → Waymo drops someone off
+ *   long-press     → same as double-tap (phones struggle with dblclick)
+ *
+ * A short delay on the single-tap lets a second tap cancel it and run dropoff
+ * instead, so double-tap is not racing a pickup start.
+ */
+function wireRideButton(rideshare) {
+  const btn = $("ride");
+  btn.innerHTML = RIDESHARE_ICON;
+
+  const LONG_MS = 480;
+  const CLICK_GAP_MS = 280;
+  let holdTimer = null;
+  let clickTimer = null;
+  let holdFired = false;
+  let pointerDownAt = 0;
+
+  const lockUntilDone = () => {
+    btn.disabled = true;
+    const release = () => {
+      if (rideshare.busy) {
+        requestAnimationFrame(release);
+        return;
+      }
+      btn.disabled = false;
+      btn.classList.add("done");
+      setTimeout(() => btn.classList.remove("done"), 900);
+    };
+    requestAnimationFrame(release);
+  };
+
+  const runPickup = () => {
+    if (!rideshare.startPickup()) return;
+    beginFocus(RIDESHARE_VIEW);
+    lockUntilDone();
+  };
+
+  const runDropoff = () => {
+    if (!rideshare.startDropoff()) return;
+    beginFocus(RIDESHARE_VIEW);
+    lockUntilDone();
+  };
+
+  const clearHold = () => {
+    if (holdTimer) {
+      clearTimeout(holdTimer);
+      holdTimer = null;
+    }
+  };
+
+  const clearClick = () => {
+    if (clickTimer) {
+      clearTimeout(clickTimer);
+      clickTimer = null;
+    }
+  };
+
+  btn.addEventListener("pointerdown", (e) => {
+    if (btn.disabled || rideshare.busy) return;
+    // Only primary button / finger
+    if (e.button != null && e.button !== 0) return;
+    holdFired = false;
+    pointerDownAt = performance.now();
+    clearHold();
+    holdTimer = setTimeout(() => {
+      holdFired = true;
+      clearClick();
+      runDropoff();
+    }, LONG_MS);
+  });
+
+  btn.addEventListener("pointerup", (e) => {
+    clearHold();
+    if (btn.disabled || rideshare.busy || holdFired) return;
+    if (e.button != null && e.button !== 0) return;
+    // Ignore if this was a very long press that almost-but-not-quite hit the timer
+    if (performance.now() - pointerDownAt >= LONG_MS) return;
+
+    if (clickTimer) {
+      // Second tap inside the gap → dropoff
+      clearClick();
+      runDropoff();
+      return;
+    }
+    clickTimer = setTimeout(() => {
+      clickTimer = null;
+      runPickup();
+    }, CLICK_GAP_MS);
+  });
+
+  btn.addEventListener("pointerleave", () => {
+    clearHold();
+  });
+
+  btn.addEventListener("pointercancel", () => {
+    clearHold();
+    clearClick();
+  });
+
+  // Prevent the 300ms synthetic click / text selection quirks on long-press
+  btn.addEventListener("contextmenu", (e) => e.preventDefault());
+}
+
+/**
  * Crowd size for the sim, zeroed while the doors are shut so the visuals agree
  * with the pill — otherwise people stroll in at noon on a Monday under a
  * "Opens 4:00 PM" badge.
@@ -573,12 +688,17 @@ async function boot() {
   // Must run after tickNight each frame — it multiplies what that leaves behind
   const flicker = new FlickerSystem(model);
   const incident = new IncidentSystem(scene, model, life);
+  const rideshare = new RideshareSystem(scene, model, {
+    streetDoor: life.streetDoor,
+    aisleX: life.aisle ? life.aisle.x : life.streetDoor.x,
+  });
   const mist = new MistSystem(scene, model);
   mistRef = mist;
   mist.setProjection(camera.fov, renderer.domElement.height);
   wireTrashButton(chores);
   wireMistButton(mist);
   wireSickButton(incident);
+  wireRideButton(rideshare);
   const boot = venueNow();
   life.setCrowd(crowdFor(boot));
   life.seed();
@@ -619,6 +739,7 @@ async function boot() {
     mist,
     flicker,
     incident,
+    rideshare,
     get nightMix() {
       return nightMix;
     },
@@ -667,9 +788,10 @@ async function boot() {
     life.update(dt);
     chores.update(dt);
     incident.update(dt);
+    rideshare.update(dt);
     mist.update(dt);
 
-    stepFocus(dt, chores.busy || incident.busy);
+    stepFocus(dt, chores.busy || incident.busy || rideshare.busy);
 
     // Auto-rotate, resuming a few seconds after the last touch. Held off during a
     // focus swing, which would otherwise fight it for the azimuth.

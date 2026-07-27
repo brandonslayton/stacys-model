@@ -78,6 +78,21 @@ export const TRASH_ICON = svg(
   20
 );
 
+/**
+ * Robotaxi / rideshare: a car silhouette with a roof sensor dome so it reads as
+ * autonomous rather than a plain cab.
+ */
+export const RIDESHARE_ICON = svg(
+  `<path d="M4.5 14.5h15"/>` +
+    `<path d="M5.2 14.5l1.4-4.2A1.6 1.6 0 0 1 8.1 9h7.8a1.6 1.6 0 0 1 1.5 1.3l1.4 4.2"/>` +
+    `<path d="M7.2 11.2h9.6"/>` +
+    `<circle cx="7.5" cy="15.8" r="1.35"/>` +
+    `<circle cx="16.5" cy="15.8" r="1.35"/>` +
+    `<path d="M11 6.2v1.6"/><circle cx="12" cy="5.4" r="1.5"/>` +
+    `<path d="M10.2 5.4h3.6"/>`,
+  20
+);
+
 // ---------------------------------------------------------------- moon phase
 const SYNODIC = 29.530588853; // mean days between new moons
 /** A known new moon: 2000-01-06 18:14 UTC. */

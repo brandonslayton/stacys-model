@@ -41,6 +41,7 @@ no lost camera position.
 | Take out the trash | trash-can button, bottom left |
 | Patio misters | mist button, bottom left — on/off |
 | Sick patron | queasy-face button, bottom left |
+| Waymo rideshare | car+dome button — tap to pick up, hold or double-tap to drop off |
 
 Tapping the trash can sends a worker out of the porch with a bag, up the parking
 aisle, and into the dumpster — which reacts with a heart. The camera eases round to
@@ -58,6 +59,11 @@ a fog that sinks and pools on the deck, very Phoenix. Switching it on also swing
 camera to the patio (the rear face, likewise hidden by default); switching it off
 leaves the camera where it is. `js/mist.js` renders the whole thing as a single
 `THREE.Points` with a custom shader, so it costs **one draw call**.
+
+The rideshare button calls a **Waymo**. Tap: one or two guests walk out of the porch,
+wait on the curb, a white robotaxi (spinning lidar dome, blue status LEDs, empty cabin)
+pulls up in the near lane, they board, and it drives north. Hold or double-tap: the
+same car drops someone off and they walk in. `js/rideshare.js`.
 
 Layout: venue name top-left with tonight's event directly under it, and top-right
 an `Open` / `Opens 4:00 PM` pill over a big weekday and date, the venue clock,
@@ -221,6 +227,7 @@ stacys-model/
 │   ├── chores.js     # tap-to-trigger interactions (take out the trash)
 │   ├── mist.js       # patio misting system (single-draw-call particles)
 │   ├── incident.js   # the sick-patron scene (two actors, door, puddle)
+│   ├── rideshare.js  # Waymo pickup / drop-off at the curb
 │   ├── sprites.js    # heart / star / rainbow textures + one-shot sprite pool
 │   ├── flicker.js    # natural flicker on signs, patio and porch light
 │   ├── venue.js      # REAL data: Phoenix clock, tonight's event, weather

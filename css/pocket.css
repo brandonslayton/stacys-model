@@ -360,6 +360,19 @@ body { user-select: none; -webkit-user-select: none; }
   color: var(--hot);
 }
 
+#ride:disabled,
+#sick:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+/* Brief cool flash after a Waymo run finishes */
+#ride.done {
+  color: #0e1c24;
+  background: var(--cool);
+  border-color: transparent;
+}
+
 /* Misters running — cool tint rather than the plain white "active" of auto-rotate,
    so the two toggles are distinguishable at a glance. */
 #mist.on {
