@@ -77,11 +77,18 @@
   </div>
 </div>
 
-<!-- In-scene wait bubble — screen-space so it always reads on a phone -->
+<!-- iPhone-style lock-screen / banner notification over the waiting guest -->
 <div id="float-sms" hidden>
-  <div class="float-sms-card">
-    <div class="float-sms-from">Gaymo</div>
-    <div class="float-sms-body" id="float-sms-body">Your Gaymo will arrive shortly!</div>
+  <div class="ios-notif">
+    <div class="ios-notif-icon" aria-hidden="true">G</div>
+    <div class="ios-notif-main">
+      <div class="ios-notif-row">
+        <span class="ios-notif-app" id="float-sms-from">Gaymo</span>
+        <span class="ios-notif-time">now</span>
+      </div>
+      <div class="ios-notif-title">Messages</div>
+      <div class="ios-notif-body" id="float-sms-body">Your Gaymo will arrive shortly!</div>
+    </div>
   </div>
 </div>
 

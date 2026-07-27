@@ -602,8 +602,8 @@ function showGaymoSms(body) {
 const _floatSmsWorld = new THREE.Vector3();
 
 /**
- * Project the rideshare wait-SMS anchor into screen space so the bubble always
- * sits above the guest — readable on a phone even when the 3D sprite is tiny.
+ * iPhone-style banner over the waiting guest (single HTML notification — no
+ * 3D duplicate). Projected from the rideshare wait-SMS anchor each frame.
  */
 function paintFloatSms(rideshare) {
   const el = $("float-sms");
@@ -611,30 +611,30 @@ function paintFloatSms(rideshare) {
   const anchor = rideshare?.waitSmsAnchor;
   if (!anchor || (rideshare.waitSmsT ?? 0) <= 0) {
     el.classList.remove("show");
+    el.style.opacity = "";
     if (!el.hidden) {
-      // defer hide until fade finishes
       setTimeout(() => {
         if (!el.classList.contains("show")) el.hidden = true;
-      }, 280);
+      }, 300);
     }
     return;
   }
   _floatSmsWorld.set(anchor.x, anchor.y, anchor.z);
   _floatSmsWorld.project(camera);
-  // Behind camera
   if (_floatSmsWorld.z > 1) {
     el.classList.remove("show");
     return;
   }
   const body = $("float-sms-body");
+  const from = $("float-sms-from");
   if (body && anchor.text) body.textContent = anchor.text;
+  if (from && anchor.from) from.textContent = anchor.from;
   const x = (_floatSmsWorld.x * 0.5 + 0.5) * innerWidth;
   const y = (-_floatSmsWorld.y * 0.5 + 0.5) * innerHeight;
   el.hidden = false;
   el.style.left = `${x}px`;
   el.style.top = `${y}px`;
-  // Opacity follows the 3D sprite fade at the end
-  const fade = rideshare.waitSmsT < 1 ? Math.max(0.15, rideshare.waitSmsT) : 1;
+  const fade = rideshare.waitSmsT < 0.9 ? Math.max(0.2, rideshare.waitSmsT / 0.9) : 1;
   el.style.opacity = String(fade);
   el.classList.add("show");
 }
@@ -835,7 +835,8 @@ async function boot() {
     },
     life
   );
-  // Life cars brake for the Gaymo, and it brakes for them
+  // Gaymo participates in traffic when visible; corridor rules keep a stopped
+  // aisle pickup from locking the whole street queue.
   life.getExtraVehicles = () =>
     rideshare.waymo?.visible ? [rideshare.waymo] : [];
   const mist = new MistSystem(scene, model);

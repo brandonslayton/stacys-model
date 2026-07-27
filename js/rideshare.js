@@ -637,12 +637,9 @@ export class RideshareSystem {
       this.root.add(g);
     }
 
-    // Floating reaction sprites for the closed-hours bit + wait SMS
+    // Floating reaction sprites for the closed-hours bit
     this.qMark = this._makeBillboard(_questionTexture(), 0.55);
     this.knockFx = this._makeBillboard(_knockTexture(), 0.7);
-    // Big readable bubble — also mirrored to an HTML float in pocket.js
-    this.waitSms = this._makeBillboard(_waitSmsTexture(), 1);
-    this.waitSms.scale.set(2.8, 1.15, 1);
     this.phone = this._buildPhone();
     this.phone.visible = false;
     this.root.add(this.phone);
@@ -650,8 +647,11 @@ export class RideshareSystem {
     this.job = null;
     this.bob = 0;
     this.clock = 0;
+    /**
+     * Wait-for-Gaymo notification (HTML only — no 3D sprite, so it never
+     * doubles up). Pocket projects this to an iPhone-style banner.
+     */
     this.waitSmsT = 0;
-    /** World position the HTML float should track (null when hidden). */
     this.waitSmsAnchor = null;
   }
 
@@ -817,7 +817,6 @@ export class RideshareSystem {
     this.qMark.visible = false;
     this.knockFx.visible = false;
     this.phone.visible = false;
-    this.waitSms.visible = false;
     this.waitSmsT = 0;
     this.waitSmsAnchor = null;
     if (this.waymo?.userData) this.waymo.userData.idleHover = false;
@@ -852,49 +851,37 @@ export class RideshareSystem {
     }
   }
 
-  /** Show "Your Gaymo will arrive shortly!" above the first waiting guest. */
+  /** iPhone-style "Messages" banner above the waiting guest (HTML in pocket). */
   _showWaitSms() {
     const g = this.guests.find((x) => x.visible) || this.guests[0];
     if (!g) return;
-    this.waitSms.visible = true;
-    this.waitSms.material.opacity = 1;
     this.waitSmsT = 5.5;
-    const y = 2.15;
-    this.waitSms.position.set(g.position.x, y, g.position.z);
     this.waitSmsAnchor = {
       x: g.position.x,
-      y: y + 0.15,
+      y: 2.0,
       z: g.position.z,
       text: "Your Gaymo will arrive shortly!",
+      from: "Gaymo",
     };
   }
 
   _tickWaitSms(dt) {
     if (this.waitSmsT <= 0) {
-      this.waitSms.visible = false;
       this.waitSmsAnchor = null;
       return;
     }
     this.waitSmsT -= dt;
     const g = this.guests.find((x) => x.visible);
     if (g) {
-      const y = 2.15 + Math.sin(this.clock * 2.5) * 0.05;
-      this.waitSms.position.set(g.position.x, y, g.position.z);
       this.waitSmsAnchor = {
         x: g.position.x,
-        y: y + 0.2,
+        y: 2.0,
         z: g.position.z,
         text: "Your Gaymo will arrive shortly!",
+        from: "Gaymo",
       };
     }
-    // Fade last second
-    if (this.waitSmsT < 1.0) {
-      this.waitSms.material.opacity = Math.max(0, this.waitSmsT / 1.0);
-    }
-    if (this.waitSmsT <= 0) {
-      this.waitSms.visible = false;
-      this.waitSmsAnchor = null;
-    }
+    if (this.waitSmsT <= 0) this.waitSmsAnchor = null;
   }
 
   _faceDoor(guest) {
@@ -1526,36 +1513,4 @@ function _knockTexture() {
   return canvasTexture(c);
 }
 
-/** iMessage-style bubble above a waiting guest — large for phone readability. */
-function _waitSmsTexture() {
-  const c = document.createElement("canvas");
-  c.width = 768;
-  c.height = 240;
-  const ctx = c.getContext("2d");
-  // Dark glass bubble
-  ctx.fillStyle = "rgba(22, 20, 38, 0.94)";
-  roundRect(ctx, 16, 24, 736, 168, 36);
-  ctx.fill();
-  ctx.strokeStyle = "rgba(62, 200, 255, 0.45)";
-  ctx.lineWidth = 3;
-  roundRect(ctx, 16, 24, 736, 168, 36);
-  ctx.stroke();
-  // Tail pointing at the guest
-  ctx.fillStyle = "rgba(22, 20, 38, 0.94)";
-  ctx.beginPath();
-  ctx.moveTo(120, 180);
-  ctx.lineTo(150, 228);
-  ctx.lineTo(180, 180);
-  ctx.closePath();
-  ctx.fill();
-  // From line
-  ctx.fillStyle = "#3ec8ff";
-  ctx.font = "bold 36px system-ui, 'Segoe UI', sans-serif";
-  ctx.textAlign = "left";
-  ctx.fillText("Gaymo", 48, 78);
-  // Body — slightly wrapped feel with one clear line
-  ctx.fillStyle = "#f2eef8";
-  ctx.font = "600 40px system-ui, 'Segoe UI', sans-serif";
-  ctx.fillText("Your Gaymo will arrive shortly!", 48, 140);
-  return canvasTexture(c);
-}
+

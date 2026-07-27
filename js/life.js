@@ -38,13 +38,15 @@ const SPAWN_CHECK_S = 0.3;
 /** Pedestrian personal space — close is fine, overlapping is not. */
 const PED_MIN = 0.48;
 /**
- * Car following. Distances are centre-to-centre; body half-length is ~1.1 so
- * CAR_STOP must clear two half-bodies plus a bumper gap.
+ * Car following (moving vehicles only — parked cars do not freeze the street).
+ * Distances are centre-to-centre; half-body ~1.1.
  */
-const CAR_RADIUS = 1.15;
-const CAR_STOP = 3.1;
-const CAR_BRAKE = 6.0;
-const CAR_LANE = 2.0;
+const CAR_RADIUS = 1.1;
+const CAR_STOP = 2.7;
+const CAR_BRAKE = 5.2;
+const CAR_LANE = 1.25;
+/** z above this ≈ on 7th Ave (not the lot). */
+const ROAD_Z = STREET.curbZ - 0.15;
 
 /** Car states. */
 const CS = {
@@ -396,6 +398,8 @@ export class LifeSystem {
       dwellLeft: 0,
       unloadWait: 0,
       heldInside: 0,
+      /** Seconds fully stopped by traffic — used to unstick deadlocks. */
+      stuckT: 0,
     });
   }
 
@@ -524,18 +528,42 @@ export class LifeSystem {
     return out;
   }
 
-  /** Every busy car mesh (moving or parked) + optional external vehicles. */
-  vehicleMeshes(exclude = null) {
+  /**
+   * Only vehicles currently in motion (plus optional extras like a moving Gaymo).
+   * Parked stall cars used to sit in the traffic set and freeze the whole queue
+   * south of the building — they are intentionally excluded here.
+   */
+  movingVehicleMeshes(exclude = null) {
     const out = [];
-    for (const c of this.carPool) {
-      if (c.busy && c.mesh.visible && c.mesh !== exclude) out.push(c.mesh);
+    for (const t of this.carTrips) {
+      if (t.state !== CS.DRIVE_IN && t.state !== CS.DRIVE_OUT) continue;
+      const m = t.car?.mesh;
+      if (m?.visible && m !== exclude) out.push(m);
     }
     if (this.getExtraVehicles) {
       for (const m of this.getExtraVehicles()) {
-        if (m && m.visible && m !== exclude) out.push(m);
+        if (m?.visible && m !== exclude) out.push(m);
       }
     }
     return out;
+  }
+
+  /**
+   * Same corridor? Street cars only care about other street cars; lot cars only
+   * about the lot. Mouth mixing is tight so a Gaymo at the aisle stop doesn't
+   * freeze the entire southbound queue on 7th.
+   */
+  _sameCorridor(a, b) {
+    const aRoad = a.position.z >= ROAD_Z;
+    const bRoad = b.position.z >= ROAD_Z;
+    if (aRoad === bRoad) return true;
+    // One on road, one in lot — only while both are in the driveway throat
+    const mouthX = this.mouth?.x ?? a.position.x;
+    return (
+      Math.abs(a.position.x - mouthX) < 2.2 &&
+      Math.abs(b.position.x - mouthX) < 2.2 &&
+      Math.abs(a.position.z - b.position.z) < 2.8
+    );
   }
 
   /**
@@ -543,21 +571,20 @@ export class LifeSystem {
    * Infinity if nothing ahead.
    */
   gapAhead(car, others = null) {
-    const list = others || this.vehicleMeshes(car);
+    const list = others || this.movingVehicleMeshes(car);
     const yaw = car.rotation.y;
-    // rotation.y = atan2(dx, dz) → forward is (sin y, cos y)
     const fx = Math.sin(yaw);
     const fz = Math.cos(yaw);
     let nearest = Infinity;
     for (const o of list) {
       if (o === car || !o.visible) continue;
+      if (!this._sameCorridor(car, o)) continue;
       const dx = o.position.x - car.position.x;
       const dz = o.position.z - car.position.z;
       const along = dx * fx + dz * fz;
-      if (along < 0.25) continue; // behind or alongside rear
+      if (along < 0.35) continue; // behind or beside
       const lat = Math.abs(dx * fz - dz * fx);
       if (lat > CAR_LANE) continue;
-      // Gap to the *near* face of the other vehicle, not its centre
       const faceGap = along - CAR_RADIUS;
       if (faceGap < nearest) nearest = faceGap;
     }
@@ -565,55 +592,32 @@ export class LifeSystem {
   }
 
   /**
-   * 0..1 speed scale from traffic. Combines lane-following with a hard
-   * proximity bubble so cross-paths and aisle cuts still stop (Gaymo in the
-   * lot was getting sideswiped when not strictly "ahead").
+   * 0..1 speed scale from traffic ahead in the same corridor.
+   * No omnidirectional bubble — that jammed the south approach permanently.
    */
   trafficScale(car, others = null) {
-    const list = others || this.vehicleMeshes(car);
-    let scale = 1;
-    let stop = false;
-
+    const list = others || this.movingVehicleMeshes(car);
     const gap = this.gapAhead(car, list);
-    if (gap <= CAR_STOP) {
-      scale = 0;
-      stop = true;
-    } else if (gap < CAR_BRAKE) {
-      scale = Math.min(scale, (gap - CAR_STOP) / (CAR_BRAKE - CAR_STOP));
-    }
-
-    // Omnidirectional bubble — catches side entries / perpendicular aisle traffic
-    const bubbleHard = CAR_RADIUS * 2.05;
-    const bubbleSoft = CAR_RADIUS * 2.05 + 2.2;
-    for (const o of list) {
-      if (o === car || !o.visible) continue;
-      const d = Math.hypot(
-        o.position.x - car.position.x,
-        o.position.z - car.position.z
-      );
-      if (d < bubbleHard) {
-        scale = 0;
-        stop = true;
-        break;
-      }
-      if (d < bubbleSoft) {
-        scale = Math.min(scale, (d - bubbleHard) / (bubbleSoft - bubbleHard));
-      }
-    }
-    return { scale, stop };
+    if (gap >= CAR_BRAKE) return { scale: 1, stop: false };
+    if (gap <= CAR_STOP) return { scale: 0, stop: true };
+    return {
+      scale: (gap - CAR_STOP) / (CAR_BRAKE - CAR_STOP),
+      stop: false,
+    };
   }
 
   /**
-   * Push overlapping vehicle centres apart so even a missed brake never
-   * leaves two meshes stacked. Call once per frame after all car moves.
+   * True mesh overlap only (not soft following distance). Keeps cars from
+   * stacking without shoving whole queues sideways off the road.
    */
   separateVehicles() {
-    const meshes = this.vehicleMeshes();
-    const minD = CAR_RADIUS * 2.05;
+    const meshes = this.movingVehicleMeshes();
+    const minD = CAR_RADIUS * 1.85;
     for (let i = 0; i < meshes.length; i++) {
       for (let j = i + 1; j < meshes.length; j++) {
         const a = meshes[i];
         const b = meshes[j];
+        if (!this._sameCorridor(a, b)) continue;
         const dx = a.position.x - b.position.x;
         const dz = a.position.z - b.position.z;
         const d = Math.hypot(dx, dz);
@@ -820,17 +824,27 @@ export class LifeSystem {
     switch (trip.state) {
       case CS.DRIVE_IN: {
         const traffic = this.trafficScale(car);
-        this._tickHonk(trip, dt, traffic.stop);
+        // Deadlock escape: if we've been hard-stopped >6s, creep at 25% so
+        // the south queue can't freeze for the rest of the night.
+        let scale = traffic.scale;
+        if (scale < 0.05) {
+          trip.stuckT = (trip.stuckT || 0) + dt;
+          if (trip.stuckT > 6) scale = 0.25;
+        } else {
+          trip.stuckT = 0;
+        }
+        this._tickHonk(trip, dt, traffic.stop && trip.stuckT < 6);
         const r = this._advance(
           car,
           trip.path,
           trip.pathI,
-          this._carSpeed(trip) * traffic.scale,
+          this._carSpeed(trip) * scale,
           dt,
           trip.spot.faceY
         );
         trip.pathI = r.pathI;
         if (!r.done) break;
+        trip.stuckT = 0;
         this._tickHonk(trip, dt, false); // clear any brake pose
         car.scale.set(1, 1, 1);
         car.rotation.y = trip.spot.faceY;
@@ -921,12 +935,19 @@ export class LifeSystem {
       }
       case CS.DRIVE_OUT: {
         const traffic = this.trafficScale(car);
-        this._tickHonk(trip, dt, traffic.stop);
+        let scale = traffic.scale;
+        if (scale < 0.05) {
+          trip.stuckT = (trip.stuckT || 0) + dt;
+          if (trip.stuckT > 6) scale = 0.3;
+        } else {
+          trip.stuckT = 0;
+        }
+        this._tickHonk(trip, dt, traffic.stop && trip.stuckT < 6);
         const r = this._advance(
           car,
           trip.path,
           trip.pathI,
-          this._carSpeed(trip) * traffic.scale,
+          this._carSpeed(trip) * scale,
           dt
         );
         trip.pathI = r.pathI;
