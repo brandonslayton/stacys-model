@@ -1,0 +1,572 @@
+/**
+ * ufo.js — one-shot alien abduction on the sidewalk.
+ *
+ * Beats:
+ *   1. A patron walks out of the porch and up the street past the property line.
+ *   2. A saucer glides in and hovers over them.
+ *   3. Thin laser locks on, then blooms into a gradient light column.
+ *   4. Patron floats up, bounces mid-way, then snaps into the craft.
+ *   5. Beam thins out; UFO shoots off at high speed.
+ */
+import * as THREE from "three";
+import { cyl } from "./kit.js";
+import { PED_COLORS, createPedestrian } from "./agents.js";
+import { STREET, sidewalkPoint, sidewalkPolyline } from "./street.js";
+
+const WALK = 2.55;
+const UFO_CRUISE = 9.5;
+const UFO_ESCAPE = 48;
+
+const ST = {
+  WALK: "walk",
+  UFO_IN: "ufo_in",
+  LASER: "laser",
+  COLUMN: "column",
+  FLOAT: "float",
+  SUCK: "suck",
+  FADE: "fade",
+  UFO_OUT: "ufo_out",
+};
+
+/** Classic low-poly saucer: disc hull, glass dome, rim lights. */
+function createSaucer() {
+  const g = new THREE.Group();
+  g.name = "ufo";
+
+  // Main disc
+  const hull = cyl(1.35, 1.55, 0.22, 0xc8d0d8, {
+    roughness: 0.35,
+    metalness: 0.55,
+    emissive: 0x334455,
+    emissiveIntensity: 0.15,
+  }, 24);
+  hull.position.y = 0;
+  g.add(hull);
+
+  // Upper dish
+  const upper = cyl(0.55, 1.2, 0.18, 0xa8b4c0, {
+    roughness: 0.4,
+    metalness: 0.45,
+  }, 20);
+  upper.position.y = 0.16;
+  g.add(upper);
+
+  // Glass dome
+  const dome = cyl(0.42, 0.48, 0.38, 0x6ec8ff, {
+    roughness: 0.12,
+    metalness: 0.35,
+    emissive: 0x3a90c0,
+    emissiveIntensity: 0.45,
+    transparent: true,
+    opacity: 0.75,
+  }, 16);
+  dome.position.y = 0.42;
+  g.add(dome);
+
+  // Cap
+  const cap = cyl(0.12, 0.28, 0.08, 0xe8f4ff, {
+    roughness: 0.3,
+    metalness: 0.4,
+    emissive: 0xaad4ff,
+    emissiveIntensity: 0.35,
+  }, 12);
+  cap.position.y = 0.62;
+  g.add(cap);
+
+  // Underside well
+  const well = cyl(0.55, 0.35, 0.12, 0x1a2030, {
+    roughness: 0.5,
+    metalness: 0.3,
+    emissive: 0x204060,
+    emissiveIntensity: 0.4,
+  }, 16);
+  well.position.y = -0.14;
+  g.add(well);
+
+  // Rim running lights
+  const lights = [];
+  const N = 10;
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    const col = i % 2 === 0 ? 0x3ec8ff : 0xff66cc;
+    const bulb = cyl(0.06, 0.06, 0.05, col, {
+      roughness: 0.25,
+      emissive: col,
+      emissiveIntensity: 0.9,
+    }, 8);
+    bulb.position.set(Math.cos(a) * 1.28, -0.02, Math.sin(a) * 1.28);
+    g.add(bulb);
+    lights.push(bulb);
+  }
+
+  g.userData.rimLights = lights;
+  g.userData.tickLights = (t) => {
+    for (let i = 0; i < lights.length; i++) {
+      const pulse = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(t * 6 + i * 0.7));
+      lights[i].material.emissiveIntensity = pulse;
+    }
+  };
+
+  return g;
+}
+
+/**
+ * Vertical beam: thin core + soft outer sheath. Opacity/radius driven by job.
+ */
+function createBeam() {
+  const g = new THREE.Group();
+  g.name = "abductBeam";
+  g.visible = false;
+
+  const coreMat = new THREE.MeshBasicMaterial({
+    color: 0xaef0ff,
+    transparent: true,
+    opacity: 0.95,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const core = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1, 10), coreMat);
+  core.position.y = 0.5;
+  g.add(core);
+
+  const sheathMat = new THREE.MeshBasicMaterial({
+    color: 0x66ddff,
+    transparent: true,
+    opacity: 0.0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const sheath = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.12, 1, 16, 1, true),
+    sheathMat
+  );
+  sheath.position.y = 0.5;
+  g.add(sheath);
+
+  // Soft ground disc where the beam hits
+  const discMat = new THREE.MeshBasicMaterial({
+    color: 0x88eeff,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+  });
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(0.15, 24), discMat);
+  disc.rotation.x = -Math.PI / 2;
+  disc.position.y = 0.04;
+  g.add(disc);
+
+  g.userData.core = core;
+  g.userData.sheath = sheath;
+  g.userData.disc = disc;
+  g.userData.coreMat = coreMat;
+  g.userData.sheathMat = sheathMat;
+  g.userData.discMat = discMat;
+
+  /**
+   * @param {number} height world height of beam
+   * @param {number} thin 0..1 laser thinness (1 = hairline)
+   * @param {number} fill 0..1 column fill (0 = laser only)
+   * @param {number} opacity overall brightness
+   */
+  g.userData.setBeam = (height, thin, fill, opacity) => {
+    const h = Math.max(0.2, height);
+    core.scale.set(1, h, 1);
+    core.position.y = h * 0.5;
+    sheath.scale.set(1, h, 1);
+    sheath.position.y = h * 0.5;
+
+    const coreR = THREE.MathUtils.lerp(0.04, 0.02, thin) * THREE.MathUtils.lerp(1, 3.5, fill);
+    const sheathR = THREE.MathUtils.lerp(0.08, 0.55, fill);
+    core.scale.x = coreR / 0.03;
+    core.scale.z = coreR / 0.03;
+    sheath.scale.x = sheathR / 0.1;
+    sheath.scale.z = sheathR / 0.1;
+
+    coreMat.opacity = opacity * (0.55 + fill * 0.35);
+    sheathMat.opacity = opacity * fill * 0.45;
+    discMat.opacity = opacity * (0.2 + fill * 0.55);
+    disc.scale.setScalar(0.6 + fill * 2.8 + thin * 0.2);
+
+    // Gradient-ish: shift sheath toward magenta as fill grows
+    const c = sheathMat.color;
+    c.setRGB(
+      THREE.MathUtils.lerp(0.4, 0.85, fill),
+      THREE.MathUtils.lerp(0.85, 0.45, fill),
+      1.0
+    );
+  };
+
+  return g;
+}
+
+export class UfoSystem {
+  /**
+   * @param {THREE.Object3D} parent
+   * @param {THREE.Group} venue
+   * @param {{streetDoor: THREE.Vector3}} anchors
+   */
+  constructor(parent, venue, anchors) {
+    this.root = new THREE.Group();
+    this.root.name = "ufoScene";
+    parent.add(this.root);
+
+    this.streetDoor = anchors.streetDoor.clone();
+    venue.updateWorldMatrix(true, true);
+    const m = venue.matrixWorld;
+    const pad = venue.userData.pad;
+    // Property edges in world X (street runs along X)
+    if (pad) {
+      const corners = [
+        new THREE.Vector3(pad.xMin, 0, pad.zMin),
+        new THREE.Vector3(pad.xMax, 0, pad.zMax),
+      ].map((p) => p.applyMatrix4(m));
+      this.padXMin = Math.min(corners[0].x, corners[1].x);
+      this.padXMax = Math.max(corners[0].x, corners[1].x);
+    } else {
+      this.padXMin = this.streetDoor.x - 6;
+      this.padXMax = this.streetDoor.x + 6;
+    }
+
+    this.patron = null;
+    this.ufo = createSaucer();
+    this.ufo.visible = false;
+    this.root.add(this.ufo);
+
+    this.beam = createBeam();
+    this.root.add(this.beam);
+
+    this.job = null;
+    this.bob = 0;
+    this.clock = 0;
+  }
+
+  get busy() {
+    return this.job !== null;
+  }
+
+  /**
+   * @returns {boolean}
+   */
+  start() {
+    if (this.job) return false;
+
+    // Walk either north (−X) or south (+X) just past the property line.
+    // Cap distance from the door so the walk stays watchable (~6–7 units).
+    const goNorth = Math.random() < 0.5;
+    const dir = goNorth ? -1 : 1;
+    const pastLine = (goNorth ? this.padXMin : this.padXMax) + dir * (2.2 + Math.random() * 0.8);
+    const capped = this.streetDoor.x + dir * (5.5 + Math.random() * 1.5);
+    // Pick the closer of "past the line" and "capped walk" so we don't hike forever
+    const spotX = goNorth
+      ? Math.max(pastLine, capped)
+      : Math.min(pastLine, capped);
+    const clampedX = THREE.MathUtils.clamp(
+      spotX,
+      STREET.xMin + 2,
+      STREET.xMax - 2
+    );
+    this.spot = sidewalkPoint(clampedX);
+
+    // Fresh patron each run
+    if (this.patron) this.root.remove(this.patron);
+    this.patron = createPedestrian(
+      PED_COLORS[(Math.random() * PED_COLORS.length) | 0]
+    );
+    this.patron.visible = true;
+    this.patron.position.copy(this.streetDoor);
+    this.patron.position.y = 0;
+    this.root.add(this.patron);
+
+    const path = this._clean([
+      this.streetDoor.clone(),
+      sidewalkPoint(this.streetDoor.x),
+      ...sidewalkPolyline(this.streetDoor.x, clampedX),
+      this.spot.clone(),
+    ]);
+
+    this.ufo.visible = false;
+    this.beam.visible = false;
+    this.job = {
+      state: ST.WALK,
+      path,
+      pathI: 0,
+      wait: 0,
+      t: 0,
+      floatY: 0,
+      bounceDone: false,
+      // UFO approach / escape
+      ufoFrom: null,
+      ufoTo: null,
+      ufoK: 0,
+    };
+    return true;
+  }
+
+  /** Camera target for this run (abduction spot). */
+  get focusTarget() {
+    if (!this.spot) return null;
+    return {
+      az: 40 + Math.random() * 20,
+      el: 22,
+      zoom: 0.52,
+      target: [this.spot.x, 1.2, this.spot.z + 0.4],
+    };
+  }
+
+  _clean(pts) {
+    const out = [];
+    for (const p of pts) {
+      if (!p) continue;
+      const last = out[out.length - 1];
+      if (!last || Math.hypot(p.x - last.x, p.z - last.z) >= 0.18) {
+        out.push(p.clone ? p.clone() : new THREE.Vector3(p.x, p.y ?? 0, p.z));
+      }
+    }
+    return out;
+  }
+
+  _advance(mesh, path, pathI, speed, dt) {
+    if (pathI >= path.length) return { done: true, pathI };
+    const target = path[pathI];
+    const pos = mesh.position;
+    const dx = target.x - pos.x;
+    const dz = target.z - pos.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < 0.14) {
+      pos.x = target.x;
+      pos.z = target.z;
+      const next = pathI + 1;
+      if (next >= path.length) return { done: true, pathI: next };
+      return { done: false, pathI: next };
+    }
+    const step = Math.min(dist, speed * dt);
+    pos.x += (dx / dist) * step;
+    pos.z += (dz / dist) * step;
+    mesh.rotation.y = Math.atan2(dx, dz);
+    return { done: false, pathI };
+  }
+
+  _hoverY(t) {
+    return 5.2 + Math.sin(t * 2.4) * 0.12;
+  }
+
+  _placeUfoOverSpot(t) {
+    const y = this._hoverY(t);
+    this.ufo.position.set(this.spot.x, y, this.spot.z);
+    this.ufo.rotation.y = t * 0.35;
+  }
+
+  _aimBeam(personY = 0) {
+    const top = this.ufo.position.y - 0.2;
+    const bot = personY + 0.02;
+    const h = Math.max(0.3, top - bot);
+    this.beam.position.set(this.spot.x, bot, this.spot.z);
+    return h;
+  }
+
+  update(dt) {
+    const t = Math.min(dt, 0.05);
+    this.clock += t;
+    if (this.ufo.visible) this.ufo.userData.tickLights?.(this.clock);
+
+    const job = this.job;
+    if (!job) return;
+
+    switch (job.state) {
+      case ST.WALK: {
+        const r = this._advance(
+          this.patron,
+          job.path,
+          job.pathI,
+          WALK,
+          t
+        );
+        job.pathI = r.pathI;
+        this.bob += t * 9;
+        this.patron.position.y = Math.abs(Math.sin(this.bob)) * 0.04;
+        if (!r.done) break;
+
+        this.patron.position.copy(this.spot);
+        this.patron.position.y = 0;
+        // Spawn UFO high and off to one side
+        const side = Math.random() < 0.5 ? -1 : 1;
+        job.ufoFrom = new THREE.Vector3(
+          this.spot.x + side * (14 + Math.random() * 6),
+          9 + Math.random() * 3,
+          this.spot.z + side * 4
+        );
+        job.ufoTo = new THREE.Vector3(
+          this.spot.x,
+          this._hoverY(this.clock),
+          this.spot.z
+        );
+        this.ufo.position.copy(job.ufoFrom);
+        this.ufo.visible = true;
+        this.ufo.scale.setScalar(1);
+        job.ufoK = 0;
+        job.state = ST.UFO_IN;
+        break;
+      }
+
+      case ST.UFO_IN: {
+        // Ease in — not linear, so it settles over the victim
+        job.ufoK = Math.min(1, job.ufoK + t * 0.55);
+        const k = 1 - Math.pow(1 - job.ufoK, 2.4);
+        this.ufo.position.lerpVectors(job.ufoFrom, job.ufoTo, k);
+        this.ufo.rotation.y = this.clock * 0.5;
+        // Face slightly toward approach
+        if (job.ufoK < 1) break;
+        this._placeUfoOverSpot(this.clock);
+        this.beam.visible = true;
+        job.t = 0;
+        job.state = ST.LASER;
+        break;
+      }
+
+      case ST.LASER: {
+        job.t += t;
+        this._placeUfoOverSpot(this.clock);
+        const h = this._aimBeam(0);
+        // Thin laser locks on over ~0.7s
+        const lock = Math.min(1, job.t / 0.7);
+        this.beam.userData.setBeam(h, 1, 0, 0.35 + lock * 0.55);
+        // Patron freezes, looks up
+        this.patron.rotation.x = -0.15 * lock;
+        if (job.t < 0.85) break;
+        job.t = 0;
+        job.state = ST.COLUMN;
+        break;
+      }
+
+      case ST.COLUMN: {
+        job.t += t;
+        this._placeUfoOverSpot(this.clock);
+        const h = this._aimBeam(0);
+        // Diffuse into full gradient column
+        const fill = Math.min(1, job.t / 0.9);
+        this.beam.userData.setBeam(h, 1 - fill * 0.7, fill, 0.75 + fill * 0.2);
+        this.patron.rotation.x = -0.2;
+        if (job.t < 1.0) break;
+        job.t = 0;
+        job.floatY = 0;
+        job.bounceDone = false;
+        job.state = ST.FLOAT;
+        break;
+      }
+
+      case ST.FLOAT: {
+        job.t += t;
+        this._placeUfoOverSpot(this.clock);
+        const hover = this._hoverY(this.clock);
+        // Rise to ~halfway with a slow ease, then a small bounce
+        const mid = hover * 0.48;
+        let y;
+        if (!job.bounceDone) {
+          // 0..1.4s rise to mid+overshoot, then settle
+          const u = Math.min(1, job.t / 1.35);
+          const ease = 1 - Math.pow(1 - u, 2.2);
+          y = mid * ease;
+          // Overshoot bounce near the end of the rise
+          if (u > 0.82) {
+            const b = (u - 0.82) / 0.18;
+            y = mid + Math.sin(b * Math.PI) * 0.45;
+          }
+          if (u >= 1) {
+            job.bounceDone = true;
+            job.t = 0;
+            job.floatY = mid;
+          }
+        } else {
+          // Brief hang after bounce
+          y = mid + Math.sin(job.t * 8) * 0.04;
+          if (job.t > 0.35) {
+            job.t = 0;
+            job.floatY = mid;
+            job.state = ST.SUCK;
+            break;
+          }
+        }
+        job.floatY = y;
+        this.patron.position.y = y;
+        this.patron.rotation.x = -0.25;
+        this.patron.rotation.z = Math.sin(this.clock * 5) * 0.12;
+        const h = this._aimBeam(0);
+        this.beam.userData.setBeam(h, 0.2, 1, 0.9);
+        break;
+      }
+
+      case ST.SUCK: {
+        job.t += t;
+        this._placeUfoOverSpot(this.clock);
+        const hover = this._hoverY(this.clock);
+        // Snap up into the saucer over ~0.28s
+        const u = Math.min(1, job.t / 0.28);
+        const ease = u * u * u; // accelerate into craft
+        const y = job.floatY + (hover - 0.15 - job.floatY) * ease;
+        this.patron.position.y = y;
+        this.patron.scale.setScalar(1 - ease * 0.85);
+        this.patron.rotation.z = ease * 1.2;
+        const h = this._aimBeam(0);
+        this.beam.userData.setBeam(h, 0.15, 1 - ease * 0.3, 0.95);
+        if (u < 1) break;
+        this.patron.visible = false;
+        job.t = 0;
+        job.state = ST.FADE;
+        break;
+      }
+
+      case ST.FADE: {
+        job.t += t;
+        this._placeUfoOverSpot(this.clock);
+        const h = this._aimBeam(0);
+        const u = Math.min(1, job.t / 0.55);
+        // Thin and die
+        this.beam.userData.setBeam(
+          h * (1 - u * 0.3),
+          u,
+          Math.max(0, 1 - u * 1.4),
+          (1 - u) * 0.85
+        );
+        if (u < 1) break;
+        this.beam.visible = false;
+        // Escape vector — sky + along the street
+        const dir = this.spot.x < this.streetDoor.x ? -1 : 1;
+        job.ufoFrom = this.ufo.position.clone();
+        job.ufoTo = new THREE.Vector3(
+          this.ufo.position.x + dir * 40,
+          18 + Math.random() * 6,
+          this.ufo.position.z + dir * 12
+        );
+        job.ufoK = 0;
+        job.state = ST.UFO_OUT;
+        break;
+      }
+
+      case ST.UFO_OUT: {
+        job.ufoK = Math.min(1, job.ufoK + t * 1.8);
+        // Ease-in: slow then warp
+        const k = job.ufoK * job.ufoK * job.ufoK;
+        this.ufo.position.lerpVectors(job.ufoFrom, job.ufoTo, k);
+        this.ufo.rotation.y += t * 4;
+        this.ufo.scale.setScalar(1 - k * 0.35);
+        if (job.ufoK < 1) break;
+        this._finish();
+        break;
+      }
+
+      default:
+        this._finish();
+    }
+  }
+
+  _finish() {
+    this.ufo.visible = false;
+    this.beam.visible = false;
+    if (this.patron) {
+      this.patron.visible = false;
+    }
+    this.job = null;
+  }
+}

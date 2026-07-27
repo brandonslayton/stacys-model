@@ -19,6 +19,7 @@ import {
   SICK_ICON,
   RIDESHARE_ICON,
   CREATIVE_ICON,
+  UFO_ICON,
   moonPhase,
   moonName,
   moonIllumination,
@@ -31,6 +32,7 @@ import { ChoreSystem } from "./chores.js";
 import { MistSystem } from "./mist.js";
 import { IncidentSystem } from "./incident.js";
 import { RideshareSystem } from "./rideshare.js";
+import { UfoSystem } from "./ufo.js";
 import { FlickerSystem } from "./flicker.js";
 import {
   venueNow,
@@ -214,6 +216,9 @@ const INCIDENT_VIEW = { az: 186, el: 30, zoom: 0.5, target: [-5.4, 0.6, 3.1] };
  * doors stay in frame (the old NW angle put the car between you and the board).
  */
 const RIDESHARE_VIEW = { az: 52, el: 20, zoom: 0.46, target: [-3.4, 0.4, 4.0] };
+
+/** Sidewalk abduction — overridden per-run from UfoSystem.focusTarget when possible. */
+const UFO_VIEW = { az: 48, el: 24, zoom: 0.5, target: [-6, 1.4, 6.4] };
 
 /** Eased-to view, or null when the user is in control. */
 let focusTarget = null;
@@ -757,6 +762,31 @@ function wireRideButton(rideshare) {
 }
 
 /**
+ * UFO abduction. One-shot: patron walks past the property line, saucer beams
+ * them up, craft warps out. Camera follows the sidewalk spot for this run.
+ */
+function wireUfoButton(ufo) {
+  const btn = $("ufo");
+  btn.innerHTML = UFO_ICON;
+  btn.onclick = () => {
+    if (!ufo.start()) return;
+    const focus = ufo.focusTarget || UFO_VIEW;
+    beginFocus(focus);
+    btn.disabled = true;
+    const release = () => {
+      if (ufo.busy) {
+        requestAnimationFrame(release);
+        return;
+      }
+      btn.disabled = false;
+      btn.classList.add("done");
+      setTimeout(() => btn.classList.remove("done"), 900);
+    };
+    requestAnimationFrame(release);
+  };
+}
+
+/**
  * Crowd size for the sim, zeroed while the doors are shut so the visuals agree
  * with the pill — otherwise people stroll in at noon on a Monday under a
  * "Opens 4:00 PM" badge. Creative mode pretends the doors are open.
@@ -839,6 +869,9 @@ async function boot() {
   // aisle pickup from locking the whole street queue.
   life.getExtraVehicles = () =>
     rideshare.waymo?.visible ? [rideshare.waymo] : [];
+  const ufo = new UfoSystem(scene, model, {
+    streetDoor: life.streetDoor,
+  });
   const mist = new MistSystem(scene, model);
   mistRef = mist;
   mist.setProjection(camera.fov, renderer.domElement.height);
@@ -847,6 +880,7 @@ async function boot() {
   wireMistButton(mist);
   wireSickButton(incident);
   wireRideButton(rideshare);
+  wireUfoButton(ufo);
   const boot = venueNow();
   life.setCrowd(crowdFor(boot));
   life.seed();
@@ -888,6 +922,7 @@ async function boot() {
     flicker,
     incident,
     rideshare,
+    ufo,
     get nightMix() {
       return nightMix;
     },
@@ -940,10 +975,11 @@ async function boot() {
     chores.update(dt);
     incident.update(dt);
     rideshare.update(dt);
+    ufo.update(dt);
     mist.update(dt);
     paintFloatSms(rideshare);
 
-    stepFocus(dt, chores.busy || incident.busy || rideshare.busy);
+    stepFocus(dt, chores.busy || incident.busy || rideshare.busy || ufo.busy);
 
     // Auto-rotate, resuming a few seconds after the last touch. Held off during a
     // focus swing, which would otherwise fight it for the azimuth.

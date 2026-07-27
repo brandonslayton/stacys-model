@@ -103,6 +103,16 @@ export const CREATIVE_ICON = svg(
   20
 );
 
+/** Flying saucer for the sidewalk abduction scene. */
+export const UFO_ICON = svg(
+  `<ellipse cx="12" cy="13.2" rx="8.2" ry="2.6"/>` +
+    `<path d="M6.5 13.2c.4-3.2 2.5-5.2 5.5-5.2s5.1 2 5.5 5.2"/>` +
+    `<ellipse cx="12" cy="10.2" rx="3.2" ry="2.1"/>` +
+    `<path d="M4.2 13.8h1.2"/><path d="M18.6 13.8h1.2"/>` +
+    `<path d="M8 16.2l-.6 1.6"/><path d="M12 16.6v1.6"/><path d="M16 16.2l.6 1.6"/>`,
+  20
+);
+
 // ---------------------------------------------------------------- moon phase
 const SYNODIC = 29.530588853; // mean days between new moons
 /** A known new moon: 2000-01-06 18:14 UTC. */
