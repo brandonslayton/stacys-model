@@ -595,6 +595,58 @@ distorted — sim time runs roughly 2–3x slow under software rendering. The wo
 walk speed was raised from 2.15 to 2.9 partly on that basis; at 2.9 the round trip is
 ~9.6s of sim time, which is right, but the original 2.15 was less bad than it looked.
 
+## Done — sick-patron scene, street geometry (2026-07-26)
+
+### The scene (`js/incident.js`)
+
+Eleven beats: door opens, patron staggers out, hunches, three retches with green spray
+and a growing puddle, straightens, walks off up the sidewalk; barback comes out with mop
+and bucket, mops the puddle away trailing sparkles, a star flourish fires, bystanders
+throw hearts and rainbows, barback goes back in and the door shuts.
+
+Its own module rather than a ChoreSystem method: that class models one actor on one
+errand. This has two actors handing off, an object persisting between them (the puddle),
+reactions applied to third-party agents borrowed from life.js, and a prop belonging to
+the building. Folding it in would have meant gutting ChoreSystem, not extending it.
+
+- **The north door leaf now hangs on a pivot group** (`"northDoorPivot"`) so it can
+  swing. Slab, lite, badge and handle are children placed relative to the hinge — the
+  −Z stile, opposite the handle — and a dark reveal was added behind so an open door
+  shows an interior rather than a hole.
+- **`js/sprites.js`** holds the heart/star/rainbow textures and `SpriteBurst`, a
+  one-shot pool. chores.js now imports the heart from here instead of carrying its own.
+- **Focus views can retarget**, not just re-angle (`target` on CHORE_VIEW /
+  PATIO_VIEW / INCIDENT_VIEW). Framing a 1-unit actor from the building's centre left
+  them a speck.
+
+### Two bugs that looked like the scene was broken
+
+- **The puddle was under the pavement.** It sat at y 0.02 while the asphalt pad's top
+  is 0.09, so it never rendered and the whole beat appeared missing. `userData.pad.topY`
+  is published now and incident.js grounds the puddle, the settled spray, the sparkles
+  and both actors against it. Worth remembering for anything laid flat on the lot.
+- **Framing took four passes**, and screenshots were the wrong tool for diagnosing it.
+  Projecting the actors to NDC and raycasting for occluders showed they were dead centre
+  the whole time (ndc ≈ 0,0) — the problem was never the camera. After that: from the
+  north-west the pole sign blocks the action, from a low angle the parked cars do, and
+  the original spot was in the middle of the parking bays so a car hid the puddle. Spot
+  moved to the apron south of the last bay; camera due north at 30 degrees.
+
+### Street geometry
+
+- **The lot overlapped the sidewalk** by ~0.18. `pocket.js` now seats the model with
+  `SIDEWALK_INNER_Z - pad.zMax`, computed rather than hardcoded.
+- **7th Ave bends south of the building** (`bendZ`), straight along the frontage so the
+  sidewalk stays parallel to the property line — a curve running past the lot is exactly
+  what looks wrong. Positive offset only; bending the other way runs asphalt through the
+  property. All path helpers apply it, so traffic follows the curve.
+- Only the curved section is segmented; the straight run stays single boxes.
+
+### Header
+
+The venue clock moved inside the Open/Closed pill, with a hairline divider. Note
+`pocket-shot.mjs` reads `#state-label` now, not `#state`, or it picks up both.
+
 ## Improvement backlog
 
 Ordered by visible-pixels-per-unit-of-work at the game camera. **Done:** items 2,

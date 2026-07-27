@@ -40,12 +40,18 @@ no lost camera position.
 | Auto-rotate | resumes 4s after you let go; icon button, bottom left |
 | Take out the trash | trash-can button, bottom left |
 | Patio misters | mist button, bottom left — on/off |
+| Sick patron | queasy-face button, bottom left |
 
 Tapping the trash can sends a worker out of the porch with a bag, up the parking
 aisle, and into the dumpster — which reacts with a heart. The camera eases round to
 the dumpster for it and back afterwards, because at the default angle that corner is
 behind the building; any drag cancels the swing. `js/chores.js`, built to take more
 interactions later.
+
+The queasy-face button plays a scripted scene: the north side door swings open, a
+patron staggers out into the lot, is sick (bright green), then walks off up the
+sidewalk. A barback follows with a mop and bucket, cleans it up, and the spot sparkles
+while anyone nearby throws hearts and rainbows. `js/incident.js`.
 
 The mist button runs the patio misting system — nozzles along the fence rails throwing
 a fog that sinks and pools on the deck, very Phoenix. Switching it on also swings the
@@ -108,6 +114,18 @@ noon Sunday drag brunch from an evening check-in; and matching on `instance_date
 rather than `recurrence_day`, whose casing is inconsistent (`"Friday"` vs
 `"sunday"`) and which one-off events lack entirely. Days can hold more than one
 event.
+
+### Street geometry
+
+7th Ave runs along **X**: north (the parking-lot side) is −X, south is +X. The lot is
+seated flush against the sidewalk's inner edge by `pocket.js`, computed from
+`userData.pad.zMax` rather than hardcoded.
+
+The road is dead straight along the property frontage and **bends south of it**
+(`bendZ` in `js/street.js`, easing in quadratically from `BEND_START` so there is no
+kink). Every path helper applies the bend, so cars and pedestrians follow the curve.
+Only the curved section is built from segments; the straight run is single long boxes,
+because segmenting the whole length would cost ~100 draw calls for backdrop.
 
 ### Opening hours
 
@@ -202,6 +220,8 @@ stacys-model/
 │   ├── life.js       # crowd sim — cars park, people go in, patio fills
 │   ├── chores.js     # tap-to-trigger interactions (take out the trash)
 │   ├── mist.js       # patio misting system (single-draw-call particles)
+│   ├── incident.js   # the sick-patron scene (two actors, door, puddle)
+│   ├── sprites.js    # heart / star / rainbow textures + one-shot sprite pool
 │   ├── flicker.js    # natural flicker on signs, patio and porch light
 │   ├── venue.js      # REAL data: Phoenix clock, tonight's event, weather
 │   ├── street.js     # stub of 7th Ave + lane/sidewalk helpers

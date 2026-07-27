@@ -15,7 +15,6 @@ import * as THREE from "three";
 import { box } from "./kit.js";
 import { COLORS } from "./colors.js";
 
-/** Property pad's west edge sits at z ≈ 5.88; everything here is beyond it. */
 export const STREET = {
   sidewalkZ: 6.15,
   sidewalkW: 0.9,
@@ -27,18 +26,44 @@ export const STREET = {
   xMax: 16,
 };
 
+/** Inner (property-side) edge of the sidewalk. The lot is seated flush to this. */
+export const SIDEWALK_INNER_Z = STREET.sidewalkZ - STREET.sidewalkW / 2;
+
+/**
+ * Where 7th Ave starts to bend, and by how much.
+ *
+ * Real 7th Ave curves a little south of the building. `BEND_START` sits just south of
+ * the property's south edge (x ≈ 3.68) so the frontage stays dead straight — a curve
+ * running past the lot would leave the sidewalk non-parallel to the property line,
+ * which is the thing that looks wrong. South is +X.
+ */
+const BEND_START = 4.2;
+const BEND_AMOUNT = 3.1;
+
+/**
+ * Z offset of the road centreline at a given X. Zero along the frontage, then eased
+ * in quadratically so there is no kink where the curve begins. Positive = away from
+ * the building, which is the only safe direction; bending the other way would run the
+ * asphalt through the property.
+ */
+export function bendZ(x) {
+  if (x <= BEND_START) return 0;
+  const k = (x - BEND_START) / (STREET.xMax - BEND_START);
+  return BEND_AMOUNT * k * k;
+}
+
 /** Center of a travel lane. `dir` −1 = northbound (near), +1 = southbound (far). */
 export function lanePoint(x, dir = -1) {
   return new THREE.Vector3(
     x,
     0.02,
-    dir < 0 ? STREET.nearLaneZ : STREET.farLaneZ
+    (dir < 0 ? STREET.nearLaneZ : STREET.farLaneZ) + bendZ(x)
   );
 }
 
 /** Point on the sidewalk in front of the lot. */
 export function sidewalkPoint(x) {
-  return new THREE.Vector3(x, 0.02, STREET.sidewalkZ);
+  return new THREE.Vector3(x, 0.02, STREET.sidewalkZ + bendZ(x));
 }
 
 /** Straight polyline along the road between two X positions. */
@@ -66,53 +91,66 @@ export function sidewalkPolyline(x0, x1, step = 1.0) {
 }
 
 /**
- * Build the road, curb, sidewalk and lane markings as a group.
- * Flat, unshadowed, and merged where possible — this is backdrop, not subject.
+ * Build the road, curb, sidewalk and lane markings.
+ *
+ * The straight run past the property is single long boxes; only the curved section
+ * south of `BEND_START` is chopped into segments that step and yaw along the bend.
+ * Doing the whole length as segments would have cost ~100 extra draw calls for
+ * backdrop, and draw calls are already this project's bottleneck.
  */
 export function createStreet() {
   const g = new THREE.Group();
   g.name = "street";
-  const len = STREET.xMax - STREET.xMin;
-  const cx = (STREET.xMin + STREET.xMax) * 0.5;
 
-  // Sidewalk
-  const sw = box(len, 0.07, STREET.sidewalkW, 0xa8a49c, {
-    castShadow: false,
-    receiveShadow: true,
-  });
-  sw.position.set(cx, 0.035, STREET.sidewalkZ);
-  g.add(sw);
-
-  // Curb face
+  const SEG = 1.3; // curved-section segment length
   const curbD = 0.22;
-  const curb = box(len, 0.14, curbD, 0xbdb9b0, { castShadow: false });
-  curb.position.set(cx, 0.07, STREET.curbZ);
-  g.add(curb);
-
-  // Asphalt
   const roadD = STREET.edgeZ - STREET.curbZ - curbD * 0.5;
-  const road = box(len, 0.06, roadD, COLORS.asphalt, {
-    castShadow: false,
-    receiveShadow: true,
-  });
-  road.position.set(cx, 0.03, STREET.curbZ + curbD * 0.5 + roadD * 0.5);
-  g.add(road);
-
-  // Double yellow center line
+  const roadCz = STREET.curbZ + curbD * 0.5 + roadD * 0.5;
   const centerZ = (STREET.nearLaneZ + STREET.farLaneZ) * 0.5;
-  for (const off of [-0.09, 0.09]) {
-    const line = box(len, 0.02, 0.08, 0xc8a83c, { castShadow: false });
-    line.position.set(cx, 0.065, centerZ + off);
-    g.add(line);
+
+  /** One cross-section of the street at x, offset by the bend and yawed to match. */
+  const slab = (x, len, yaw) => {
+    const dz = bendZ(x);
+    const add = (w, h, d, colour, z, y, opts = {}) => {
+      const m = box(w, h, d, colour, { castShadow: false, ...opts });
+      m.position.set(x, y, z + dz);
+      m.rotation.y = yaw;
+      g.add(m);
+      return m;
+    };
+    add(len, 0.07, STREET.sidewalkW, 0xa8a49c, STREET.sidewalkZ, 0.035, {
+      receiveShadow: true,
+    });
+    add(len, 0.14, curbD, 0xbdb9b0, STREET.curbZ, 0.07);
+    add(len, 0.06, roadD, COLORS.asphalt, roadCz, 0.03, { receiveShadow: true });
+    // Double yellow centre line
+    for (const off of [-0.09, 0.09]) {
+      add(len, 0.02, 0.08, 0xc8a83c, centerZ + off, 0.065);
+    }
+  };
+
+  // Straight frontage: one slab from the north end to where the curve starts
+  const straightLen = BEND_START - STREET.xMin;
+  slab(STREET.xMin + straightLen / 2, straightLen, 0);
+
+  // Curved section, stepped and yawed to follow the tangent
+  for (let x = BEND_START; x < STREET.xMax; x += SEG) {
+    const len = Math.min(SEG, STREET.xMax - x);
+    const mid = x + len / 2;
+    // Slight overlap hides the wedge gaps between yawed segments
+    const yaw = -Math.atan2(bendZ(mid + 0.5) - bendZ(mid - 0.5), 1);
+    slab(mid, len * 1.06, yaw);
   }
 
-  // Dashed white edge stripes, one per lane, toward the outside of the road
-  for (const z of [STREET.curbZ + 0.42, STREET.edgeZ - 0.3]) {
+  // Dashed lane edge stripes, sampled along the bend
+  for (const baseZ of [STREET.curbZ + 0.42, STREET.edgeZ - 0.3]) {
     const dashLen = 1.6;
     const gap = 1.5;
     for (let x = STREET.xMin + 0.8; x < STREET.xMax - dashLen; x += dashLen + gap) {
+      const mid = x + dashLen / 2;
       const dash = box(dashLen, 0.02, 0.07, 0xd8d4cc, { castShadow: false });
-      dash.position.set(x + dashLen * 0.5, 0.062, z);
+      dash.position.set(mid, 0.062, baseZ + bendZ(mid));
+      dash.rotation.y = -Math.atan2(bendZ(mid + 0.5) - bendZ(mid - 0.5), 1);
       g.add(dash);
     }
   }

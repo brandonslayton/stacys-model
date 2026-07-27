@@ -11,6 +11,7 @@
  */
 import * as THREE from "three";
 import { box, cyl } from "./kit.js";
+import { heartTexture } from "./sprites.js";
 
 /**
  * Worker walk speed. Noticeably brisker than a patron ambling in (1.85-2.4) —
@@ -35,36 +36,6 @@ function routeToDumpster(streetDoor, aisleX, dump) {
     new THREE.Vector3(aisleX, 0, -3.6),
     new THREE.Vector3(dump.approachX, 0, dump.approachZ),
   ];
-}
-
-/** A heart, drawn to a canvas for use as a sprite. */
-function heartTexture() {
-  const S = 128;
-  const c = document.createElement("canvas");
-  c.width = c.height = S;
-  const ctx = c.getContext("2d");
-  const w = S * 0.74;
-  const h = S * 0.68;
-  const x = S / 2;
-  const y = S * 0.16;
-
-  ctx.beginPath();
-  ctx.moveTo(x, y + h * 0.3);
-  ctx.bezierCurveTo(x, y, x - w / 2, y, x - w / 2, y + h * 0.3);
-  ctx.bezierCurveTo(x - w / 2, y + h * 0.6, x, y + h * 0.8, x, y + h);
-  ctx.bezierCurveTo(x, y + h * 0.8, x + w / 2, y + h * 0.6, x + w / 2, y + h * 0.3);
-  ctx.bezierCurveTo(x + w / 2, y, x, y, x, y + h * 0.3);
-  ctx.closePath();
-
-  ctx.fillStyle = "#ff4f8b";
-  ctx.fill();
-  ctx.lineWidth = S * 0.045;
-  ctx.strokeStyle = "rgba(255,255,255,0.9)";
-  ctx.stroke();
-
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
 }
 
 const ST = {

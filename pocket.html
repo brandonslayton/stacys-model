@@ -41,10 +41,11 @@
   </div>
 
   <div class="when">
-    <div id="state" class="pill">&mdash;</div>
+    <div id="state" class="pill">
+      <span id="clock">--:--</span><b id="state-label">&mdash;</b>
+    </div>
     <div class="day" id="weekday">&mdash;</div>
     <div class="date" id="date">&mdash;</div>
-    <div class="time" id="clock">--:--</div>
     <div class="cond">
       <span class="ic" id="wx-icon"></span>
       <span class="temp" id="temp"></span>
@@ -60,6 +61,7 @@
   <button id="spin" class="on" type="button" aria-label="Toggle auto-rotate"></button>
   <button id="trash" type="button" aria-label="Take out the trash"></button>
   <button id="mist" type="button" aria-pressed="false" aria-label="Toggle patio misters"></button>
+  <button id="sick" type="button" aria-label="Someone gets sick in the lot"></button>
 </div>
 
 <script type="module" src="js/pocket.js"></script>

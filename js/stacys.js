@@ -2893,30 +2893,46 @@ export function createStacys(parcel) {
   const nFrame = box(0.1, nDoorH + 0.18, nDoorW + 0.16, 0x0e0c0a, { roughness: 0.85 });
   nFrame.position.set(nDoorX + 0.02, nDoorH / 2 + 0.05, nDoorZ);
   g.add(nFrame);
+  // Door leaf, on a hinge pivot so incident.js can swing it open. Everything that
+  // moves with the leaf (slab, lite, badge, handle) is a child of the pivot, placed
+  // relative to it; the hinge is the −Z stile, opposite the handle.
+  const nHingeX = nDoorX - 0.04;
+  const nHingeZ = nDoorZ - nDoorW / 2;
+  const nDoorPivot = new THREE.Group();
+  nDoorPivot.name = "northDoorPivot";
+  nDoorPivot.position.set(nHingeX, 0, nHingeZ);
+  g.add(nDoorPivot);
   // Door slab (faces north / parking)
   const nDoor = box(0.07, nDoorH, nDoorW, 0x12100e, { roughness: 0.82 });
-  nDoor.position.set(nDoorX - 0.04, nDoorH / 2, nDoorZ);
-  g.add(nDoor);
+  nDoor.position.set(0, nDoorH / 2, nDoorW / 2);
+  nDoorPivot.add(nDoor);
   // Upper glass lite
   const nLite = box(0.04, 0.48, nDoorW * 0.58, 0x1a3040, {
     emissive: 0x3a6080,
     emissiveIntensity: 0.22,
     roughness: 0.28,
   });
-  nLite.position.set(nDoorX - 0.07, nDoorH * 0.72, nDoorZ);
-  g.add(nLite);
+  nLite.position.set(-0.03, nDoorH * 0.72, nDoorW / 2);
+  nDoorPivot.add(nLite);
   // Stacy's diamond badge on door
   const nBadge = box(0.04, 0.28, 0.28, 0x1a1830, {
     emissive: 0x2a2850,
     emissiveIntensity: 0.15,
   });
-  nBadge.position.set(nDoorX - 0.08, nDoorH * 0.42, nDoorZ);
+  nBadge.position.set(-0.04, nDoorH * 0.42, nDoorW / 2);
   nBadge.rotation.x = Math.PI / 4;
-  g.add(nBadge);
+  nDoorPivot.add(nBadge);
   // Handle
   const nHandle = box(0.05, 0.16, 0.06, 0xc8a868, { metalness: 0.5, roughness: 0.35 });
-  nHandle.position.set(nDoorX - 0.1, nDoorH * 0.48, nDoorZ + nDoorW * 0.28);
-  g.add(nHandle);
+  nHandle.position.set(-0.06, nDoorH * 0.48, nDoorW / 2 + nDoorW * 0.28);
+  nDoorPivot.add(nHandle);
+  // Dark reveal behind the leaf, so an open door shows an interior rather than a hole
+  const nReveal = box(0.06, nDoorH - 0.04, nDoorW - 0.04, 0x08070a, {
+    roughness: 1,
+    castShadow: false,
+  });
+  nReveal.position.set(nDoorX + 0.06, nDoorH / 2, nDoorZ);
+  g.add(nReveal);
   // Small Spanish-tile awning over door
   const nAwning = box(0.75, 0.1, nDoorW + 0.55, tile, { roughness: 0.88 });
   nAwning.position.set(nDoorX + 0.05, nDoorH + 0.38, nDoorZ);
@@ -3450,6 +3466,29 @@ export function createStacys(parcel) {
     wallSignWash: signWash,
     poleSignWash: diamondWash,
     patioWashes: [stacyPatioLight, stacyPatioLight2],
+  };
+
+  // Property pad extents, local space. pocket.js uses zMax to sit the lot flush
+  // against the sidewalk instead of overlapping it.
+  g.userData.pad = {
+    xMin: padCx - padW / 2,
+    xMax: padCx + padW / 2,
+    zMin: padCz - padD / 2,
+    zMax: padCz + padD / 2,
+    /** Top of the asphalt. Anything laid flat on the lot must clear this or it is
+     *  buried — the puddle in incident.js sat at 0.02 and was invisible. */
+    topY: padTop,
+  };
+
+  // North side door, for incident.js. The leaf hangs on "northDoorPivot"; a negative
+  // rotation.y swings it out into the parking lot (its face points −X).
+  g.userData.northDoor = {
+    x: nDoorX,
+    z: nDoorZ,
+    /** Standing spot just outside, clear of the swinging leaf. */
+    outsideX: nDoorX - 0.85,
+    outsideZ: nDoorZ,
+    openAngle: -1.35,
   };
 
   // Rear patio bounds, for the misting system. Interior extents (inside the CMU),

@@ -99,7 +99,7 @@ for (const h of hours) {
     const t = (id) => document.getElementById(id).textContent;
     return {
       ...window.__pocket.life.stats(),
-      header: `${t("weekday")} ${t("date")} ${t("clock")} ${t("temp")} [${t("state")}]`,
+      header: `${t("weekday")} ${t("date")} ${t("clock")} ${t("temp")} [${t("state-label")}]`,
       wx: document.getElementById("wx-icon").title || "(none)",
       moon: document.getElementById("moon-icon").title,
       event: `${t("ev-when")}: ${t("ev-name")} — ${t("ev-time")}`,

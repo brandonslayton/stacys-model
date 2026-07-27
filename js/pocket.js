@@ -16,16 +16,18 @@ import {
   ROTATE_ICON,
   TRASH_ICON,
   MIST_ICON,
+  SICK_ICON,
   moonPhase,
   moonName,
   moonIllumination,
   moonIcon,
 } from "./icons.js";
 import { createStacys } from "./stacys.js";
-import { createStreet } from "./street.js";
+import { createStreet, SIDEWALK_INNER_Z } from "./street.js";
 import { LifeSystem, crowdFactor } from "./life.js";
 import { ChoreSystem } from "./chores.js";
 import { MistSystem } from "./mist.js";
+import { IncidentSystem } from "./incident.js";
 import { FlickerSystem } from "./flicker.js";
 import {
   venueNow,
@@ -180,7 +182,7 @@ addEventListener("resize", resize);
  * heart pop above the roofline and miss the entire toss. From here the dumpster, the
  * worker, and the mural gable are all in frame.
  */
-const CHORE_VIEW = { az: 228, el: 26, zoom: 0.85 };
+const CHORE_VIEW = { az: 228, el: 26, zoom: 0.85, target: [-6.2, 0.8, -3.6] };
 
 /**
  * Where to swing to see the patio, for the misters.
@@ -190,7 +192,18 @@ const CHORE_VIEW = { az: 228, el: 26, zoom: 0.85 };
  * nothing. Unlike a chore this is a persistent toggle, so the swing does NOT return
  * on its own — see the `hold` option.
  */
-const PATIO_VIEW = { az: 268, el: 30, zoom: 0.86 };
+const PATIO_VIEW = { az: 268, el: 30, zoom: 0.86, target: [0, 0.9, -3.9] };
+
+/**
+ * Where to watch the sick-patron scene: the north side door and the open lot.
+ *
+ * Framing this took several passes. From the north-west the pole sign sits squarely
+ * in front of the action; from a low angle the parked cars do. Due north at 30 degrees
+ * is clear of both, because the spot is south of the last parking bay. The chore view
+ * will not do either — it is tuned on the dumpster at the far rear corner, which puts
+ * this spot at the frame edge.
+ */
+const INCIDENT_VIEW = { az: 186, el: 30, zoom: 0.5, target: [-5.4, 0.6, 3.1] };
 
 /** Eased-to view, or null when the user is in control. */
 let focusTarget = null;
@@ -215,10 +228,22 @@ function cancelFocus() {
   savedView = null;
 }
 
+const focusPoint = new THREE.Vector3();
+
 function stepFocus(dt, choreBusy) {
-  if (!focusTarget) return;
-  // Exponential smoothing: framerate-independent and eases out on its own
   const k = 1 - Math.exp(-dt * 2.4);
+
+  // Look-at point eases toward the focus view's own target, or back to the subject
+  // centre once released. Runs even with no active focus so releasing glides home.
+  const want = focusTarget?.target
+    ? focusPoint.set(...focusTarget.target)
+    : SUBJECT.center;
+  if (view.target.distanceToSquared(want) > 1e-5) {
+    view.target.lerp(want, k);
+    applyCamera();
+  }
+
+  if (!focusTarget) return;
   view.az += angleDelta(view.az, focusTarget.az) * k;
   view.el += (focusTarget.el - view.el) * k;
   view.zoom += (focusTarget.zoom - view.zoom) * k;
@@ -402,7 +427,7 @@ function paintHeader(now) {
   )}% lit`;
 
   const state = venueState(now);
-  $("state").textContent = state.label;
+  $("state-label").textContent = state.label;
   $("state").className = `pill ${state.tone}`;
 }
 
@@ -425,6 +450,34 @@ function wireTrashButton(chores) {
       btn.disabled = false;
       btn.classList.add("done");
       setTimeout(() => btn.classList.remove("done"), 900);
+    };
+    requestAnimationFrame(release);
+  };
+}
+
+/**
+ * Sick-patron scene. One-shot, so the camera swings to the lot and back, and the
+ * button locks for the duration — the sequence has two actors handing off to each
+ * other and restarting it midway would leave a puddle and no one to mop it.
+ */
+function wireSickButton(incident) {
+  const btn = $("sick");
+  btn.innerHTML = SICK_ICON;
+  if (!incident.enabled) {
+    btn.disabled = true;
+    btn.title = "Side door unavailable";
+    return;
+  }
+  btn.onclick = () => {
+    if (!incident.start()) return;
+    beginFocus(INCIDENT_VIEW);
+    btn.disabled = true;
+    const release = () => {
+      if (incident.busy) {
+        requestAnimationFrame(release);
+        return;
+      }
+      btn.disabled = false;
     };
     requestAnimationFrame(release);
   };
@@ -502,6 +555,12 @@ async function boot() {
   scene.add(createStreet());
 
   model = createStacys(null);
+  // Seat the lot flush against the sidewalk rather than overlapping it. The pad's
+  // west edge sat ~0.18 past the sidewalk's inner edge, so the paving read as running
+  // underneath the property. Computed from published extents, not hardcoded, so it
+  // stays correct if the pad changes.
+  const pad = model.userData.pad;
+  if (pad) model.position.z = SIDEWALK_INNER_Z - pad.zMax;
   scene.add(model);
 
   const life = new LifeSystem(scene, model);
@@ -513,11 +572,13 @@ async function boot() {
   });
   // Must run after tickNight each frame — it multiplies what that leaves behind
   const flicker = new FlickerSystem(model);
+  const incident = new IncidentSystem(scene, model, life);
   const mist = new MistSystem(scene, model);
   mistRef = mist;
   mist.setProjection(camera.fov, renderer.domElement.height);
   wireTrashButton(chores);
   wireMistButton(mist);
+  wireSickButton(incident);
   const boot = venueNow();
   life.setCrowd(crowdFor(boot));
   life.seed();
@@ -548,12 +609,16 @@ async function boot() {
 
   // Handles for headless capture (pocket-shot.mjs) and console debugging
   window.__pocket = {
+    THREE,
+    camera,
+    scene,
     life,
     view,
     perf,
     chores,
     mist,
     flicker,
+    incident,
     get nightMix() {
       return nightMix;
     },
@@ -601,9 +666,10 @@ async function boot() {
     life.setCrowd(crowdFor(vnow));
     life.update(dt);
     chores.update(dt);
+    incident.update(dt);
     mist.update(dt);
 
-    stepFocus(dt, chores.busy);
+    stepFocus(dt, chores.busy || incident.busy);
 
     // Auto-rotate, resuming a few seconds after the last touch. Held off during a
     // focus swing, which would otherwise fight it for the azimuth.

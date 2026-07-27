@@ -53,6 +53,14 @@ export const ROTATE_ICON = svg(
   20
 );
 
+/** Queasy face, for the sick-patron scene. */
+export const SICK_ICON = svg(
+  `<circle cx="12" cy="12" r="9"/>` +
+    `<path d="M7.6 9.2l2.4 1.6"/><path d="M16.4 9.2l-2.4 1.6"/>` +
+    `<path d="M8 16.2c1-1 1.6-1 2.6 0s1.6 1 2.6 0 1.6-1 2.6 0"/>`,
+  20
+);
+
 /** Mist / spray, for the patio misting system. */
 export const MIST_ICON = svg(
   `<path d="M5 6.5h5"/><path d="M13.5 6.5h5.5"/>` +
