@@ -2694,6 +2694,7 @@ export function createStacys(parcel) {
       roughness: 0.4,
     });
     lantern.position.set(lx - 0.17, 1.87, lz);
+    lantern.name = "porchLantern"; // flicker.js
     g.add(lantern);
     trackNightMesh(nightMats, lantern, 1.35, 0.02, { glimmer: true, glimmerSpeed: 1.2 });
     const lidTop = box(0.16, 0.04, 0.16, 0x2a2620, { roughness: 0.6 });
@@ -2810,6 +2811,7 @@ export function createStacys(parcel) {
     emissiveIntensity: 0.02,
   });
   cabinet.position.set(signX, signY, signZ - 0.015);
+  cabinet.name = "wallSignCabinet"; // flicker.js
   g.add(cabinet);
   trackNightMat(nightMats, cabinet.material, 0.35, 0.02, { glimmer: true, glimmerSpeed: 1.4 });
   // Textured face — white neon wordmark (emissive white × map = Boycott-bright text)
@@ -2829,6 +2831,7 @@ export function createStacys(parcel) {
   );
   signFace.position.set(signX, signY, signZ + 0.025);
   signFace.castShadow = false;
+  signFace.name = "wallSignFace"; // flicker.js
   g.add(signFace);
   // Match Boycott letter punch (white neon ~1.15+) with room for glimmer peak
   trackNightMat(nightMats, signFace.material, 2.05, 0.02, {
@@ -3437,6 +3440,16 @@ export function createStacys(parcel) {
     mouthZ: padCz + padD * 0.5,
     aisleX: aisleCenterX,
     aisleZ: nLotZ + northLotSpan * 0.5,
+  };
+
+  // Light fixtures, for flicker.js. Meshes are resolved by name (see
+  // "wallSignFace", "porchLantern", "stacysDiamondFace"/"Bulb"); these PointLights
+  // have no mesh to name, so they are published directly. setNight() rewrites every
+  // one of these every frame, which is what lets flicker safely multiply them.
+  g.userData.fixtures = {
+    wallSignWash: signWash,
+    poleSignWash: diamondWash,
+    patioWashes: [stacyPatioLight, stacyPatioLight2],
   };
 
   // Rear patio bounds, for the misting system. Interior extents (inside the CMU),

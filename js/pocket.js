@@ -26,6 +26,7 @@ import { createStreet } from "./street.js";
 import { LifeSystem, crowdFactor } from "./life.js";
 import { ChoreSystem } from "./chores.js";
 import { MistSystem } from "./mist.js";
+import { FlickerSystem } from "./flicker.js";
 import {
   venueNow,
   loadEvents,
@@ -510,6 +511,8 @@ async function boot() {
     streetDoor: life.streetDoor,
     aisleX: life.aisle ? life.aisle.x : life.streetDoor.x,
   });
+  // Must run after tickNight each frame — it multiplies what that leaves behind
+  const flicker = new FlickerSystem(model);
   const mist = new MistSystem(scene, model);
   mistRef = mist;
   mist.setProjection(camera.fov, renderer.domElement.height);
@@ -550,6 +553,7 @@ async function boot() {
     perf,
     chores,
     mist,
+    flicker,
     get nightMix() {
       return nightMix;
     },
@@ -592,6 +596,7 @@ async function boot() {
     nightMix = nightFromSun(vnow, weather?.sunriseMin, weather?.sunsetMin);
     applyNight(nightMix);
     model.userData.tickNight?.(now);
+    flicker.update(now / 1000, nightMix);
 
     life.setCrowd(crowdFor(vnow));
     life.update(dt);

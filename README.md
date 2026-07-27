@@ -202,6 +202,7 @@ stacys-model/
 │   ├── life.js       # crowd sim — cars park, people go in, patio fills
 │   ├── chores.js     # tap-to-trigger interactions (take out the trash)
 │   ├── mist.js       # patio misting system (single-draw-call particles)
+│   ├── flicker.js    # natural flicker on signs, patio and porch light
 │   ├── venue.js      # REAL data: Phoenix clock, tonight's event, weather
 │   ├── street.js     # stub of 7th Ave + lane/sidewalk helpers
 │   └── agents.js     # createCar / createPedestrian, from the game
