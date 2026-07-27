@@ -922,20 +922,40 @@ export class RideshareSystem {
   }
 
   /**
-   * Out via the driveway mouth onto 7th (same as life.js cars) — never routes
-   * through the dumpster corner. Northbound on the near lane to the road end.
+   * One-way leave through the lot: forward past Leslie (dumpster), around the
+   * north edge, onto 7th. Matches life.js cars — never reverse up the entry
+   * aisle against incoming traffic.
    */
   _leavePath() {
     if (this.inLot && this.aisle && this.mouth) {
+      const dump = this.dump?.pos;
+      const service = this.dump?.approach
+        ? this.dump.approach.clone()
+        : new THREE.Vector3(this.aisle.x, 0.02, this.aisle.z);
+      service.y = 0.02;
+      const dumpZ = dump ? dump.z : service.z;
+      const aisleAtLeslie = new THREE.Vector3(this.aisle.x, 0.02, service.z);
+      const pastLeslie = new THREE.Vector3(service.x, 0.02, dumpZ - 1.15);
+      // North of Leslie, then to the street (clear of the entry mouth queue)
+      const clearX = dump ? dump.x - 1.5 : this.aisle.x - 2.4;
+      const northPast = new THREE.Vector3(clearX, 0.02, pastLeslie.z);
+      const northToStreet = new THREE.Vector3(clearX, 0.02, this.mouth.z + 0.35);
+      const joinX = THREE.MathUtils.clamp(
+        (clearX + this.mouth.x) * 0.5,
+        STREET.xMin + 2,
+        this.mouth.x
+      );
       return this._clean([
         this.carStop.clone(),
-        // Back toward the street end of the aisle (away from the dumpster NE corner)
-        new THREE.Vector3(this.aisle.x, 0.02, (this.carStop.z + this.mouth.z) * 0.5),
-        this.mouth.clone(),
-        new THREE.Vector3(this.mouth.x, 0.02, STREET.curbZ),
-        lanePoint(this.mouth.x, -1),
-        // Northbound on 7th to the end of the stub, despawn
-        ...roadPolyline(this.mouth.x, STREET.xMin + 0.8, -1),
+        new THREE.Vector3(this.aisle.x, 0.02, this.carStop.z),
+        aisleAtLeslie,
+        service,
+        pastLeslie,
+        northPast,
+        northToStreet,
+        new THREE.Vector3(joinX, 0.02, STREET.curbZ),
+        lanePoint(joinX, -1),
+        ...roadPolyline(joinX, STREET.xMin + 0.8, -1),
       ]);
     }
     return this._clean([

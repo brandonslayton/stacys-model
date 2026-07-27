@@ -243,6 +243,12 @@ export class LifeSystem {
           dumpUd.serviceZ ?? dumpUd.approachZ
         ).applyMatrix4(m)
       : null;
+    this.dumpsterWorld = dumpUd
+      ? new THREE.Vector3(dumpUd.x, 0.02, dumpUd.z).applyMatrix4(m)
+      : null;
+    this.dumpsterApproach = dumpUd
+      ? new THREE.Vector3(dumpUd.approachX, 0.02, dumpUd.approachZ).applyMatrix4(m)
+      : null;
 
     this._buildPools();
     /** Rolling arrival log (sim timestamps) for the "recent arrivals" stat. */
@@ -260,9 +266,8 @@ export class LifeSystem {
     this.lotHold = false;
 
     // Dumpster as a solid obstacle (world-space AABB) — nothing drives through it
-    const dump = venue.userData.dumpster;
-    if (dump) {
-      const p = new THREE.Vector3(dump.x, 0, dump.z).applyMatrix4(m);
+    if (dumpUd && this.dumpsterWorld) {
+      const p = this.dumpsterWorld;
       // Body ~1.2×0.8 after Ry(π/2); pad the box so cars stay clear
       this.dumpsterBox = {
         minX: p.x - 1.15,
@@ -460,16 +465,54 @@ export class LifeSystem {
     ]);
   }
 
-  /** Stall back down the aisle, right turn onto the northbound lane, off-screen. */
+  /**
+   * Shared one-way exit legs: aisle → past Leslie → north edge → 7th.
+   * Used by patron cars, box trucks, and the garbage truck after service.
+   */
+  _oneWayExitWaypoints(fromAisleZ) {
+    const service =
+      this.leslieService ||
+      this.dumpsterApproach ||
+      new THREE.Vector3(this.aisle.x, 0.02, this.aisle.z);
+    const dumpZ = this.dumpsterWorld ? this.dumpsterWorld.z : service.z;
+    const aisleAtLeslie = new THREE.Vector3(this.aisle.x, 0.02, service.z);
+    const byLeslie = service.clone();
+    byLeslie.y = 0.02;
+    const pastLeslie = new THREE.Vector3(service.x, 0.02, dumpZ - 1.15);
+    const box = this.dumpsterBox;
+    const clearX = box ? box.minX - 0.65 : this.aisle.x - 2.4;
+    const northPast = new THREE.Vector3(clearX, 0.02, pastLeslie.z);
+    const northToStreet = new THREE.Vector3(clearX, 0.02, this.mouth.z + 0.35);
+    const joinX = THREE.MathUtils.clamp(
+      (clearX + this.mouth.x) * 0.5,
+      STREET.xMin + 2,
+      this.mouth.x
+    );
+    return [
+      new THREE.Vector3(this.aisle.x, 0.02, fromAisleZ),
+      aisleAtLeslie,
+      byLeslie,
+      pastLeslie,
+      northPast,
+      northToStreet,
+      new THREE.Vector3(joinX, 0.02, STREET.curbZ),
+      lanePoint(joinX, -1),
+      ...roadPolyline(joinX, STREET.xMin + 1, -1),
+    ];
+  }
+
+  /**
+   * One-way leave: reverse out of the bay into the aisle, then drive *forward*
+   * through the lot past Leslie (dumpster), around the north edge, and onto 7th.
+   * Never reverse back up the entry aisle against incoming traffic (Gaymo-style).
+   */
   _pathOutOfLot(spot) {
     if (!this.mouth || !this.aisle) return null;
     return this._clean([
       spot.pos,
       spot.approach,
-      this.aisle,
-      this.mouth,
-      new THREE.Vector3(this.mouth.x, 0.02, STREET.curbZ),
-      ...roadPolyline(this.mouth.x, STREET.xMin + 1, -1),
+      // Only reverse out of the bay; after this the nose points down-aisle
+      ...this._oneWayExitWaypoints(spot.approach.z),
     ]);
   }
 
@@ -1149,6 +1192,28 @@ export class LifeSystem {
     }
   }
 
+  /**
+   * True when another car is still reversing out of a stall nearby.
+   * Arrivals hold so they don't try to reverse/jockey past the bay exit.
+   */
+  _mustYieldForBayExit(trip) {
+    const me = trip.car?.mesh?.position;
+    if (!me) return false;
+    for (const t of this.carTrips) {
+      if (t === trip || t.state !== CS.DRIVE_OUT) continue;
+      // pathI 0–1: stall → approach (the only reverse bit of a one-way leave)
+      if (t.pathI > 1) continue;
+      const o = t.car?.mesh?.position;
+      if (!o) continue;
+      const d = Math.hypot(me.x - o.x, me.z - o.z);
+      if (d > 7) continue;
+      // Same aisle corridor
+      if (Math.abs(me.x - o.x) > 3.2) continue;
+      return true;
+    }
+    return false;
+  }
+
   _carSpeed(trip) {
     // Sick scene (etc.): no new entries, no departures through the aisle.
     // Cars already past the mouth finish parking so they clear the apron;
@@ -1161,8 +1226,11 @@ export class LifeSystem {
         if (trip.pathI >= gate) return 0; // at mouth — wait until hold lifts
       }
     }
+    // One-way: wait for a neighbour finishing their reverse-out of a bay
+    if (trip.state === CS.DRIVE_IN && this._mustYieldForBayExit(trip)) return 0;
     if (trip.state === CS.DRIVE_IN && trip.pathI >= trip.lotFrom) return trip.speedLot;
-    if (trip.state === CS.DRIVE_OUT && trip.pathI < 4) return trip.speedLot;
+    // First legs of leave are in-lot (reverse out + roll past Leslie)
+    if (trip.state === CS.DRIVE_OUT && trip.pathI < 6) return trip.speedLot;
     return trip.speedRoad;
   }
 
@@ -1208,13 +1276,10 @@ export class LifeSystem {
 
   _pathGarbageOut(job) {
     const truck = job.unit.mesh;
+    // Already at Leslie — continue the one-way out, don't reverse up the entry aisle
     return this._clean([
       truck.position.clone(),
-      new THREE.Vector3(this.aisle.x, 0.02, truck.position.z),
-      this.aisle.clone(),
-      this.mouth.clone(),
-      new THREE.Vector3(this.mouth.x, 0.02, STREET.curbZ),
-      ...roadPolyline(this.mouth.x, STREET.xMin + 1, -1),
+      ...this._oneWayExitWaypoints(truck.position.z),
     ]);
   }
 
@@ -1420,13 +1485,11 @@ export class LifeSystem {
         ...roadPolyline(x, STREET.xMin + 1, -1),
       ]);
     }
-    // Back down the aisle, out the mouth, north on 7th
+    // One-way past Leslie — same as patron cars / Gaymo
+    const p = del.unit.mesh.position;
     return this._clean([
-      del.unit.mesh.position.clone(),
-      new THREE.Vector3(this.aisle.x, 0.02, (del.unit.mesh.position.z + this.mouth.z) * 0.5),
-      this.mouth.clone(),
-      new THREE.Vector3(this.mouth.x, 0.02, STREET.curbZ),
-      ...roadPolyline(this.mouth.x, STREET.xMin + 1, -1),
+      p.clone(),
+      ...this._oneWayExitWaypoints(p.z),
     ]);
   }
 
