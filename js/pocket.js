@@ -206,11 +206,11 @@ const PATIO_VIEW = { az: 268, el: 30, zoom: 0.86, target: [0, 0.9, -3.9] };
  *
  * Framing this took several passes. From the north-west the pole sign sits squarely
  * in front of the action; from a low angle the parked cars do. Due north at 30 degrees
- * is clear of both, because the spot is south of the last parking bay. The chore view
- * will not do either — it is tuned on the dumpster at the far rear corner, which puts
- * this spot at the frame edge.
+ * is clear of both: the scene plays on the building face of the aisle, south of the
+ * last bay. The chore view will not do either — it is tuned on the dumpster at the
+ * far rear corner, which puts this spot at the frame edge.
  */
-const INCIDENT_VIEW = { az: 186, el: 30, zoom: 0.5, target: [-5.4, 0.6, 3.1] };
+const INCIDENT_VIEW = { az: 186, el: 30, zoom: 0.5, target: [-3.7, 0.6, 4.0] };
 
 /**
  * Boarding-side view of the aisle stop. Guests enter from the building (+X) side

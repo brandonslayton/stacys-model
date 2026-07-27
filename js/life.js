@@ -181,6 +181,12 @@ export class LifeSystem {
      * in front-cone avoidance.
      */
     this.getExtraVehicles = null;
+    /**
+     * When true, no new cars pull into the lot and any car already driving in or
+     * out freezes (at the mouth / in place) until cleared. Used by the sick-patron
+     * scene so nothing runs through the mess while it's being cleaned.
+     */
+    this.lotHold = false;
 
     // Dumpster as a solid obstacle (world-space AABB) — nothing drives through it
     const dump = venue.userData.dumpster;
@@ -253,6 +259,14 @@ export class LifeSystem {
    */
   get wantsArrivals() {
     return this.inside.length + this._pendingArrivals() < this.target;
+  }
+
+  /**
+   * Gate lot driving for one-shot scenes (vomit mop, etc.). Cars already parked
+   * stay put; in-flight arrivals stop at the mouth; departures wait at the stall.
+   */
+  setLotHold(on) {
+    this.lotHold = !!on;
   }
 
   _buildPools() {
@@ -387,6 +401,7 @@ export class LifeSystem {
   // ── Spawning ──────────────────────────────────────────────────────
 
   _trySpawnCar() {
+    if (this.lotHold) return;
     if (this.carTrips.length >= MAX_CAR_TRIPS) return;
     if (!this.wantsArrivals) return;
     const free = this.spots.filter((s) => !s.occupied);
@@ -753,6 +768,17 @@ export class LifeSystem {
   }
 
   _carSpeed(trip) {
+    // Sick scene (etc.): no new entries, no departures through the aisle.
+    // Cars already past the mouth finish parking so they clear the apron;
+    // ones still on the street may queue up to the mouth, then wait.
+    if (this.lotHold) {
+      if (trip.state === CS.DRIVE_OUT) return 0;
+      if (trip.state === CS.DRIVE_IN) {
+        const gate = Math.max(0, trip.lotFrom - 1);
+        if (trip.pathI >= trip.lotFrom) return trip.speedLot; // already in — finish
+        if (trip.pathI >= gate) return 0; // at mouth — wait until hold lifts
+      }
+    }
     if (trip.state === CS.DRIVE_IN && trip.pathI >= trip.lotFrom) return trip.speedLot;
     if (trip.state === CS.DRIVE_OUT && trip.pathI < 4) return trip.speedLot;
     return trip.speedRoad;

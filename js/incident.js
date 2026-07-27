@@ -25,15 +25,17 @@ const WALK = 1.5; // unsteady
 const BARBACK_WALK = 2.6;
 
 /**
- * Where it happens: the open apron between the stalls and the street.
+ * Where it happens: building-side strip of the north aisle, past the last stall.
  *
- * The first pick was the aisle at z 0.55, which is dead centre of the parking bays —
- * at night the lot is full, so the whole scene played out among parked cars and the
- * puddle was half hidden behind one. Here it is south of the last bay (cars occupy
- * z -2.5..2.2) and 1.3 clear of the drive lane at x -4.16, so nothing parks or drives
- * over it.
+ * Stalls sit at x≈-6.4 (noses end ~x -5.1) along z≈-2.5..2.8. The drive centreline
+ * is x≈-4.16. An earlier pick at (-5.6, 3.5) sat on the aisle-facing ends of parked
+ * cars, so the scene was constantly blocked. Here:
+ *   - x ≈ -3.75  building face of the aisle (clear of stall noses; cars use centre)
+ *   - z ≈ 4.2    south of the last bay, on the open front apron toward the street
+ * LifeSystem.lotHold also freezes in/out traffic for the whole sick→mop beat so
+ * nothing drives through him while the mess is down.
  */
-const SPOT = { x: -5.6, z: 3.5 };
+const SPOT = { x: -3.75, z: 4.2 };
 
 /** Sidewalk centreline; straight along the frontage, so a constant is fine here. */
 const SIDEWALK_Z = STREET.sidewalkZ;
@@ -278,8 +280,16 @@ export class IncidentSystem {
     this.puddle.scale.setScalar(0.01);
     this.spot = { ...SPOT };
     this.doorTarget = d.openAngle;
+    // Hold lot traffic until the mop is done and the spot is clean
+    if (this.life?.setLotHold) this.life.setLotHold(true);
     this.job = { state: ST.DOOR_OPEN, wait: 0.55, t: 0, sprayed: 0 };
     return true;
+  }
+
+  /** End the scene and re-open the lot to cars. */
+  _finish() {
+    this.job = null;
+    if (this.life?.setLotHold) this.life.setLotHold(false);
   }
 
   _walk(obj, tx, tz, speed, dt, bob = 9) {
@@ -629,11 +639,11 @@ export class IncidentSystem {
         this.bucket.visible = false;
         this.mop.visible = false;
         this.doorTarget = 0;
-        this.job = null;
+        this._finish();
         break;
       }
       default:
-        this.job = null;
+        this._finish();
     }
   }
 
