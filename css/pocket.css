@@ -320,16 +320,54 @@ body { user-select: none; -webkit-user-select: none; }
   color: var(--dim);
 }
 
-/* ---------------------------------------------------------------- controls */
+/* ---------------------------------------------------------------- controls
+   Horizontal strip. On narrow phones the full set no longer fits, so the row
+   scrolls sideways instead of clipping buttons off the right edge. */
 #controls {
   position: fixed;
   left: var(--pad);
+  right: var(--pad);
   bottom: max(16px, env(safe-area-inset-bottom));
   display: flex;
+  flex-wrap: nowrap;
   gap: 10px;
+  max-width: none;
+  width: auto;
+  /* Cap to the safe content width so overflow can scroll */
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  /* Room to scroll past the last button without hugging the edge */
+  padding: 4px 2px 6px;
+  /* Soft fade on the trailing edge hints that more buttons exist */
+  mask-image: linear-gradient(
+    to right,
+    #000 0%,
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 0%,
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
+  /* Hide the scrollbar but keep swipe/scroll working */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge */
+  touch-action: pan-x;
+  z-index: 20;
+}
+
+#controls::-webkit-scrollbar {
+  display: none;
 }
 
 #controls button {
+  flex: 0 0 auto; /* never shrink — overflow scrolls instead */
+  scroll-snap-align: start;
   width: 44px; /* 44px is the minimum comfortable touch target */
   height: 44px;
   display: grid;
