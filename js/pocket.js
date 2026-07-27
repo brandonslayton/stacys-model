@@ -18,6 +18,7 @@ import {
   MIST_ICON,
   SICK_ICON,
   RIDESHARE_ICON,
+  CREATIVE_ICON,
   moonPhase,
   moonName,
   moonIllumination,
@@ -402,7 +403,8 @@ function applyNight(t) {
 // ---------------------------------------------------------------- header + card
 // No crowd numbers here on purpose. The sim is invented, so reporting "41 inside"
 // dressed it up as data; the agents walking in and parking convey the same thing
-// without asserting a figure. Everything shown below is real.
+// without asserting a figure. Everything shown below is real — except creative
+// mode, which only pretends the doors are open for the sim.
 let weather = null;
 let events = [];
 /** Current night mix 0..1, from real sun times. Drives the lighting and the
@@ -410,6 +412,25 @@ let events = [];
 let nightMix = 0;
 /** Developer instrumentation, kept off-screen; read by pocket-shot.mjs. */
 const perf = { fps: 0, meshes: 0 };
+
+/**
+ * Creative mode: when on, the *game* treats the bar as open even if real hours
+ * say closed — crowd sim, Gaymo pickup, and the Open pill all follow this.
+ * Real clock / weather / events stay real. Persisted so a reload keeps the vibe.
+ */
+const CREATIVE_KEY = "stacys-pocket-creative";
+let creativeMode = (() => {
+  try {
+    return localStorage.getItem(CREATIVE_KEY) === "1";
+  } catch {
+    return false;
+  }
+})();
+
+/** Open for sim purposes: real hours, or creative mode override. */
+function isOpenForSim(now) {
+  return creativeMode || isOpenNow(now);
+}
 
 function paintHeader(now) {
   $("weekday").textContent = now.weekday;
@@ -435,9 +456,49 @@ function paintHeader(now) {
     moonIllumination(p) * 100
   )}% lit`;
 
-  const state = venueState(now);
-  $("state-label").textContent = state.label;
-  $("state").className = `pill ${state.tone}`;
+  // Creative mode forces the Open pill so the header agrees with the crowd sim.
+  // When creative is off, fall back to real posted hours.
+  if (creativeMode) {
+    $("state-label").textContent = isOpenNow(now) ? "Open" : "Open · creative";
+    $("state").className = "pill open";
+    $("state").title = isOpenNow(now)
+      ? "Open now"
+      : "Creative mode — pretending we're open";
+  } else {
+    const state = venueState(now);
+    $("state-label").textContent = state.label;
+    $("state").className = `pill ${state.tone}`;
+    $("state").title = "";
+  }
+}
+
+function wireCreativeButton() {
+  const btn = $("creative");
+  btn.innerHTML = CREATIVE_ICON;
+  const sync = () => {
+    btn.classList.toggle("on", creativeMode);
+    btn.setAttribute("aria-pressed", String(creativeMode));
+    btn.title = creativeMode
+      ? "Creative mode on — bar pretends to be open"
+      : "Creative mode: pretend we're open (crowd + Gaymo)";
+  };
+  sync();
+  btn.onclick = () => {
+    creativeMode = !creativeMode;
+    try {
+      localStorage.setItem(CREATIVE_KEY, creativeMode ? "1" : "0");
+    } catch {
+      /* private mode, etc. */
+    }
+    sync();
+    // Refresh pill + crowd immediately so the lot fills/empties without waiting
+    // for the next one-second header tick.
+    const now = venueNow();
+    paintHeader(now);
+    if (window.__pocket?.life) {
+      window.__pocket.life.setCrowd(crowdFor(now));
+    }
+  };
 }
 
 /**
@@ -575,8 +636,8 @@ function wireRideButton(rideshare) {
   };
 
   const runPickup = () => {
-    // Closed: nobody inside to pick up — Gaymo sends a text instead of a car
-    if (!isOpenNow(venueNow())) {
+    // Closed (and not creative): nobody inside to pick up — Gaymo texts instead
+    if (!isOpenForSim(venueNow())) {
       showGaymoSms(
         "No passengers available for pickup right now. Try again when Stacy's is open ✨"
       );
@@ -588,7 +649,8 @@ function wireRideButton(rideshare) {
   };
 
   const runDropoff = () => {
-    const closed = !isOpenNow(venueNow());
+    // Closed drop-off bit only when we're *really* shut and not in creative mode
+    const closed = !isOpenForSim(venueNow());
     if (!rideshare.startDropoff({ closed })) return;
     beginFocus(RIDESHARE_VIEW);
     lockUntilDone();
@@ -657,10 +719,10 @@ function wireRideButton(rideshare) {
 /**
  * Crowd size for the sim, zeroed while the doors are shut so the visuals agree
  * with the pill — otherwise people stroll in at noon on a Monday under a
- * "Opens 4:00 PM" badge.
+ * "Opens 4:00 PM" badge. Creative mode pretends the doors are open.
  */
 function crowdFor(now) {
-  if (!isOpenNow(now)) return 0;
+  if (!isOpenForSim(now)) return 0;
   return crowdFactor(now.hourFloat, now.weekday);
 }
 
@@ -731,6 +793,7 @@ async function boot() {
   const mist = new MistSystem(scene, model);
   mistRef = mist;
   mist.setProjection(camera.fov, renderer.domElement.height);
+  wireCreativeButton();
   wireTrashButton(chores);
   wireMistButton(mist);
   wireSickButton(incident);
@@ -778,6 +841,9 @@ async function boot() {
     rideshare,
     get nightMix() {
       return nightMix;
+    },
+    get creativeMode() {
+      return creativeMode;
     },
     applyCamera,
     applyNight,

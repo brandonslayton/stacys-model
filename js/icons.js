@@ -92,6 +92,17 @@ export const RIDESHARE_ICON = svg(
   20
 );
 
+/**
+ * Creative mode: a small sparkle / wand so it reads as "play pretend" rather
+ * than a real venue setting.
+ */
+export const CREATIVE_ICON = svg(
+  `<path d="M12 2.5l1.1 3.4L16.5 7l-3.4 1.1L12 11.5l-1.1-3.4L7.5 7l3.4-1.1L12 2.5z"/>` +
+    `<path d="M18.5 12.5l.7 2.1 2.1.7-2.1.7-.7 2.1-.7-2.1-2.1-.7 2.1-.7.7-2.1z"/>` +
+    `<path d="M6.2 14.2l.55 1.7 1.7.55-1.7.55-.55 1.7-.55-1.7-1.7-.55 1.7-.55.55-1.7z"/>`,
+  20
+);
+
 // ---------------------------------------------------------------- moon phase
 const SYNODIC = 29.530588853; // mean days between new moons
 /** A known new moon: 2000-01-06 18:14 UTC. */

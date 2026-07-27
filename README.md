@@ -38,6 +38,7 @@ no lost camera position.
 | Orbit | one-finger drag |
 | Zoom | pinch (or wheel) |
 | Auto-rotate | resumes 4s after you let go; icon button, bottom left |
+| Creative mode | sparkle button — pretend the bar is open (crowd + Gaymo), even if real hours say closed |
 | Take out the trash | trash-can button, bottom left |
 | Patio misters | mist button, bottom left — on/off |
 | Sick patron | queasy-face button, bottom left |
@@ -72,6 +73,11 @@ Gaymo, and gets rescued. `js/rideshare.js`.
 Layout: venue name top-left with tonight's event directly under it, and top-right
 an `Open` / `Opens 4:00 PM` pill over a big weekday and date, the venue clock,
 temperature with a weather icon, and the day's moon phase.
+
+**Creative mode** (sparkle button) overrides real open hours for the *sim only*:
+the crowd comes back, Gaymo pickup works, and the pill reads `Open · creative`
+when the bar is actually closed. Clock, weather, and events stay real. The toggle
+is remembered in `localStorage`.
 
 ### Day/night follows the real sun
 

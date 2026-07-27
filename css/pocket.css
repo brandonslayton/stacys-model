@@ -349,6 +349,13 @@ body { user-select: none; -webkit-user-select: none; }
   background: rgba(255, 255, 255, 0.17);
 }
 
+/* Creative mode: pretend the bar is open even outside real hours */
+#creative.on {
+  color: #2a1c06;
+  background: var(--warm);
+  border-color: transparent;
+}
+
 /* While a chore is running, the button reads as unavailable rather than silently
    swallowing taps. */
 #trash:disabled {
