@@ -219,11 +219,11 @@ export function createWaymo() {
   // Rainbow underglow — multi-layer, soft/diffused, additive, above the lot
   const rainbowMap = _rainbowGlowTexture();
   const rainbow = new THREE.Mesh(
-    new THREE.CircleGeometry(1.2, 64),
+    new THREE.CircleGeometry(1.05, 64),
     new THREE.MeshBasicMaterial({
       map: rainbowMap,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.38,
       depthWrite: false,
       depthTest: false,
       blending: THREE.AdditiveBlending,
@@ -237,11 +237,11 @@ export function createWaymo() {
   g.add(rainbow);
 
   const halo = new THREE.Mesh(
-    new THREE.CircleGeometry(1.85, 64),
+    new THREE.CircleGeometry(1.55, 64),
     new THREE.MeshBasicMaterial({
       map: rainbowMap,
       transparent: true,
-      opacity: 0.48,
+      opacity: 0.18,
       depthWrite: false,
       depthTest: false,
       blending: THREE.AdditiveBlending,
@@ -255,11 +255,11 @@ export function createWaymo() {
   g.add(halo);
 
   const bloom = new THREE.Mesh(
-    new THREE.CircleGeometry(2.5, 48),
+    new THREE.CircleGeometry(2.1, 48),
     new THREE.MeshBasicMaterial({
       map: rainbowMap,
       transparent: true,
-      opacity: 0.24,
+      opacity: 0.08,
       depthWrite: false,
       depthTest: false,
       blending: THREE.AdditiveBlending,
@@ -425,20 +425,21 @@ export function createWaymo() {
     rainbow.rotation.z = t * 0.55;
     halo.rotation.z = -t * 0.28;
     bloom.rotation.z = t * 0.14;
-    const pulse = 0.65 + 0.35 * (0.5 + 0.5 * Math.sin(t * 3.8));
-    rainbow.material.opacity = 0.7 + pulse * 0.25;
-    halo.material.opacity = 0.38 + pulse * 0.18;
-    bloom.material.opacity = 0.18 + pulse * 0.12;
-    const breath = 0.94 + pulse * 0.1;
+    // Soft pulse — kept dim so it reads as a wash, not a spotlight
+    const pulse = 0.55 + 0.2 * (0.5 + 0.5 * Math.sin(t * 3.2));
+    rainbow.material.opacity = 0.28 + pulse * 0.14;
+    halo.material.opacity = 0.12 + pulse * 0.08;
+    bloom.material.opacity = 0.05 + pulse * 0.04;
+    const breath = 0.96 + pulse * 0.05;
     rainbow.scale.setScalar(breath);
     halo.scale.setScalar(breath * 1.02);
-    bloom.scale.setScalar(breath * 1.04);
+    bloom.scale.setScalar(breath * 1.03);
     for (const thr of thrusters) {
-      const h = (thr.userData.hue + t * 0.18) % 1;
-      thr.material.emissive.setHSL(h, 0.9, 0.58);
-      thr.material.color.setHSL(h, 0.75, 0.62);
-      thr.material.emissiveIntensity = 0.7 + pulse * 0.45;
-      thr.scale.setScalar(0.88 + pulse * 0.16);
+      const h = (thr.userData.hue + t * 0.15) % 1;
+      thr.material.emissive.setHSL(h, 0.75, 0.5);
+      thr.material.color.setHSL(h, 0.6, 0.55);
+      thr.material.emissiveIntensity = 0.35 + pulse * 0.25;
+      thr.scale.setScalar(0.9 + pulse * 0.1);
     }
   };
 
@@ -925,26 +926,28 @@ export class RideshareSystem {
   }
 
   /**
-   * Out: keep going deeper into the lot, past the dumpster, turn left, then
-   * glide off the north edge and despawn. No reverse out the driveway.
+   * Out: up the aisle, fully past the dumpster on the north side, THEN turn
+   * left (+Z / street-ward) and despawn. No early cut through the dumpster.
    */
   _leavePath() {
     if (this.inLot && this.aisle && this.dump) {
       const d = this.dump;
-      // Facing roughly toward the dumpster (north / −X) at the end of the aisle;
-      // left is +Z (street-ward). Exit past the dumpster then bank left off-map.
+      // Dumpster half-footprint ~0.9; clear by a full car length past its centre
+      const pastX = d.pos.x - 2.8;
+      const dumpZ = d.pos.z;
       return this._clean([
         this.carStop.clone(),
-        // Continue along the aisle toward the dumpster bay
-        new THREE.Vector3(this.aisle.x, 0.02, d.approach.z + 0.4),
-        d.approach.clone(),
-        // Clear of the dumpster on its north side
-        new THREE.Vector3(d.pos.x - 1.1, 0.02, d.pos.z + 0.3),
-        // Left turn — sweep toward +Z while still heading off the property
-        new THREE.Vector3(d.pos.x - 2.0, 0.02, d.pos.z + 3.2),
-        // Spawn-out: well past the pad, off-camera
-        new THREE.Vector3(d.pos.x - 4.5, 0.02, d.pos.z + 7.5),
-        new THREE.Vector3(d.pos.x - 7.0, 0.02, d.pos.z + 10.0),
+        // Stay on the aisle centreline until abeam the dumpster (still clear of it)
+        new THREE.Vector3(this.aisle.x, 0.02, dumpZ + 1.2),
+        new THREE.Vector3(this.aisle.x, 0.02, dumpZ),
+        // Slide north past the dumpster — hold Z so we don't turn into it
+        new THREE.Vector3(d.pos.x + 0.4, 0.02, dumpZ),
+        new THREE.Vector3(pastX, 0.02, dumpZ),
+        // Only now bank left (+Z), well clear of the bin
+        new THREE.Vector3(pastX, 0.02, dumpZ + 2.5),
+        new THREE.Vector3(pastX - 1.5, 0.02, dumpZ + 5.5),
+        new THREE.Vector3(pastX - 3.5, 0.02, dumpZ + 9.0),
+        new THREE.Vector3(pastX - 6.0, 0.02, dumpZ + 12.0),
       ]);
     }
     if (this.inLot && this.aisle) {
