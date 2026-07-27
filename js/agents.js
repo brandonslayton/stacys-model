@@ -46,19 +46,21 @@ export const PHX_SUV_COLORS = [
 export const PED_COLORS = [0xffb6c1, 0x7ec8e3, 0xc5a3ff, 0xffd580, 0x98d8aa];
 
 const GLASS = {
-  roughness: 0.14,
-  metalness: 0.35,
+  roughness: 0.22,
+  metalness: 0.2,
   emissive: 0x081018,
-  emissiveIntensity: 0.12,
+  emissiveIntensity: 0.08,
 };
-const DARK = { roughness: 0.55, metalness: 0.18 };
-const CHROME = { roughness: 0.28, metalness: 0.72 };
+const DARK = { roughness: 0.62, metalness: 0.12 };
+const CHROME = { roughness: 0.35, metalness: 0.55 };
 const RUBBER = { roughness: 0.92, metalness: 0.05 };
 
 function paintOpts(color, extras = {}) {
   return {
-    roughness: 0.42,
-    metalness: 0.22,
+    // Lower metalness + higher roughness: less specular sparkle when cars yaw
+    // under the sun/neon (was reading as weird shade flips).
+    roughness: 0.55,
+    metalness: 0.12,
     ...extras,
     // keep color as the mesh color arg to box/cyl
   };
@@ -139,23 +141,23 @@ export function tickCarLights(g, now, opts = {}) {
   neonMul *= breathe;
 
   if (now < L.flashUntil) {
-    const u = now * (L.flashKind === "strobe" ? 14 : 6) + L.phase;
+    const u = now * (L.flashKind === "strobe" ? 10 : 5) + L.phase;
     const wave = L.flashKind === "strobe"
-      ? (Math.sin(u * Math.PI * 2) > 0.15 ? 1 : 0.15)
-      : 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(u * Math.PI * 2));
-    headMul = 0.7 + wave * (L.neonHeavy ? 2.8 : 2.0);
-    neonMul = 0.5 + wave * (L.neonHeavy ? 3.2 : 2.4);
-    tailMul = 0.85 + wave * 1.6;
+      ? (Math.sin(u * Math.PI * 2) > 0.2 ? 1 : 0.35)
+      : 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(u * Math.PI * 2));
+    // Milder spikes so body paint doesn't wash out under the flash
+    headMul = 0.85 + wave * (L.neonHeavy ? 1.35 : 1.0);
+    neonMul = 0.7 + wave * (L.neonHeavy ? 1.5 : 1.15);
+    tailMul = 0.9 + wave * 0.9;
   } else if (L.neonHeavy) {
-    // Phoenix SUVs keep a stronger idle neon
-    neonMul *= 1.25;
-    headMul *= 1.08;
+    neonMul *= 1.12;
+    headMul *= 1.04;
   }
 
-  const h = L.baseHead * headMul;
-  const t = L.baseTail * tailMul;
-  const n = L.baseNeon * neonMul;
-  const m = L.baseMarker * (0.85 + 0.15 * breathe);
+  const h = Math.min(1.85, L.baseHead * headMul);
+  const t = Math.min(1.5, L.baseTail * tailMul);
+  const n = Math.min(2.0, L.baseNeon * neonMul);
+  const m = Math.min(1.2, L.baseMarker * (0.9 + 0.1 * breathe));
   for (const mat of L.head) mat.emissiveIntensity = h;
   for (const mat of L.tail) mat.emissiveIntensity = t;
   for (const mat of L.neon) mat.emissiveIntensity = n;

@@ -311,21 +311,23 @@ export class TacoSystem {
     this.flattop.position.set(-0.15, 0, 0.15);
     this.stand.add(this.flattop);
 
+    // Layout is local: +Z = serving face (world +X / toward the lot & sign
+    // when faceY is π/2). Stay compact so the tent sits on the north strip.
     this.table = buildServingTable();
-    this.table.position.set(0.15, 0, 0.85);
+    this.table.position.set(0.1, 0, 0.75);
     this.stand.add(this.table);
 
     this.cooler = buildCooler();
-    this.cooler.position.set(-0.85, 0, 0.55);
+    this.cooler.position.set(-0.8, 0, 0.45);
     this.stand.add(this.cooler);
 
     this.aframe = buildAFrame();
-    this.aframe.position.set(0.95, 0, 1.35);
+    this.aframe.position.set(0.85, 0, 1.25);
     this.stand.add(this.aframe);
 
     this.picnic = [buildPicnicTable(), buildPicnicTable()];
-    this.picnic[0].position.set(-0.3, 0, 2.1);
-    this.picnic[1].position.set(1.0, 0, 2.1);
+    this.picnic[0].position.set(-0.35, 0, 1.95);
+    this.picnic[1].position.set(0.95, 0, 1.95);
     this.stand.add(this.picnic[0], this.picnic[1]);
 
     // Build pieces animate in order
@@ -393,21 +395,24 @@ export class TacoSystem {
   /** Focus framing for the camera. */
   get focusTarget() {
     return {
-      az: 200,
-      el: 22,
-      zoom: 0.42,
-      target: [this.spot.x, 0.7, this.spot.z + 0.6],
+      az: 155,
+      el: 24,
+      zoom: 0.4,
+      target: [this.spot.x + 0.6, 0.65, this.spot.z],
     };
   }
 
   /** Start setup. Returns false if already running/open. */
   start() {
     if (this.state !== ST.OFF) return false;
-    const spawnX = this.unload.x + 12 + Math.random() * 4;
+    // Approach on 7th, pull to the curb abeam the sign, then nose into the
+    // off-road pad next to the property line (never set up in the travel lane).
+    const curbX = this.unload.x + 1.2;
+    const spawnX = curbX + 11 + Math.random() * 4;
     this.path = this._clean([
-      ...roadPolyline(spawnX, this.unload.x, -1),
-      lanePoint(this.unload.x, -1),
-      new THREE.Vector3(this.unload.x, 0.02, STREET.curbZ),
+      ...roadPolyline(spawnX, curbX, -1),
+      lanePoint(curbX, -1),
+      new THREE.Vector3(curbX, 0.02, STREET.curbZ),
       this.unload.clone(),
     ]);
     if (this.path.length < 2) return false;

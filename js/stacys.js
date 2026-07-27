@@ -3382,18 +3382,19 @@ export function createStacys(parcel) {
   diamondSign.rotation.y = Math.PI / 2; // ±Z faces → ±X (north / south)
   g.add(diamondSign);
 
-  // Taco stand pad — just off the property next to the tall diamond sign
-  // (street / sidewalk side, north of the mast so the tent doesn't cover it).
+  // Taco stand — off the road, just outside the north property line next to the
+  // diamond pole sign (NW corner). Local −X = north of the pad; z stays abeam
+  // the sign so the tent is not out on 7th Ave.
   g.userData.tacoStand = {
-    x: diamondSignX - 1.65,
-    z: diamondSignZ + 1.35,
-    // SUV unloads on the street edge, parks beside the tent
-    unloadX: diamondSignX - 0.4,
-    unloadZ: diamondSignZ + 2.4,
-    parkX: diamondSignX + 0.9,
-    parkZ: diamondSignZ + 1.5,
-    /** Serving face toward the sidewalk / street (+Z). */
-    faceY: 0,
+    x: northPadEdge - 1.4,
+    z: diamondSignZ,
+    // Pull off the curb to the property edge, then park between tent and sign
+    unloadX: northPadEdge + 0.15,
+    unloadZ: diamondSignZ + 0.35,
+    parkX: northPadEdge - 0.15,
+    parkZ: diamondSignZ + 0.15,
+    /** Serving face toward the lot / sign (+X = south). */
+    faceY: Math.PI / 2,
   };
   // Diamond marquee — white neon text + pink edge glow at night (Boycott-bright)
   diamondSign.traverse((obj) => {
