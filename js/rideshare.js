@@ -17,14 +17,14 @@
 import * as THREE from "three";
 import { box, cyl, canvasTexture, roundRect } from "./kit.js";
 import { PED_COLORS, createPedestrian } from "./agents.js";
-import { STREET, roadPolyline, sidewalkPoint } from "./street.js";
+import { STREET, roadPolyline, sidewalkPoint, lanePoint } from "./street.js";
 
 const WALK = 2.15;
 const ROAD = 8.4;
 const ROAD_SLOW = 3.6;
 /** Spawn just off-camera south of the porch so the car is on-screen quickly. */
 const ARRIVE_LEAD = 9.5;
-const LEAVE_X = STREET.xMin + 1.5;
+const LEAVE_X = STREET.xMin + 0.8;
 /** How high the hull origin sits above the asphalt (clear but lower float). */
 const HOVER_Y = 0.2;
 const HOVER_BOB = 0.028;
@@ -926,42 +926,45 @@ export class RideshareSystem {
   }
 
   /**
-   * Out: up the aisle, fully past the dumpster on the north side, THEN turn
-   * left (+Z / street-ward) and despawn. No early cut through the dumpster.
+   * Out: up the aisle on the *street-side* of the dumpster (never through it),
+   * fully past on the north (−X), THEN left onto 7th Ave, northbound to the
+   * end of the road stub and despawn.
    */
   _leavePath() {
     if (this.inLot && this.aisle && this.dump) {
       const d = this.dump;
-      // Dumpster half-footprint ~0.9; clear by a full car length past its centre
-      const pastX = d.pos.x - 2.8;
-      const dumpZ = d.pos.z;
+      // Dumpster body ~1.2×0.8 after rotation — clearZ is on the street side of it
+      // so the path never crosses the bin. pastX is a full car past its north face.
+      const clearZ = d.pos.z + 1.85;
+      const pastX = d.pos.x - 3.4;
       return this._clean([
         this.carStop.clone(),
-        // Stay on the aisle centreline until abeam the dumpster (still clear of it)
-        new THREE.Vector3(this.aisle.x, 0.02, dumpZ + 1.2),
-        new THREE.Vector3(this.aisle.x, 0.02, dumpZ),
-        // Slide north past the dumpster — hold Z so we don't turn into it
-        new THREE.Vector3(d.pos.x + 0.4, 0.02, dumpZ),
-        new THREE.Vector3(pastX, 0.02, dumpZ),
-        // Only now bank left (+Z), well clear of the bin
-        new THREE.Vector3(pastX, 0.02, dumpZ + 2.5),
-        new THREE.Vector3(pastX - 1.5, 0.02, dumpZ + 5.5),
-        new THREE.Vector3(pastX - 3.5, 0.02, dumpZ + 9.0),
-        new THREE.Vector3(pastX - 6.0, 0.02, dumpZ + 12.0),
+        // Stay on the aisle, move toward the rear but stop street-side of the dumpster
+        new THREE.Vector3(this.aisle.x, 0.02, clearZ + 1.5),
+        new THREE.Vector3(this.aisle.x, 0.02, clearZ),
+        // Parallel to the dumpster on its street-facing side — go fully past it
+        new THREE.Vector3(d.pos.x + 1.4, 0.02, clearZ),
+        new THREE.Vector3(pastX, 0.02, clearZ),
+        // Only now turn left onto 7th (curb → near lane)
+        new THREE.Vector3(pastX, 0.02, STREET.curbZ),
+        lanePoint(pastX, -1),
+        // Northbound on 7th Ave to the end of the stub, then despawn
+        ...roadPolyline(pastX, STREET.xMin + 0.8, -1),
       ]);
     }
-    if (this.inLot && this.aisle) {
-      // No dumpster data — roll north along the aisle and off the pad
+    if (this.inLot && this.aisle && this.mouth) {
+      // No dumpster — back out the driveway the way life.js cars leave
       return this._clean([
         this.carStop.clone(),
         this.aisle.clone(),
-        new THREE.Vector3(this.aisle.x - 6, 0.02, this.aisle.z),
-        new THREE.Vector3(this.aisle.x - 10, 0.02, this.aisle.z + 2),
+        this.mouth.clone(),
+        new THREE.Vector3(this.mouth.x, 0.02, STREET.curbZ),
+        ...roadPolyline(this.mouth.x, STREET.xMin + 0.8, -1),
       ]);
     }
     return this._clean([
       this.carStop.clone(),
-      ...roadPolyline(this.carStop.x, LEAVE_X, -1),
+      ...roadPolyline(this.carStop.x, STREET.xMin + 0.8, -1),
     ]);
   }
 
