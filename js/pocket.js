@@ -784,12 +784,20 @@ async function boot() {
   // Must run after tickNight each frame — it multiplies what that leaves behind
   const flicker = new FlickerSystem(model);
   const incident = new IncidentSystem(scene, model, life);
-  const rideshare = new RideshareSystem(scene, model, {
-    streetDoor: life.streetDoor,
-    mouth: life.mouth,
-    aisle: life.aisle,
-    yardCorner: life.yardCorner,
-  });
+  const rideshare = new RideshareSystem(
+    scene,
+    model,
+    {
+      streetDoor: life.streetDoor,
+      mouth: life.mouth,
+      aisle: life.aisle,
+      yardCorner: life.yardCorner,
+    },
+    life
+  );
+  // Life cars brake for the Gaymo, and it brakes for them
+  life.getExtraVehicles = () =>
+    rideshare.waymo?.visible ? [rideshare.waymo] : [];
   const mist = new MistSystem(scene, model);
   mistRef = mist;
   mist.setProjection(camera.fov, renderer.domElement.height);

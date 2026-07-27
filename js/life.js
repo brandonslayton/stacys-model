@@ -28,12 +28,19 @@ import {
   sidewalkPolyline,
 } from "./street.js";
 
-const POOL_CARS = 6;
+const POOL_CARS = 8;
 const POOL_PEDS = 18;
-const MAX_CAR_TRIPS = 5;
+const MAX_CAR_TRIPS = 7;
 /** Soft occupancy ceiling. Far above the game's 5 — see note 1 above. */
 const MAX_INSIDE = 70;
-const SPAWN_CHECK_S = 0.42;
+const SPAWN_CHECK_S = 0.3;
+
+/** Pedestrian personal space — close is fine, overlapping is not. */
+const PED_MIN = 0.48;
+/** Car following: full stop / start braking / lane width (lateral). */
+const CAR_STOP = 2.35;
+const CAR_BRAKE = 4.6;
+const CAR_LANE = 1.35;
 
 /** Car states. */
 const CS = {
@@ -162,7 +169,13 @@ export class LifeSystem {
     this._spawnAcc = 0;
     /** Rolling arrival log (sim timestamps) for the "recent arrivals" stat. */
     this.arrivalLog = [];
+    /**
+     * Optional () => THREE.Object3D[] of foreign vehicles (e.g. Gaymo) so life
+     * cars brake for them and they can query the same traffic set.
+     */
+    this.getExtraVehicles = null;
 
+    this._honkTex = null;
   }
 
   /**
@@ -175,10 +188,11 @@ export class LifeSystem {
     for (let i = 0; i < n; i++) {
       this.inside.push({ leaveAt: this.now + 5 + Math.random() * 200 });
     }
-    // A few cars already parked, and people mid-approach
-    const cars = Math.min(this.spots.length, Math.round(this.busyness * 2.5));
+    // Fill the lot more aggressively so it looks busy without cars stacking
+    // on top of each other mid-aisle (traffic will serialize the rest).
+    const cars = Math.min(this.spots.length, Math.max(2, Math.round(this.busyness * 3.5)));
     for (let i = 0; i < cars; i++) this._trySpawnCar();
-    for (let i = 0; i < 3; i++) this._trySpawnWalker();
+    for (let i = 0; i < 4; i++) this._trySpawnWalker();
   }
 
   /**
@@ -473,6 +487,171 @@ export class LifeSystem {
     return { done: false, pathI };
   }
 
+  /**
+   * Soft personal-space push so peds can stand close but never stack.
+   * @param {THREE.Object3D} mesh
+   * @param {THREE.Object3D[]} others
+   * @param {number} [minDist]
+   */
+  separatePed(mesh, others, minDist = PED_MIN) {
+    if (!mesh?.visible) return;
+    for (const o of others) {
+      if (!o || o === mesh || !o.visible) continue;
+      const dx = mesh.position.x - o.position.x;
+      const dz = mesh.position.z - o.position.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 1e-4 || d >= minDist) continue;
+      // Split the correction so both parties share the nudge when both run this
+      const push = (minDist - d) * 0.55;
+      mesh.position.x += (dx / d) * push;
+      mesh.position.z += (dz / d) * push;
+    }
+  }
+
+  /** Every visible ped mesh currently in the sim (walkers + car-trip peds). */
+  pedMeshes() {
+    const out = [];
+    for (const w of this.walkers) {
+      if (w.ped?.mesh?.visible) out.push(w.ped.mesh);
+    }
+    for (const t of this.carTrips) {
+      if (t.ped?.mesh?.visible) out.push(t.ped.mesh);
+    }
+    return out;
+  }
+
+  /** Every busy car mesh (moving or parked) + optional external vehicles. */
+  vehicleMeshes(exclude = null) {
+    const out = [];
+    for (const c of this.carPool) {
+      if (c.busy && c.mesh.visible && c.mesh !== exclude) out.push(c.mesh);
+    }
+    if (this.getExtraVehicles) {
+      for (const m of this.getExtraVehicles()) {
+        if (m && m.visible && m !== exclude) out.push(m);
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Distance along the car's facing to the nearest vehicle roughly in its lane.
+   * Infinity if nothing ahead.
+   */
+  gapAhead(car, others = null) {
+    const list = others || this.vehicleMeshes(car);
+    const yaw = car.rotation.y;
+    // rotation.y = atan2(dx, dz) → forward is (sin y, cos y)
+    const fx = Math.sin(yaw);
+    const fz = Math.cos(yaw);
+    let nearest = Infinity;
+    for (const o of list) {
+      if (o === car || !o.visible) continue;
+      const dx = o.position.x - car.position.x;
+      const dz = o.position.z - car.position.z;
+      const along = dx * fx + dz * fz;
+      if (along < 0.4) continue; // behind or alongside rear
+      const lat = Math.abs(dx * fz - dz * fx);
+      if (lat > CAR_LANE) continue;
+      if (along < nearest) nearest = along;
+    }
+    return nearest;
+  }
+
+  /**
+   * 0..1 speed scale from traffic ahead. 0 = slam on brakes.
+   * Also returns whether a honk is warranted (fully stopped behind someone).
+   */
+  trafficScale(car, others = null) {
+    const gap = this.gapAhead(car, others);
+    if (gap >= CAR_BRAKE) return { scale: 1, stop: false };
+    if (gap <= CAR_STOP) return { scale: 0, stop: true };
+    return {
+      scale: (gap - CAR_STOP) / (CAR_BRAKE - CAR_STOP),
+      stop: false,
+    };
+  }
+
+  _honkTexture() {
+    if (this._honkTex) return this._honkTex;
+    const c = document.createElement("canvas");
+    c.width = 128;
+    c.height = 96;
+    const ctx = c.getContext("2d");
+    // Speech bubble
+    ctx.fillStyle = "rgba(20,18,34,0.88)";
+    ctx.beginPath();
+    ctx.moveTo(16, 12);
+    ctx.arcTo(112, 12, 112, 64, 14);
+    ctx.arcTo(112, 64, 16, 64, 14);
+    ctx.lineTo(48, 64);
+    ctx.lineTo(36, 84);
+    ctx.lineTo(40, 64);
+    ctx.arcTo(16, 64, 16, 12, 14);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.2)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Sound arcs
+    ctx.strokeStyle = "#ffb454";
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+    for (const [x0, r] of [
+      [52, 10],
+      [58, 18],
+      [64, 26],
+    ]) {
+      ctx.beginPath();
+      ctx.arc(x0, 38, r, -0.7, 0.7);
+      ctx.stroke();
+    }
+    this._honkTex = new THREE.CanvasTexture(c);
+    this._honkTex.colorSpace = THREE.SRGBColorSpace;
+    return this._honkTex;
+  }
+
+  _ensureHonk(trip) {
+    if (trip.honkSprite) return trip.honkSprite;
+    const s = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: this._honkTexture(),
+        transparent: true,
+        depthWrite: false,
+        opacity: 0,
+      })
+    );
+    s.scale.set(0.9, 0.68, 1);
+    s.visible = false;
+    this.root.add(s);
+    trip.honkSprite = s;
+    trip.honkT = 0;
+    return s;
+  }
+
+  _tickHonk(trip, dt, braking) {
+    const s = this._ensureHonk(trip);
+    const car = trip.car.mesh;
+    if (braking) {
+      // Fresh stop → blast the horn
+      if (trip.honkT <= 0) trip.honkT = 0.85;
+    }
+    if (trip.honkT > 0) {
+      trip.honkT -= dt;
+      s.visible = true;
+      const k = trip.honkT / 0.85;
+      s.material.opacity = Math.min(1, k * 2) * (k > 0.3 ? 1 : k / 0.3);
+      s.position.set(car.position.x, 1.55 + (1 - k) * 0.35, car.position.z);
+      s.scale.setScalar(0.75 + (1 - k) * 0.35);
+      // Tiny lurch on the body while honking
+      car.scale.z = 1 + Math.sin((1 - k) * Math.PI * 6) * 0.03 * k;
+    } else {
+      s.visible = false;
+      s.material.opacity = 0;
+      car.scale.z = 1;
+    }
+  }
+
   _bob(entry, dt, rate = 9, amp = 0.045) {
     entry.ped.bob += dt * rate;
     entry.ped.mesh.position.y = Math.abs(Math.sin(entry.ped.bob)) * amp;
@@ -498,9 +677,10 @@ export class LifeSystem {
     if (this._spawnAcc >= SPAWN_CHECK_S) {
       this._spawnAcc = 0;
       const b = this.busyness;
-      if (Math.random() < 0.1 + b * 0.22) this._trySpawnCar();
-      if (Math.random() < 0.18 + b * 0.4) this._trySpawnWalker();
-      if (b > 1.1 && Math.random() < 0.35) this._trySpawnWalker();
+      // Slightly hungrier spawns so the lot fills; traffic prevents pile-ups
+      if (Math.random() < 0.14 + b * 0.28) this._trySpawnCar();
+      if (Math.random() < 0.22 + b * 0.45) this._trySpawnWalker();
+      if (b > 1.0 && Math.random() < 0.4) this._trySpawnWalker();
     }
 
     // People leaving the building
@@ -522,15 +702,24 @@ export class LifeSystem {
         trip.state = "done";
       }
       if (trip.state === "done") {
+        if (trip.honkSprite) {
+          this.root.remove(trip.honkSprite);
+          trip.honkSprite = null;
+        }
         if (trip.car) {
           trip.car.busy = false;
           trip.car.mesh.visible = false;
+          trip.car.mesh.scale.set(1, 1, 1);
         }
         this._freePed(trip.ped);
         if (trip.spot) trip.spot.occupied = false;
         this.carTrips.splice(i, 1);
       }
     }
+
+    // Ped personal space — resolve after all moves so everyone shares the shove
+    const peds = this.pedMeshes();
+    for (const m of peds) this.separatePed(m, peds);
 
     for (let i = this.walkers.length - 1; i >= 0; i--) {
       const wk = this.walkers[i];
@@ -547,6 +736,10 @@ export class LifeSystem {
       }
     }
 
+    // Second ped pass after walkers moved
+    const peds2 = this.pedMeshes();
+    for (const m of peds2) this.separatePed(m, peds2);
+
     // Trim the rolling arrival log to the last 10 minutes of sim time
     const cutoff = this.now - 600;
     while (this.arrivalLog.length && this.arrivalLog[0] < cutoff) {
@@ -555,9 +748,10 @@ export class LifeSystem {
   }
 
   _carSpeed(trip) {
-    if (trip.state === CS.DRIVE_IN && trip.pathI >= trip.lotFrom) return trip.speedLot;
-    if (trip.state === CS.DRIVE_OUT && trip.pathI < 4) return trip.speedLot;
-    return trip.speedRoad;
+    let base = trip.speedRoad;
+    if (trip.state === CS.DRIVE_IN && trip.pathI >= trip.lotFrom) base = trip.speedLot;
+    if (trip.state === CS.DRIVE_OUT && trip.pathI < 4) base = trip.speedLot;
+    return base;
   }
 
   _tickCar(trip, dt) {
@@ -565,16 +759,20 @@ export class LifeSystem {
 
     switch (trip.state) {
       case CS.DRIVE_IN: {
+        const traffic = this.trafficScale(car);
+        this._tickHonk(trip, dt, traffic.stop);
         const r = this._advance(
           car,
           trip.path,
           trip.pathI,
-          this._carSpeed(trip),
+          this._carSpeed(trip) * traffic.scale,
           dt,
           trip.spot.faceY
         );
         trip.pathI = r.pathI;
         if (!r.done) break;
+        this._tickHonk(trip, dt, false); // clear any brake pose
+        car.scale.set(1, 1, 1);
         car.rotation.y = trip.spot.faceY;
         const ped = this._takePed();
         if (!ped) {
@@ -595,6 +793,7 @@ export class LifeSystem {
         break;
       }
       case CS.UNLOAD: {
+        this._tickHonk(trip, dt, false);
         if (trip.unloadWait > 0) {
           trip.unloadWait -= dt;
           break;
@@ -661,11 +860,13 @@ export class LifeSystem {
         break;
       }
       case CS.DRIVE_OUT: {
+        const traffic = this.trafficScale(car);
+        this._tickHonk(trip, dt, traffic.stop);
         const r = this._advance(
           car,
           trip.path,
           trip.pathI,
-          this._carSpeed(trip),
+          this._carSpeed(trip) * traffic.scale,
           dt
         );
         trip.pathI = r.pathI;

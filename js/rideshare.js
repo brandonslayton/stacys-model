@@ -25,9 +25,11 @@ const ROAD_SLOW = 3.6;
 /** Spawn just off-camera south of the porch so the car is on-screen quickly. */
 const ARRIVE_LEAD = 9.5;
 const LEAVE_X = STREET.xMin + 1.5;
-/** How high the hull origin sits above the asphalt (clear float gap). */
-const HOVER_Y = 0.38;
-const HOVER_BOB = 0.05;
+/** How high the hull origin sits above the asphalt (clear but lower float). */
+const HOVER_Y = 0.2;
+const HOVER_BOB = 0.028;
+/** Ped personal space (match life.js). */
+const PED_MIN = 0.48;
 
 const ST = {
   GUESTS_OUT: "guests_out",
@@ -210,40 +212,56 @@ export function createWaymo() {
   shadow.name = "hoverShadow";
   g.add(shadow);
 
-  // Rainbow gradient underglow — additive, spins slowly for a futuristic read
+  // Rainbow underglow — multi-layer, soft/diffused, additive
   const rainbowMap = _rainbowGlowTexture();
   const rainbow = new THREE.Mesh(
-    new THREE.CircleGeometry(1.05, 48),
+    new THREE.CircleGeometry(1.15, 64),
     new THREE.MeshBasicMaterial({
       map: rainbowMap,
       transparent: true,
-      opacity: 0.9,
+      opacity: 0.72,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     })
   );
   rainbow.rotation.x = -Math.PI / 2;
-  rainbow.position.y = 0.035;
+  rainbow.position.y = 0.032;
   rainbow.name = "rainbowGlow";
   g.add(rainbow);
 
-  // Softer outer halo (same map, larger / dimmer)
   const halo = new THREE.Mesh(
-    new THREE.CircleGeometry(1.45, 48),
+    new THREE.CircleGeometry(1.75, 64),
     new THREE.MeshBasicMaterial({
       map: rainbowMap,
       transparent: true,
-      opacity: 0.4,
+      opacity: 0.38,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     })
   );
   halo.rotation.x = -Math.PI / 2;
-  halo.position.y = 0.028;
+  halo.position.y = 0.026;
   halo.name = "rainbowHalo";
   g.add(halo);
+
+  // Extra soft bloom ring — very large, very faint, sells diffusion
+  const bloom = new THREE.Mesh(
+    new THREE.CircleGeometry(2.35, 48),
+    new THREE.MeshBasicMaterial({
+      map: rainbowMap,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    })
+  );
+  bloom.rotation.x = -Math.PI / 2;
+  bloom.position.y = 0.022;
+  bloom.name = "rainbowBloom";
+  g.add(bloom);
 
   // ── Roof "top hat" sensor suite (Waymo fifth-gen read) ─────────────
   const suite = new THREE.Group();
@@ -356,18 +374,20 @@ export function createWaymo() {
   // Ground FX stay put; hull bobs above them
   const hull = new THREE.Group();
   hull.name = "hull";
-  const keep = new Set([shadow, rainbow, halo]);
+  const keep = new Set([shadow, rainbow, halo, bloom]);
   const move = [...g.children].filter((c) => !keep.has(c));
   for (const c of move) hull.add(c);
   g.add(hull);
   g.add(shadow);
   g.add(rainbow);
   g.add(halo);
+  g.add(bloom);
 
   g.userData.hull = hull;
   g.userData.shadow = shadow;
   g.userData.rainbow = rainbow;
   g.userData.halo = halo;
+  g.userData.bloom = bloom;
   g.userData.thrusters = thrusters;
   g.userData.hoverY = HOVER_Y;
 
@@ -378,29 +398,29 @@ export function createWaymo() {
   g.userData.tickHover = (t) => {
     const bob = Math.sin(t * 2.6) * HOVER_BOB;
     hull.position.y = HOVER_Y + bob;
-    // Tiny pitch/roll so it feels free-floating, not on rails
-    hull.rotation.x = Math.sin(t * 1.9) * 0.016;
-    hull.rotation.z = Math.sin(t * 2.3 + 0.4) * 0.012;
-    // Shadow breathes with height
+    hull.rotation.x = Math.sin(t * 1.9) * 0.012;
+    hull.rotation.z = Math.sin(t * 2.3 + 0.4) * 0.01;
     const lift = (bob + HOVER_BOB) / (HOVER_BOB * 2);
-    shadow.scale.setScalar(0.9 + lift * 0.14);
-    shadow.material.opacity = 0.34 - lift * 0.1;
-    // Spinning rainbow gradient under the belly
-    rainbow.rotation.z = t * 0.9;
-    halo.rotation.z = -t * 0.45;
-    const pulse = 0.7 + 0.3 * (0.5 + 0.5 * Math.sin(t * 5.2));
-    rainbow.material.opacity = 0.75 + pulse * 0.2;
-    halo.material.opacity = 0.28 + pulse * 0.18;
-    const breath = 0.96 + pulse * 0.08;
+    shadow.scale.setScalar(0.88 + lift * 0.12);
+    shadow.material.opacity = 0.32 - lift * 0.08;
+    // Diffused rainbow: slow counter-rotating layers
+    rainbow.rotation.z = t * 0.55;
+    halo.rotation.z = -t * 0.28;
+    bloom.rotation.z = t * 0.14;
+    const pulse = 0.65 + 0.35 * (0.5 + 0.5 * Math.sin(t * 3.8));
+    rainbow.material.opacity = 0.55 + pulse * 0.28;
+    halo.material.opacity = 0.28 + pulse * 0.16;
+    bloom.material.opacity = 0.12 + pulse * 0.1;
+    const breath = 0.94 + pulse * 0.1;
     rainbow.scale.setScalar(breath);
-    halo.scale.setScalar(breath);
-    // Thrusters cycle through pride hues
+    halo.scale.setScalar(breath * 1.02);
+    bloom.scale.setScalar(breath * 1.04);
     for (const thr of thrusters) {
-      const h = (thr.userData.hue + t * 0.15) % 1;
-      thr.material.emissive.setHSL(h, 0.85, 0.55);
-      thr.material.color.setHSL(h, 0.7, 0.6);
-      thr.material.emissiveIntensity = 0.75 + pulse * 0.4;
-      thr.scale.setScalar(0.9 + pulse * 0.14);
+      const h = (thr.userData.hue + t * 0.18) % 1;
+      thr.material.emissive.setHSL(h, 0.9, 0.58);
+      thr.material.color.setHSL(h, 0.75, 0.62);
+      thr.material.emissiveIntensity = 0.7 + pulse * 0.45;
+      thr.scale.setScalar(0.88 + pulse * 0.16);
     }
   };
 
@@ -414,8 +434,8 @@ export function createWaymo() {
 }
 
 /**
- * Radial rainbow disc for the hover underglow. Angular bands fade to transparent
- * at the edge so AdditiveBlending reads as a soft tech glow, not a hard sticker.
+ * Soft rainbow disc: many narrow angular bands + heavy radial falloff so it
+ * reads as a diffused glow rather than a hard pie chart.
  */
 function _rainbowGlowTexture() {
   const S = 256;
@@ -424,31 +444,35 @@ function _rainbowGlowTexture() {
   const ctx = c.getContext("2d");
   const cx = S / 2;
   const cy = S / 2;
-  const bands = [
-    "#ff2a6a",
-    "#ff8c2a",
-    "#ffd12a",
-    "#2aff7a",
-    "#2ac8ff",
-    "#8a4dff",
-  ];
-  const n = bands.length;
+  // More bands = smoother rainbow
+  const n = 24;
   for (let i = 0; i < n; i++) {
-    const a0 = (i / n) * Math.PI * 2 - Math.PI / 2;
-    const a1 = ((i + 1) / n) * Math.PI * 2 - Math.PI / 2;
+    const a0 = (i / n) * Math.PI * 2;
+    const a1 = ((i + 1) / n) * Math.PI * 2;
+    const hue = (i / n) * 360;
     ctx.beginPath();
     ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, S * 0.48, a0, a1);
+    ctx.arc(cx, cy, S * 0.5, a0, a1);
     ctx.closePath();
-    ctx.fillStyle = bands[i];
+    ctx.fillStyle = `hsl(${hue}, 95%, 58%)`;
     ctx.fill();
   }
-  // Soft radial mask — hot core, transparent rim
+  // Soft white core
+  const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, S * 0.22);
+  core.addColorStop(0, "rgba(255,255,255,0.55)");
+  core.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.globalCompositeOperation = "lighter";
+  ctx.fillStyle = core;
+  ctx.beginPath();
+  ctx.arc(cx, cy, S * 0.22, 0, Math.PI * 2);
+  ctx.fill();
+  // Heavy edge fade for diffusion
   ctx.globalCompositeOperation = "destination-in";
   const mask = ctx.createRadialGradient(cx, cy, 0, cx, cy, S * 0.5);
   mask.addColorStop(0, "rgba(255,255,255,1)");
-  mask.addColorStop(0.4, "rgba(255,255,255,0.9)");
-  mask.addColorStop(0.72, "rgba(255,255,255,0.4)");
+  mask.addColorStop(0.25, "rgba(255,255,255,0.95)");
+  mask.addColorStop(0.55, "rgba(255,255,255,0.55)");
+  mask.addColorStop(0.8, "rgba(255,255,255,0.18)");
   mask.addColorStop(1, "rgba(255,255,255,0)");
   ctx.fillStyle = mask;
   ctx.fillRect(0, 0, S, S);
@@ -549,12 +573,14 @@ export class RideshareSystem {
    *   aisle?: THREE.Vector3,
    *   yardCorner?: THREE.Vector3,
    * }} anchors from LifeSystem (world space)
+   * @param {import('./life.js').LifeSystem|null} [life] for traffic / ped separation
    */
-  constructor(parent, venue, anchors) {
+  constructor(parent, venue, anchors, life = null) {
     this.root = new THREE.Group();
     this.root.name = "rideshare";
     parent.add(this.root);
 
+    this.life = life;
     this.streetDoor = anchors.streetDoor.clone();
     this.mouth = anchors.mouth ? anchors.mouth.clone() : null;
     this.aisle = anchors.aisle ? anchors.aisle.clone() : null;
@@ -593,9 +619,11 @@ export class RideshareSystem {
       this.root.add(g);
     }
 
-    // Floating reaction sprites for the closed-hours bit
+    // Floating reaction sprites for the closed-hours bit + wait SMS
     this.qMark = this._makeBillboard(_questionTexture(), 0.55);
     this.knockFx = this._makeBillboard(_knockTexture(), 0.7);
+    this.waitSms = this._makeBillboard(_waitSmsTexture(), 1.35);
+    this.waitSms.scale.set(1.6, 0.72, 1);
     this.phone = this._buildPhone();
     this.phone.visible = false;
     this.root.add(this.phone);
@@ -603,6 +631,7 @@ export class RideshareSystem {
     this.job = null;
     this.bob = 0;
     this.clock = 0;
+    this.waitSmsT = 0;
   }
 
   _makeBillboard(map, size) {
@@ -765,6 +794,64 @@ export class RideshareSystem {
     this.qMark.visible = false;
     this.knockFx.visible = false;
     this.phone.visible = false;
+    this.waitSms.visible = false;
+    this.waitSmsT = 0;
+  }
+
+  /**
+   * Soft personal space among guest party (+ life peds if available).
+   */
+  _separateGuests() {
+    const party = this.guests.filter((g) => g.visible);
+    const others = this.life?.pedMeshes?.() || [];
+    const all = [...party, ...others];
+    for (const g of party) {
+      if (this.life?.separatePed) this.life.separatePed(g, all, PED_MIN);
+      else {
+        // Fallback if no life system
+        for (const o of party) {
+          if (o === g) continue;
+          const dx = g.position.x - o.position.x;
+          const dz = g.position.z - o.position.z;
+          const d = Math.hypot(dx, dz);
+          if (d < 1e-4 || d >= PED_MIN) continue;
+          const push = (PED_MIN - d) * 0.55;
+          g.position.x += (dx / d) * push;
+          g.position.z += (dz / d) * push;
+        }
+      }
+    }
+  }
+
+  /** Show "Your Gaymo will arrive shortly!" above the first waiting guest. */
+  _showWaitSms() {
+    const g = this.guests.find((x) => x.visible) || this.guests[0];
+    if (!g) return;
+    this.waitSms.visible = true;
+    this.waitSms.material.opacity = 1;
+    this.waitSmsT = 3.4;
+    this.waitSms.position.set(g.position.x, 1.55, g.position.z);
+  }
+
+  _tickWaitSms(dt) {
+    if (this.waitSmsT <= 0) {
+      this.waitSms.visible = false;
+      return;
+    }
+    this.waitSmsT -= dt;
+    const g = this.guests.find((x) => x.visible);
+    if (g) {
+      this.waitSms.position.set(
+        g.position.x,
+        1.5 + Math.sin(this.clock * 2.5) * 0.04,
+        g.position.z
+      );
+    }
+    // Fade last 0.7s
+    if (this.waitSmsT < 0.7) {
+      this.waitSms.material.opacity = Math.max(0, this.waitSmsT / 0.7);
+    }
+    if (this.waitSmsT <= 0) this.waitSms.visible = false;
   }
 
   _faceDoor(guest) {
@@ -1008,6 +1095,7 @@ export class RideshareSystem {
         g.position.y = 0;
       }
     }
+    this._separateGuests();
     return allDone;
   }
 
@@ -1028,11 +1116,21 @@ export class RideshareSystem {
 
   _tickCar(job, t) {
     if (!job.carPath || !this.waymo.visible) return true;
+    // Brake for ambient traffic (and they brake for us via getExtraVehicles)
+    let scale = 1;
+    if (this.life?.trafficScale) {
+      const tr = this.life.trafficScale(this.waymo);
+      scale = tr.scale;
+      // Soft nose dip when slammed on the brakes
+      if (tr.stop && this.waymo.userData.hull) {
+        this.waymo.userData.hull.rotation.x = 0.06;
+      }
+    }
     const r = this._advance(
       this.waymo,
       job.carPath,
       job.carI,
-      this._carSpeed(job),
+      this._carSpeed(job) * scale,
       t
     );
     job.carI = r.pathI;
@@ -1059,6 +1157,7 @@ export class RideshareSystem {
       this.waymo.userData.pulseLed?.(this.clock);
       this.waymo.userData.tickHover?.(this.clock);
     }
+    this._tickWaitSms(t);
 
     const job = this.job;
     if (!job) return;
@@ -1076,15 +1175,17 @@ export class RideshareSystem {
         }
         job.state = ST.WAIT_CURB;
         job.wait = 0.55 + Math.random() * 0.35;
+        this._showWaitSms();
         break;
       }
 
       case ST.WAIT_CURB: {
         job.wait -= t;
-        // Idle sway
+        // Idle sway — keep personal space while they fidget
         for (let i = 0; i < job.n; i++) {
           this.guests[i].position.y = Math.sin(this.clock * 2.2 + i) * 0.012;
         }
+        this._separateGuests();
         if (job.wait > 0) break;
 
         const path = this._arrivePath();
@@ -1368,5 +1469,39 @@ function _knockTexture() {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("knock knock", 128, 50);
+  return canvasTexture(c);
+}
+
+/** iMessage-style bubble above a waiting guest. */
+function _waitSmsTexture() {
+  const c = document.createElement("canvas");
+  c.width = 512;
+  c.height = 160;
+  const ctx = c.getContext("2d");
+  // Dark glass bubble
+  ctx.fillStyle = "rgba(30, 28, 48, 0.92)";
+  roundRect(ctx, 12, 20, 488, 120, 28);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.12)";
+  ctx.lineWidth = 2;
+  roundRect(ctx, 12, 20, 488, 120, 28);
+  ctx.stroke();
+  // Tail
+  ctx.fillStyle = "rgba(30, 28, 48, 0.92)";
+  ctx.beginPath();
+  ctx.moveTo(80, 130);
+  ctx.lineTo(100, 156);
+  ctx.lineTo(120, 130);
+  ctx.closePath();
+  ctx.fill();
+  // From line
+  ctx.fillStyle = "#3ec8ff";
+  ctx.font = "bold 22px system-ui, sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("Gaymo", 36, 52);
+  // Body
+  ctx.fillStyle = "#f2eef8";
+  ctx.font = "600 28px system-ui, sans-serif";
+  ctx.fillText("Your Gaymo will arrive shortly!", 36, 98);
   return canvasTexture(c);
 }
