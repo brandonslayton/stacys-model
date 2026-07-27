@@ -709,20 +709,68 @@ export function addHangingPrideFlag(g, x, yArm, z, scale = 1, yaw = 0) {
   g.add(root);
 }
 
-/** Low-poly dumpster for the back of venues. Hers is named Leslie. */
+/**
+ * Low-poly dumpster for the back of venues (Leslie).
+ * A few ribs / rails / hinges only — still reads as the same character.
+ */
 export function createDumpster(x = 0, z = 0) {
   const g = new THREE.Group();
   g.userData.isLeslie = true;
-  const body = box(1.15, 0.95, 0.75, 0x3d5c42, { metalness: 0.25, roughness: 0.65 });
+  const metal = { metalness: 0.28, roughness: 0.62 };
+  const dark = { metalness: 0.32, roughness: 0.55 };
+
+  // Main body
+  const body = box(1.15, 0.95, 0.75, 0x3d5c42, metal);
   body.position.y = 0.55;
   g.add(body);
-  // Lid
-  const lid = box(1.2, 0.1, 0.8, 0x2a4030, { metalness: 0.3, roughness: 0.55 });
+
+  // Top rim (lip around the open mouth)
+  const rim = box(1.22, 0.06, 0.82, 0x324a38, dark);
+  rim.position.y = 1.0;
+  g.add(rim);
+
+  // Horizontal body ribs — just two, enough to read as stamped steel
+  for (const dy of [-0.18, 0.12]) {
+    const rib = box(1.18, 0.04, 0.78, 0x354f3a, metal);
+    rib.position.set(0, 0.55 + dy, 0);
+    g.add(rib);
+  }
+
+  // Lid (slightly ajar)
+  const lid = box(1.2, 0.1, 0.8, 0x2a4030, dark);
   lid.position.set(0, 1.08, -0.05);
   lid.rotation.x = -0.12;
   lid.name = "leslieLid";
   g.add(lid);
-  // Wheels
+  // Hinge bar at the back edge
+  const hinge = box(1.15, 0.05, 0.06, 0x1e2e22, dark);
+  hinge.position.set(0, 1.04, -0.4);
+  g.add(hinge);
+  // Front lid handle
+  const handle = box(0.28, 0.04, 0.06, 0x1a1a1e, { metalness: 0.45, roughness: 0.4 });
+  handle.position.set(0, 1.14, 0.32);
+  g.add(handle);
+
+  // Side lift pockets / rails (both sides — garbage truck grabs these)
+  for (const side of [-1, 1]) {
+    const rail = box(0.08, 0.35, 0.7, 0x2a4030, dark);
+    rail.position.set(side * 0.58, 0.7, 0);
+    g.add(rail);
+    // Pocket lip
+    const pocket = box(0.1, 0.12, 0.28, 0x243628, dark);
+    pocket.position.set(side * 0.62, 0.72, 0.05);
+    g.add(pocket);
+  }
+
+  // Front latch plate (no text — just a darker pad)
+  const latch = box(0.22, 0.16, 0.04, 0x2a3a2e, dark);
+  latch.position.set(0, 0.55, 0.39);
+  g.add(latch);
+  const latchBar = box(0.14, 0.03, 0.05, 0x4a5048, { metalness: 0.5, roughness: 0.4 });
+  latchBar.position.set(0, 0.55, 0.42);
+  g.add(latchBar);
+
+  // Wheels with simple hubs
   for (const [wx, wz] of [
     [-0.4, 0.28],
     [0.4, 0.28],
@@ -733,42 +781,11 @@ export function createDumpster(x = 0, z = 0) {
     wh.rotation.z = Math.PI / 2;
     wh.position.set(wx, 0.12, wz);
     g.add(wh);
+    const hub = cyl(0.04, 0.04, 0.09, 0x5a5a58, { metalness: 0.4, roughness: 0.5 }, 6);
+    hub.rotation.z = Math.PI / 2;
+    hub.position.set(wx, 0.12, wz);
+    g.add(hub);
   }
-  // Side rail
-  const rail = box(0.08, 0.35, 0.7, 0x2a4030);
-  rail.position.set(0.55, 0.7, 0);
-  g.add(rail);
-
-  // Nameplate — she's Leslie
-  const plate = document.createElement("canvas");
-  plate.width = 256;
-  plate.height = 64;
-  const ctx = plate.getContext("2d");
-  ctx.fillStyle = "#1a2218";
-  ctx.fillRect(0, 0, 256, 64);
-  ctx.strokeStyle = "#c9a227";
-  ctx.lineWidth = 4;
-  ctx.strokeRect(4, 4, 248, 56);
-  ctx.fillStyle = "#e8f0e0";
-  ctx.font = "bold 36px Arial, sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText("LESLIE", 128, 34);
-  const tex = new THREE.CanvasTexture(plate);
-  if ("colorSpace" in tex) tex.colorSpace = THREE.SRGBColorSpace;
-  tex.needsUpdate = true;
-  const namePlate = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.55, 0.14),
-    new THREE.MeshStandardMaterial({
-      map: tex,
-      roughness: 0.55,
-      metalness: 0.15,
-      flatShading: true,
-    })
-  );
-  // Body faces +Z in local dumpster space; plate on the front face
-  namePlate.position.set(0, 0.72, 0.39);
-  g.add(namePlate);
 
   g.position.set(x, 0, z);
   // Rest pose for garbage-truck lift / tip animation
