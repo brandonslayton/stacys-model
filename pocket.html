@@ -65,6 +65,17 @@
   <button id="ride" type="button" aria-label="Call a Gaymo — tap to pick up, hold or double-tap to drop off" title="Tap: pick up · Hold / double-tap: drop off"></button>
 </div>
 
+<!-- Closed-hours pickup: Gaymo texts that nobody is free to ride -->
+<div id="sms" hidden>
+  <div class="sms-shell">
+    <div class="sms-app">Gaymo</div>
+    <div class="sms-bubble">
+      <div class="sms-body" id="sms-body"></div>
+      <div class="sms-meta" id="sms-meta">now</div>
+    </div>
+  </div>
+</div>
+
 <script type="module" src="js/pocket.js"></script>
 </body>
 </html>

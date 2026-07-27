@@ -373,6 +373,66 @@ body { user-select: none; -webkit-user-select: none; }
   border-color: transparent;
 }
 
+/* ---------------------------------------------------------------- Gaymo SMS
+   iMessage-ish toast for "no passenger available" when the bar is closed. */
+#sms {
+  position: fixed;
+  left: var(--pad);
+  right: var(--pad);
+  bottom: max(72px, calc(env(safe-area-inset-bottom) + 64px));
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 8;
+  opacity: 0;
+  transform: translateY(12px) scale(0.96);
+  transition: opacity 0.35s ease, transform 0.4s cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+#sms.show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+#sms .sms-shell {
+  max-width: 320px;
+  width: 100%;
+}
+
+#sms .sms-app {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cool);
+  margin: 0 0 6px 14px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+}
+
+#sms .sms-bubble {
+  padding: 12px 14px 10px;
+  border-radius: 20px 20px 20px 6px;
+  background: #2a2a32;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  color: #f2eef8;
+}
+
+#sms .sms-body {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+#sms .sms-meta {
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--dim);
+  text-align: right;
+}
+
 /* Misters running — cool tint rather than the plain white "active" of auto-rotate,
    so the two toggles are distinguishable at a glance. */
 #mist.on {

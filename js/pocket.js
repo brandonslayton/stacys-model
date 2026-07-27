@@ -515,11 +515,36 @@ function wireMistButton(mist) {
 }
 
 /**
+ * iMessage-style toast from Gaymo (used when pickup is requested while closed).
+ */
+let smsHideTimer = null;
+function showGaymoSms(body) {
+  const el = $("sms");
+  const text = $("sms-body");
+  const meta = $("sms-meta");
+  if (!el || !text) return;
+  text.textContent = body;
+  if (meta) meta.textContent = "now";
+  el.hidden = false;
+  // Next frame so the transition plays
+  requestAnimationFrame(() => el.classList.add("show"));
+  if (smsHideTimer) clearTimeout(smsHideTimer);
+  smsHideTimer = setTimeout(() => {
+    el.classList.remove("show");
+    setTimeout(() => {
+      el.hidden = true;
+    }, 400);
+    smsHideTimer = null;
+  }, 4800);
+}
+
+/**
  * Gaymo button (Waymo-branded hover robotaxi).
  *
- *   tap            → guests leave the bar, wait, get picked up
- *   double-tap     → Gaymo drops someone off
- *   long-press     → same as double-tap (phones struggle with dblclick)
+ *   tap (open)     → guests leave the bar, wait, get picked up
+ *   tap (closed)   → Gaymo texts: no passenger available
+ *   double-tap / hold (open)   → drop-off, walk in
+ *   double-tap / hold (closed) → drop-off, knock, confused, rescue Gaymo
  *
  * A short delay on the single-tap lets a second tap cancel it and run dropoff
  * instead, so double-tap is not racing a pickup start.
@@ -550,13 +575,21 @@ function wireRideButton(rideshare) {
   };
 
   const runPickup = () => {
+    // Closed: nobody inside to pick up — Gaymo sends a text instead of a car
+    if (!isOpenNow(venueNow())) {
+      showGaymoSms(
+        "No passengers available for pickup right now. Try again when Stacy's is open ✨"
+      );
+      return;
+    }
     if (!rideshare.startPickup()) return;
     beginFocus(RIDESHARE_VIEW);
     lockUntilDone();
   };
 
   const runDropoff = () => {
-    if (!rideshare.startDropoff()) return;
+    const closed = !isOpenNow(venueNow());
+    if (!rideshare.startDropoff({ closed })) return;
     beginFocus(RIDESHARE_VIEW);
     lockUntilDone();
   };

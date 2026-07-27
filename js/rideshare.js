@@ -1,19 +1,18 @@
 /**
- * rideshare.js — Gaymo pickup / drop-off at the curb.
+ * rideshare.js — Gaymo pickup / drop-off in the lot.
  *
- * Tap: one or two guests walk out of the porch, wait on the sidewalk, a Gaymo
- * (Waymo-branded robotaxi, hover edition) pulls up, they board, and it glides off.
+ * Tap (open): guests leave the porch, wait in the aisle, a Gaymo pulls in, they
+ * board, it exits past the dumpster.
  *
- * Double-tap or long-press: a Gaymo arrives, drops one or two people off, they
- * walk into the bar, and it leaves.
+ * Tap (closed): no scene — the UI shows a Gaymo text that no passenger is free.
+ *
+ * Hold / double-tap (open): drop-off, walk in, Gaymo leaves.
+ *
+ * Hold / double-tap (closed): drop-off, Gaymo drives off, the guest knocks on the
+ * locked door, gets confused, calls another Gaymo, and gets rescued.
  *
  * Separate from life.js on purpose — ambient cars are anonymous and pool-based;
  * this is a named one-shot performance with a unique robotaxi mesh.
- *
- * Visuals lean on the real Jaguar I-PACE Waymo fleet: white body, charcoal
- * rocker, roof "top hat" lidar, perimeter corner sensors, cyan status LEDs —
- * then bent into Stacy's: "Gaymo" wordmark, pride underglow, and a true hover
- * (no wheels, soft thruster pads, road shadow, idle bob).
  */
 import * as THREE from "three";
 import { box, cyl, canvasTexture, roundRect } from "./kit.js";
@@ -38,6 +37,14 @@ const ST = {
   DEBOARD: "deboard",
   TO_DOOR: "to_door",
   WAYMO_OUT: "waymo_out",
+  /** Closed drop-off: guest walks to door while the first Gaymo leaves. */
+  CLOSED_WALK: "closed_walk",
+  KNOCK: "knock",
+  CONFUSED: "confused",
+  CALL: "call",
+  RESCUE_IN: "rescue_in",
+  RESCUE_BOARD: "rescue_board",
+  RESCUE_OUT: "rescue_out",
 };
 
 const WHITE = {
@@ -504,9 +511,45 @@ export class RideshareSystem {
       this.root.add(g);
     }
 
+    // Floating reaction sprites for the closed-hours bit
+    this.qMark = this._makeBillboard(_questionTexture(), 0.55);
+    this.knockFx = this._makeBillboard(_knockTexture(), 0.7);
+    this.phone = this._buildPhone();
+    this.phone.visible = false;
+    this.root.add(this.phone);
+
     this.job = null;
     this.bob = 0;
     this.clock = 0;
+  }
+
+  _makeBillboard(map, size) {
+    const s = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map,
+        transparent: true,
+        depthWrite: false,
+      })
+    );
+    s.scale.setScalar(size);
+    s.visible = false;
+    this.root.add(s);
+    return s;
+  }
+
+  _buildPhone() {
+    const g = new THREE.Group();
+    const body = box(0.08, 0.14, 0.02, 0x1a1a22, { roughness: 0.4, metalness: 0.3 });
+    body.position.y = 0.07;
+    g.add(body);
+    const screen = box(0.06, 0.1, 0.005, 0x3ec8ff, {
+      roughness: 0.2,
+      emissive: 0x3ec8ff,
+      emissiveIntensity: 0.7,
+    });
+    screen.position.set(0, 0.07, 0.014);
+    g.add(screen);
+    return g;
   }
 
   /**
@@ -566,7 +609,8 @@ export class RideshareSystem {
   }
 
   /**
-   * Guests leave the bar and get picked up.
+   * Guests leave the bar and get picked up. Only valid while the venue is open —
+   * callers should show the "no passenger" SMS when closed instead.
    * @returns {boolean}
    */
   startPickup() {
@@ -580,8 +624,10 @@ export class RideshareSystem {
       g.position.y = 0;
     }
     this.waymo.visible = false;
+    this._hideFx();
     this.job = {
       mode: "pickup",
+      closed: false,
       state: ST.GUESTS_OUT,
       n,
       pathI: new Array(n).fill(0),
@@ -594,12 +640,15 @@ export class RideshareSystem {
   }
 
   /**
-   * Waymo drops guests at the curb; they walk in.
+   * Gaymo drops guests in the lot.
+   * @param {{closed?: boolean}} [opts] when closed, after drop-off the guest
+   *   knocks, panics, and calls a second Gaymo for rescue (party of one).
    * @returns {boolean}
    */
-  startDropoff() {
+  startDropoff(opts = {}) {
     if (this.job) return false;
-    const n = this._partySize();
+    const closed = !!opts.closed;
+    const n = closed ? 1 : this._partySize();
     this._resetGuests(n);
     for (const g of this.guests) g.visible = false;
 
@@ -610,9 +659,11 @@ export class RideshareSystem {
       path[1].x - path[0].x,
       path[1].z - path[0].z
     );
+    this._hideFx();
 
     this.job = {
       mode: "dropoff",
+      closed,
       state: ST.WAYMO_IN,
       n,
       pathI: new Array(n).fill(0),
@@ -621,8 +672,35 @@ export class RideshareSystem {
       carPath: path,
       carI: 0,
       lotFrom: this.inLot ? 3 : path.length,
+      knocks: 0,
+      knockPhase: 0,
     };
     return true;
+  }
+
+  _hideFx() {
+    this.qMark.visible = false;
+    this.knockFx.visible = false;
+    this.phone.visible = false;
+  }
+
+  _faceDoor(guest) {
+    // Porch faces roughly +Z; aim at the door from just outside
+    guest.rotation.y = Math.atan2(
+      this.streetDoor.x - guest.position.x,
+      this.streetDoor.z - guest.position.z
+    );
+  }
+
+  _placePhone(guest) {
+    const yaw = guest.rotation.y;
+    this.phone.visible = true;
+    this.phone.position.set(
+      guest.position.x + Math.cos(yaw) * 0.22,
+      0.7,
+      guest.position.z - Math.sin(yaw) * 0.22
+    );
+    this.phone.rotation.y = yaw;
   }
 
   /**
@@ -854,10 +932,37 @@ export class RideshareSystem {
     const remaining = path.length - job.carI;
     // Crawl the last few waypoints (into the stop, or the dumpster left-turn)
     if (remaining <= 3) return ROAD_SLOW;
-    // Lot speed once off 7th Ave
-    if (job.state === ST.WAYMO_OUT) return this.inLot ? 5.2 : ROAD;
+    const leaving =
+      job.state === ST.WAYMO_OUT ||
+      job.state === ST.RESCUE_OUT ||
+      job.state === ST.CLOSED_WALK;
+    if (leaving) return this.inLot ? 5.2 : ROAD;
     if (this.inLot && job.carI >= (job.lotFrom ?? 2)) return 4.6;
     return ROAD;
+  }
+
+  _tickCar(job, t) {
+    if (!job.carPath || !this.waymo.visible) return true;
+    const r = this._advance(
+      this.waymo,
+      job.carPath,
+      job.carI,
+      this._carSpeed(job),
+      t
+    );
+    job.carI = r.pathI;
+    return r.done;
+  }
+
+  _spawnArrive() {
+    const path = this._arrivePath();
+    this.waymo.visible = true;
+    this.waymo.position.copy(path[0]);
+    this.waymo.rotation.y = Math.atan2(
+      path[1].x - path[0].x,
+      path[1].z - path[0].z
+    );
+    return path;
   }
 
   update(dt) {
@@ -964,7 +1069,16 @@ export class RideshareSystem {
           job.wait -= t;
           break;
         }
-        job.state = ST.TO_DOOR;
+        job.paths = this._pathsCarToDoor(job.n);
+        job.pathI = new Array(job.n).fill(0);
+        if (job.closed) {
+          // Gaymo peels off immediately; guest heads to the (locked) door
+          job.carPath = this._leavePath();
+          job.carI = 0;
+          job.state = ST.CLOSED_WALK;
+        } else {
+          job.state = ST.TO_DOOR;
+        }
         break;
       }
 
@@ -978,20 +1092,155 @@ export class RideshareSystem {
         break;
       }
 
+      case ST.CLOSED_WALK: {
+        // First Gaymo leaves while the guest walks to the porch
+        if (this.waymo.visible && job.carPath) {
+          if (this._tickCar(job, t)) {
+            this.waymo.visible = false;
+            job.carPath = null;
+          }
+        }
+        if (!this._tickGuests(job, t)) break;
+        // At the door — face it and start knocking
+        const g = this.guests[0];
+        g.position.copy(this.streetDoor);
+        this._faceDoor(g);
+        job.knocks = 0;
+        job.knockPhase = 0;
+        job.wait = 0;
+        job.state = ST.KNOCK;
+        break;
+      }
+
+      case ST.KNOCK: {
+        const g = this.guests[0];
+        this._faceDoor(g);
+        // Three knocks: lean in / lean out, float a "knock" sprite each time
+        job.knockPhase += t;
+        const half = 0.18;
+        const cycle = half * 2;
+        const idx = Math.min(3, Math.floor(job.knockPhase / cycle));
+        const inKnock = job.knockPhase % cycle;
+        const lean =
+          idx >= 3
+            ? 0
+            : inKnock < half
+              ? inKnock / half
+              : 1 - (inKnock - half) / half;
+        g.position.y = lean * 0.04;
+        const yaw = g.rotation.y;
+        g.position.x = this.streetDoor.x + Math.sin(yaw) * lean * 0.08;
+        g.position.z = this.streetDoor.z + Math.cos(yaw) * lean * 0.08;
+
+        if (idx > job.knocks && job.knocks < 3) {
+          job.knocks = idx;
+          this.knockFx.visible = true;
+          this.knockFx.material.opacity = 1;
+          this.knockFx.position.set(
+            this.streetDoor.x,
+            1.35,
+            this.streetDoor.z + 0.15
+          );
+        }
+        if (this.knockFx.visible) {
+          this.knockFx.position.y += t * 0.6;
+          this.knockFx.material.opacity -= t * 1.4;
+          if (this.knockFx.material.opacity <= 0) this.knockFx.visible = false;
+        }
+
+        if (job.knockPhase > cycle * 3 + 0.35) {
+          this.knockFx.visible = false;
+          g.position.copy(this.streetDoor);
+          g.position.y = 0;
+          job.wait = 0;
+          job.state = ST.CONFUSED;
+        }
+        break;
+      }
+
+      case ST.CONFUSED: {
+        const g = this.guests[0];
+        job.wait += t;
+        // Look left-right, big question mark overhead
+        g.rotation.y = Math.sin(job.wait * 3.2) * 0.85;
+        g.position.y = Math.abs(Math.sin(job.wait * 6)) * 0.02;
+        this.qMark.visible = true;
+        this.qMark.position.set(g.position.x, 1.45, g.position.z);
+        this.qMark.material.opacity =
+          0.75 + 0.25 * Math.sin(job.wait * 5);
+        if (job.wait < 2.2) break;
+        this.qMark.visible = false;
+        g.position.y = 0;
+        this._faceDoor(g);
+        job.wait = 0;
+        job.state = ST.CALL;
+        break;
+      }
+
+      case ST.CALL: {
+        const g = this.guests[0];
+        job.wait += t;
+        // Phone out, glance at the screen
+        this._placePhone(g);
+        g.rotation.y += Math.sin(job.wait * 2) * 0.02;
+        if (job.wait < 1.6) break;
+        this.phone.visible = false;
+        // Call a rescue Gaymo — walk back to the aisle wait spot
+        job.paths = [
+          this._clean([
+            this.streetDoor.clone(),
+            this.yardCorner.clone(),
+            (this.waitPoints[0] || this.carStop).clone(),
+          ]),
+        ];
+        job.pathI = [0];
+        job.n = 1;
+        job.state = ST.RESCUE_IN;
+        job.wait = 0;
+        // Spawn the rescue ride as they start walking back
+        job.carPath = this._spawnArrive();
+        job.carI = 0;
+        job.lotFrom = this.inLot ? 3 : job.carPath.length;
+        break;
+      }
+
+      case ST.RESCUE_IN: {
+        // Guest to wait spot + Gaymo into the lot
+        const guestDone = this._tickGuests(job, t);
+        const carDone = this._tickCar(job, t);
+        if (!carDone) break;
+        this.waymo.position.copy(this.carStop);
+        this.waymo.rotation.y = this.stopFaceY;
+        if (!guestDone) break;
+        // Board the rescue
+        job.paths = this._pathsCurbToCar(1);
+        job.pathI = [0];
+        job.state = ST.RESCUE_BOARD;
+        job.wait = 0.25;
+        break;
+      }
+
+      case ST.RESCUE_BOARD: {
+        if (job.wait > 0) {
+          job.wait -= t;
+          break;
+        }
+        if (!this._tickGuests(job, t, WALK * 1.05)) break;
+        this.guests[0].visible = false;
+        job.wait = 0.3;
+        job.state = ST.RESCUE_OUT;
+        job.carPath = this._leavePath();
+        job.carI = 0;
+        break;
+      }
+
+      case ST.RESCUE_OUT:
       case ST.WAYMO_OUT: {
         if (job.wait > 0) {
           job.wait -= t;
           break;
         }
-        const r = this._advance(
-          this.waymo,
-          job.carPath,
-          job.carI,
-          this._carSpeed(job),
-          t
-        );
-        job.carI = r.pathI;
-        if (!r.done) break;
+        if (!this._tickCar(job, t)) break;
         this._finish();
         break;
       }
@@ -1004,6 +1253,35 @@ export class RideshareSystem {
   _finish() {
     this.waymo.visible = false;
     for (const g of this.guests) g.visible = false;
+    this._hideFx();
     this.job = null;
   }
+}
+
+function _questionTexture() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#3ec8ff";
+  ctx.font = "bold 100px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("?", 64, 72);
+  return canvasTexture(c);
+}
+
+function _knockTexture() {
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 96;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "rgba(20,18,34,0.75)";
+  roundRect(ctx, 8, 12, 240, 72, 16);
+  ctx.fill();
+  ctx.fillStyle = "#f2eef8";
+  ctx.font = "bold 36px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("knock knock", 128, 50);
+  return canvasTexture(c);
 }

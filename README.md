@@ -62,10 +62,12 @@ leaves the camera where it is. `js/mist.js` renders the whole thing as a single
 
 The rideshare button calls a **Gaymo** — a Waymo-branded hover robotaxi with a
 "Gaymo" door wordmark, cyan status LEDs, roof lidar top-hat, and a pride thruster
-glow under a wheel-less belly that actually floats. Tap: guests walk out to the
-parking aisle, it turns in off 7th, they board; it then continues past the dumpster,
-turns left, and despawns off the north edge. Hold or double-tap: drop-off the same
-way. `js/rideshare.js`.
+glow under a wheel-less belly that actually floats. Tap while **open**: guests walk
+out to the aisle, it turns in off 7th, they board; it exits past the dumpster.
+Tap while **closed**: no car — a Gaymo text says no passenger is available. Hold or
+double-tap while open: normal drop-off. Hold or double-tap while **closed**: drop-off,
+Gaymo leaves, the guest knocks on the locked door, looks confused, calls another
+Gaymo, and gets rescued. `js/rideshare.js`.
 
 Layout: venue name top-left with tonight's event directly under it, and top-right
 an `Open` / `Opens 4:00 PM` pill over a big weekday and date, the venue clock,
