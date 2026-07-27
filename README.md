@@ -127,8 +127,8 @@ node pocket-shot.mjs --w=1512 --h=860      # desktop layout
 node pocket-shot.mjs --w=874 --h=402       # landscape phone
 ```
 
-The `fps` readout on the card is deliberate — draw calls are the open performance
-question (see the merge pass in `CLAUDE.md`).
+`pocket-shot.mjs` prints the frame rate it measured — draw calls are the open
+performance question (see the merge pass in `CLAUDE.md`).
 
 ## Workbench controls
 
