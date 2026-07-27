@@ -709,9 +709,10 @@ export function addHangingPrideFlag(g, x, yArm, z, scale = 1, yaw = 0) {
   g.add(root);
 }
 
-/** Low-poly dumpster for the back of venues. */
+/** Low-poly dumpster for the back of venues. Hers is named Leslie. */
 export function createDumpster(x = 0, z = 0) {
   const g = new THREE.Group();
+  g.userData.isLeslie = true;
   const body = box(1.15, 0.95, 0.75, 0x3d5c42, { metalness: 0.25, roughness: 0.65 });
   body.position.y = 0.55;
   g.add(body);
@@ -719,6 +720,7 @@ export function createDumpster(x = 0, z = 0) {
   const lid = box(1.2, 0.1, 0.8, 0x2a4030, { metalness: 0.3, roughness: 0.55 });
   lid.position.set(0, 1.08, -0.05);
   lid.rotation.x = -0.12;
+  lid.name = "leslieLid";
   g.add(lid);
   // Wheels
   for (const [wx, wz] of [
@@ -736,6 +738,41 @@ export function createDumpster(x = 0, z = 0) {
   const rail = box(0.08, 0.35, 0.7, 0x2a4030);
   rail.position.set(0.55, 0.7, 0);
   g.add(rail);
+
+  // Nameplate — she's Leslie
+  const plate = document.createElement("canvas");
+  plate.width = 256;
+  plate.height = 64;
+  const ctx = plate.getContext("2d");
+  ctx.fillStyle = "#1a2218";
+  ctx.fillRect(0, 0, 256, 64);
+  ctx.strokeStyle = "#c9a227";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(4, 4, 248, 56);
+  ctx.fillStyle = "#e8f0e0";
+  ctx.font = "bold 36px Arial, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("LESLIE", 128, 34);
+  const tex = new THREE.CanvasTexture(plate);
+  if ("colorSpace" in tex) tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  const namePlate = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.55, 0.14),
+    new THREE.MeshStandardMaterial({
+      map: tex,
+      roughness: 0.55,
+      metalness: 0.15,
+      flatShading: true,
+    })
+  );
+  // Body faces +Z in local dumpster space; plate on the front face
+  namePlate.position.set(0, 0.72, 0.39);
+  g.add(namePlate);
+
   g.position.set(x, 0, z);
+  // Rest pose for garbage-truck lift / tip animation
+  g.userData.homeY = 0;
+  g.userData.homeRotX = 0;
   return g;
 }

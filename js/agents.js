@@ -1455,6 +1455,236 @@ export function createLiquorCrate() {
   return g;
 }
 
+/**
+ * Rear-loader garbage truck — comes for Leslie.
+ * Local +Z = nose. Lift arms live at the rear (−Z); call
+ * `mesh.userData.setLift(t)` with t in 0..1 (0 rest → 1 fully tipped into hopper).
+ */
+export function createGarbageTruck() {
+  const g = new THREE.Group();
+  g.name = "garbageTruck";
+  g.userData.carStyle = "garbage";
+  g.userData.kind = "garbage";
+  g.userData.delivery = true;
+
+  const green = 0x2d6b3a;
+  const greenDark = 0x1a4024;
+  const white = 0xecece8;
+  const paint = { roughness: 0.4, metalness: 0.28 };
+  const w = 1.3;
+  const halfW = w * 0.5;
+  const cabLen = 1.05;
+  const bodyLen = 2.35;
+  const totalLen = cabLen + bodyLen;
+  const noseZ = totalLen * 0.5;
+  const tailZ = -totalLen * 0.5;
+  const stance = 0.08;
+  const cabY = 0.5 + stance;
+
+  // Chassis
+  const chassis = box(w * 0.72, 0.12, totalLen * 0.9, 0x2a2a30, DARK);
+  chassis.position.y = 0.28 + stance;
+  g.add(chassis);
+
+  // ── Cab ──
+  const cabZ = noseZ - cabLen * 0.5;
+  const cab = box(w * 0.98, 0.58, cabLen * 0.9, white, paint);
+  cab.position.set(0, cabY, cabZ);
+  g.add(cab);
+  const hood = box(w * 0.92, 0.28, 0.32, white, paint);
+  hood.position.set(0, cabY - 0.06, noseZ - 0.24);
+  g.add(hood);
+  const glass = box(w * 0.9, 0.36, cabLen * 0.65, 0x0c1824, GLASS);
+  glass.position.set(0, cabY + 0.38, cabZ - 0.02);
+  g.add(glass);
+  const wind = box(w * 0.86, 0.32, 0.2, 0x0a141c, GLASS);
+  wind.position.set(0, cabY + 0.36, cabZ + cabLen * 0.28);
+  wind.rotation.x = -0.18;
+  g.add(wind);
+  // Safety stripe on cab doors
+  for (const side of [-1, 1]) {
+    const stripe = box(0.04, 0.35, cabLen * 0.5, 0xf0c14d, {
+      roughness: 0.45,
+      emissive: 0xc9a020,
+      emissiveIntensity: 0.12,
+    });
+    stripe.position.set(side * (halfW * 0.98), cabY + 0.05, cabZ);
+    g.add(stripe);
+  }
+
+  // ── Packer body / hopper ──
+  const bodyZ = tailZ + bodyLen * 0.5;
+  const bodyH = 1.15;
+  const bodyY = 0.55 + stance + 0.15;
+  const hopper = box(w * 1.05, bodyH, bodyLen * 0.92, green, paint);
+  hopper.position.set(0, bodyY, bodyZ);
+  g.add(hopper);
+  // Top crown
+  const crown = box(w * 1.0, 0.12, bodyLen * 0.85, greenDark, paint);
+  crown.position.set(0, bodyY + bodyH * 0.5 + 0.02, bodyZ + 0.05);
+  g.add(crown);
+  // Rear hopper mouth (where Leslie tips in)
+  const mouth = box(w * 0.95, bodyH * 0.75, 0.2, greenDark, paint);
+  mouth.position.set(0, bodyY + 0.05, tailZ + 0.12);
+  g.add(mouth);
+  // Yellow chevron safety panel on rear
+  const chevron = box(w * 0.85, 0.35, 0.04, 0xf0c14d, {
+    roughness: 0.4,
+    emissive: 0xd4a020,
+    emissiveIntensity: 0.2,
+  });
+  chevron.position.set(0, bodyY - 0.15, tailZ + 0.02);
+  g.add(chevron);
+
+  // Side livery — City of Phoenix Sanitation, loves Leslie
+  {
+    const c = document.createElement("canvas");
+    c.width = 512;
+    c.height = 256;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#2d6b3a";
+    ctx.fillRect(0, 0, 512, 256);
+    ctx.fillStyle = "#f0c14d";
+    ctx.fillRect(0, 0, 512, 42);
+    ctx.fillRect(0, 214, 512, 42);
+    ctx.fillStyle = "#1a3018";
+    ctx.font = "bold 24px Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("CITY OF PHOENIX", 256, 30);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 40px Arial, sans-serif";
+    ctx.fillText("SANITATION", 256, 120);
+    ctx.fillStyle = "#f0c14d";
+    ctx.font = "bold 22px Arial, sans-serif";
+    ctx.fillText("WE  ♥  LESLIE", 256, 170);
+    ctx.fillStyle = "#1a3018";
+    ctx.font = "bold 18px Arial, sans-serif";
+    ctx.fillText("COMMERCIAL ROUTE", 256, 240);
+    const tex = canvasTexture(c, 4);
+    for (const side of [-1, 1]) {
+      const decal = sideDecal(tex, bodyLen * 0.7, bodyH * 0.48);
+      decal.position.set(side * (halfW * 1.05 + 0.01), bodyY + 0.05, bodyZ);
+      decal.rotation.y = side > 0 ? Math.PI / 2 : -Math.PI / 2;
+      g.add(decal);
+    }
+  }
+
+  // ── Lift arms (rear loader) ──
+  // Pivot near top rear of hopper; arms swing up to tip dumpster in
+  const armRoot = new THREE.Group();
+  armRoot.name = "liftArms";
+  armRoot.position.set(0, bodyY + bodyH * 0.25, tailZ + 0.2);
+  g.add(armRoot);
+
+  for (const side of [-1, 1]) {
+    const arm = box(0.08, 0.1, 1.15, 0x3a3a42, CHROME);
+    arm.position.set(side * (halfW * 0.85), 0, -0.5);
+    armRoot.add(arm);
+  }
+  // Crossbar + forks that grab Leslie
+  const bar = box(w * 0.95, 0.08, 0.1, 0x4a4a52, CHROME);
+  bar.position.set(0, 0, -1.05);
+  armRoot.add(bar);
+  for (const side of [-1, 1]) {
+    const fork = box(0.1, 0.08, 0.45, 0x5a5a62, CHROME);
+    fork.position.set(side * 0.35, -0.05, -1.25);
+    armRoot.add(fork);
+  }
+  // Grab pads
+  for (const side of [-1, 1]) {
+    const pad = box(0.12, 0.2, 0.12, 0x1a1a1e, DARK);
+    pad.position.set(side * 0.35, -0.12, -1.4);
+    armRoot.add(pad);
+  }
+
+  g.userData.liftArms = armRoot;
+  g.userData.setLift = (t) => {
+    const k = THREE.MathUtils.clamp(t, 0, 1);
+    // 0 = arms back/low ready to grab, 1 = fully inverted into hopper
+    armRoot.rotation.x = -0.15 + k * (-2.35);
+  };
+  g.userData.setLift(0);
+
+  // Lights
+  ensureLights(g, {
+    neonHeavy: true,
+    baseHead: 1.15,
+    baseNeon: 1.2,
+    baseTail: 1.0,
+    baseMarker: 0.85,
+  });
+  for (const side of [-1, 1]) {
+    const hl = box(0.2, 0.1, 0.08, 0xf0f6ff, {
+      roughness: 0.15,
+      metalness: 0.45,
+      emissive: 0xd8ecff,
+      emissiveIntensity: 1.1,
+    });
+    hl.position.set(side * (halfW * 0.65), cabY - 0.02, noseZ - 0.02);
+    g.add(hl);
+    pushLight(g, hl, "head");
+    // Amber beacon-ish markers
+    const am = box(0.1, 0.08, 0.08, 0xffa020, {
+      roughness: 0.3,
+      emissive: 0xff8010,
+      emissiveIntensity: 0.9,
+    });
+    am.position.set(side * (halfW * 0.7), bodyY + bodyH * 0.45, bodyZ);
+    g.add(am);
+    pushLight(g, am, "marker");
+    const tl = box(0.14, 0.12, 0.06, 0xff2030, {
+      roughness: 0.25,
+      metalness: 0.25,
+      emissive: 0xff1028,
+      emissiveIntensity: 1.0,
+    });
+    tl.position.set(side * (halfW * 0.75), bodyY - 0.3, tailZ + 0.04);
+    g.add(tl);
+    pushLight(g, tl, "tail");
+  }
+  const drl = box(w * 0.7, 0.035, 0.05, 0xb0f4ff, {
+    roughness: 0.12,
+    metalness: 0.55,
+    emissive: 0x50e8ff,
+    emissiveIntensity: 1.25,
+  });
+  drl.position.set(0, cabY + 0.15, noseZ - 0.01);
+  g.add(drl);
+  pushLight(g, drl, "neon");
+  // Roof beacon
+  const beacon = cyl(0.08, 0.08, 0.1, 0xffa010, {
+    roughness: 0.25,
+    emissive: 0xff8010,
+    emissiveIntensity: 1.1,
+  }, 10);
+  beacon.position.set(0, cabY + 0.65, cabZ);
+  g.add(beacon);
+  pushLight(g, beacon, "marker");
+
+  const fBump = box(w * 1.02, 0.14, 0.16, 0xc8ccd0, CHROME);
+  fBump.position.set(0, 0.22 + stance, noseZ - 0.04);
+  g.add(fBump);
+
+  const wheelR = 0.22;
+  addCarWheels(
+    g,
+    [
+      [-halfW * 0.85, noseZ - cabLen * 0.45],
+      [halfW * 0.85, noseZ - cabLen * 0.45],
+      [-halfW * 0.85, bodyZ + 0.35],
+      [halfW * 0.85, bodyZ + 0.35],
+      [-halfW * 0.85, bodyZ - 0.55],
+      [halfW * 0.85, bodyZ - 0.55],
+    ],
+    wheelR,
+    0.17
+  );
+
+  attachRearPlate(g, makePlate("PHX-01", { skyBlue: true }), tailZ - 0.01, 0.38);
+
+  return g;
+}
+
 /** Delivery driver in work shirt + cap (not a party guest). */
 export function createDeliveryDriver(shirt = 0x2a3a5c) {
   const g = new THREE.Group();

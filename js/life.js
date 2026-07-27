@@ -27,6 +27,7 @@ import {
   createLiquorSemi,
   createLiquorCrate,
   createDeliveryDriver,
+  createGarbageTruck,
   createPedestrian,
   tickCarLights,
   CAR_COLORS,
@@ -56,6 +57,10 @@ const MAX_DELIVERIES = 1;
 const DELIVERY_CHECK_S = 12;
 /** Base chance per check that a delivery rolls (before busyness). */
 const DELIVERY_CHANCE = 0.14;
+/** Seconds between garbage-truck spawn rolls. */
+const GARBAGE_CHECK_S = 18;
+/** Base chance per check the truck comes for Leslie. */
+const GARBAGE_CHANCE = 0.11;
 
 /** Pedestrian personal space — close is fine, overlapping is not. */
 const PED_MIN = 0.48;
@@ -87,6 +92,16 @@ const DS = {
   DROP: "del_drop",
   WALK_OUT: "del_walk_out",
   DRIVE_OUT: "del_drive_out",
+};
+
+/** Garbage truck → empty Leslie. */
+const GS = {
+  DRIVE_IN: "gar_drive_in",
+  GRAB: "gar_grab",
+  LIFT: "gar_lift",
+  EMPTY: "gar_empty",
+  LOWER: "gar_lower",
+  DRIVE_OUT: "gar_drive_out",
 };
 
 /** Visible-pedestrian states. */
@@ -196,12 +211,13 @@ export class LifeSystem {
     this.carPool = [];
     this.pedPool = [];
     this.deliveryPool = [];
-    this._buildPools();
-
-    this.carTrips = [];
-    this.walkers = [];
     /** Active liquor delivery trips (box truck / semi). */
     this.deliveries = [];
+    /** Active garbage run (at most one — empties Leslie). */
+    this.garbage = null;
+    this.garbageTruck = null;
+    this.carTrips = [];
+    this.walkers = [];
     /** Occupants with no mesh: { leaveAt } in seconds of sim time. */
     this.inside = [];
     this.busyness = 1;
@@ -211,6 +227,30 @@ export class LifeSystem {
     this._deliveryAcc = 0;
     /** Next sim-time a delivery is allowed to spawn (cooldown after one leaves). */
     this._deliveryReadyAt = 8;
+    this._garbageAcc = 0;
+    this._garbageReadyAt = 22;
+
+    // Leslie — dumpster mesh + rest pose for the lift animation
+    this.leslie = venue.getObjectByName("dumpster") || null;
+    if (this.leslie) {
+      this.leslieHome = {
+        y: this.leslie.position.y,
+        rotX: this.leslie.rotation.x,
+        rotZ: this.leslie.rotation.z,
+      };
+    } else {
+      this.leslieHome = null;
+    }
+    const dumpUd = ud.dumpster;
+    this.leslieService = dumpUd
+      ? new THREE.Vector3(
+          dumpUd.serviceX ?? dumpUd.approachX,
+          0.02,
+          dumpUd.serviceZ ?? dumpUd.approachZ
+        ).applyMatrix4(m)
+      : null;
+
+    this._buildPools();
     /** Rolling arrival log (sim timestamps) for the "recent arrivals" stat. */
     this.arrivalLog = [];
     /**
@@ -359,6 +399,13 @@ export class LifeSystem {
         kind: mesh.userData.kind,
       });
     }
+
+    // One sanitation truck for Leslie
+    const garbo = createGarbageTruck();
+    garbo.visible = false;
+    garbo.castShadow = false;
+    this.root.add(garbo);
+    this.garbageTruck = { mesh: garbo, busy: false, kind: "garbage" };
   }
 
   /**
@@ -486,6 +533,70 @@ export class LifeSystem {
   }
 
   // ── Spawning ──────────────────────────────────────────────────────
+
+  /**
+   * City sanitation truck pulls into the rear lot and empties Leslie
+   * (lift → tip into hopper → set her back down → leave).
+   */
+  _trySpawnGarbage() {
+    if (this.lotHold) return;
+    if (this.garbage) return;
+    if (!this.garbageTruck || this.garbageTruck.busy) return;
+    if (this.now < this._garbageReadyAt) return;
+    if (!this.mouth || !this.aisle || !this.leslie || !this.leslieService) return;
+
+    const unit = this.garbageTruck;
+    const spawnX = this.mouth.x + 13 + Math.random() * 4;
+    const stop = this.leslieService.clone();
+    // Face so the rear (−local Z) points roughly at Leslie
+    const leslieWorld = new THREE.Vector3();
+    this.leslie.getWorldPosition(leslieWorld);
+    // Truck nose points away from dumpster so rear loader faces her
+    const awayX = stop.x - leslieWorld.x;
+    const awayZ = stop.z - leslieWorld.z;
+    const stopFaceY = Math.atan2(awayX, awayZ);
+
+    const path = this._clean([
+      ...roadPolyline(spawnX, this.mouth.x, -1),
+      new THREE.Vector3(this.mouth.x, 0.02, STREET.curbZ),
+      this.mouth.clone(),
+      this.aisle.clone(),
+      new THREE.Vector3(this.aisle.x, 0.02, stop.z),
+      stop,
+    ]);
+    if (!path || path.length < 2) return;
+
+    unit.busy = true;
+    unit.mesh.visible = true;
+    unit.mesh.position.copy(path[0]);
+    unit.mesh.rotation.y = Math.atan2(
+      path[1].x - path[0].x,
+      path[1].z - path[0].z
+    );
+    unit.mesh.userData.setLift?.(0);
+    this._resetLeslie();
+
+    this.garbage = {
+      state: GS.DRIVE_IN,
+      unit,
+      path,
+      pathI: 0,
+      lotFrom: Math.max(1, path.length - 3),
+      speedRoad: 6.0 + Math.random() * 0.8,
+      speedLot: 2.8 + Math.random() * 0.4,
+      stopFaceY,
+      t: 0,
+      shake: 0,
+    };
+  }
+
+  _resetLeslie() {
+    if (!this.leslie || !this.leslieHome) return;
+    this.leslie.position.y = this.leslieHome.y;
+    this.leslie.rotation.x = this.leslieHome.rotX;
+    this.leslie.rotation.z = this.leslieHome.rotZ;
+    this.leslie.scale.set(1, 1, 1);
+  }
 
   /**
    * Liquor drop: box truck pulls into the aisle; semi stops on 7th at the curb.
@@ -782,6 +893,13 @@ export class LifeSystem {
       const m = d.unit?.mesh;
       if (m?.visible && m !== exclude) out.push(m);
     }
+    if (this.garbage) {
+      const st = this.garbage.state;
+      if (st === GS.DRIVE_IN || st === GS.DRIVE_OUT) {
+        const m = this.garbage.unit?.mesh;
+        if (m?.visible && m !== exclude) out.push(m);
+      }
+    }
     if (this.getExtraVehicles) {
       for (const m of this.getExtraVehicles()) {
         if (m?.visible && m !== exclude) out.push(m);
@@ -908,6 +1026,14 @@ export class LifeSystem {
       }
     }
 
+    this._garbageAcc += t;
+    if (this._garbageAcc >= GARBAGE_CHECK_S) {
+      this._garbageAcc = 0;
+      if (Math.random() < GARBAGE_CHANCE + this.busyness * 0.04) {
+        this._trySpawnGarbage();
+      }
+    }
+
     // People leaving the building
     for (let i = this.inside.length - 1; i >= 0; i--) {
       if (this.inside[i].leaveAt > this.now) continue;
@@ -955,6 +1081,22 @@ export class LifeSystem {
         this._deliveryReadyAt = this.now + 45 + Math.random() * 50;
       } else if (del.unit?.mesh?.visible) {
         tickCarLights(del.unit.mesh, this.now);
+      }
+    }
+
+    if (this.garbage) {
+      try {
+        this._tickGarbage(this.garbage, t);
+      } catch (err) {
+        console.warn("[life] garbage run aborted", err);
+        this.garbage.state = "done";
+      }
+      if (this.garbage.state === "done") {
+        this._finishGarbage(this.garbage);
+        this.garbage = null;
+        this._garbageReadyAt = this.now + 70 + Math.random() * 60;
+      } else if (this.garbage.unit?.mesh?.visible) {
+        tickCarLights(this.garbage.unit.mesh, this.now);
       }
     }
 
@@ -1023,6 +1165,172 @@ export class LifeSystem {
       return del.isSemi ? del.speedRoad * 0.7 : del.speedLot;
     }
     return del.speedRoad;
+  }
+
+  _garbageSpeed(job) {
+    if (this.lotHold) {
+      if (job.state === GS.DRIVE_OUT) return 0;
+      if (job.state === GS.DRIVE_IN) {
+        const gate = Math.max(0, job.lotFrom - 1);
+        if (job.pathI >= job.lotFrom) return job.speedLot;
+        if (job.pathI >= gate) return 0;
+      }
+    }
+    if (job.state === GS.DRIVE_IN && job.pathI >= job.lotFrom) return job.speedLot;
+    if (job.state === GS.DRIVE_OUT && job.pathI < 3) return job.speedLot;
+    return job.speedRoad;
+  }
+
+  _finishGarbage(job) {
+    this._resetLeslie();
+    if (job.unit) {
+      job.unit.busy = false;
+      job.unit.mesh.visible = false;
+      job.unit.mesh.userData.setLift?.(0);
+    }
+  }
+
+  _pathGarbageOut(job) {
+    const truck = job.unit.mesh;
+    return this._clean([
+      truck.position.clone(),
+      new THREE.Vector3(this.aisle.x, 0.02, truck.position.z),
+      this.aisle.clone(),
+      this.mouth.clone(),
+      new THREE.Vector3(this.mouth.x, 0.02, STREET.curbZ),
+      ...roadPolyline(this.mouth.x, STREET.xMin + 1, -1),
+    ]);
+  }
+
+  _tickGarbage(job, dt) {
+    const truck = job.unit.mesh;
+    const leslie = this.leslie;
+    const home = this.leslieHome;
+
+    switch (job.state) {
+      case GS.DRIVE_IN: {
+        const r = this._advance(
+          truck,
+          job.path,
+          job.pathI,
+          this._garbageSpeed(job) * this.frontSpeedScale(truck),
+          dt,
+          job.stopFaceY
+        );
+        job.pathI = r.pathI;
+        if (!r.done) break;
+        truck.rotation.y = job.stopFaceY;
+        job.t = 0;
+        job.state = GS.GRAB;
+        break;
+      }
+      case GS.GRAB: {
+        // Arms swing down onto Leslie
+        job.t += dt;
+        const k = Math.min(1, job.t / 1.1);
+        truck.userData.setLift?.(k * 0.22);
+        // Nudge Leslie slightly as the forks catch her
+        if (leslie && home) {
+          leslie.position.y = home.y + k * 0.08;
+          leslie.rotation.z = Math.sin(k * Math.PI) * 0.04;
+        }
+        if (k < 1) break;
+        job.t = 0;
+        job.state = GS.LIFT;
+        break;
+      }
+      case GS.LIFT: {
+        // Raise and tip her into the hopper
+        job.t += dt;
+        const k = Math.min(1, job.t / 2.2);
+        const ease = k * k * (3 - 2 * k); // smoothstep
+        truck.userData.setLift?.(0.22 + ease * 0.78);
+        if (leslie && home) {
+          leslie.position.y = home.y + ease * 1.85;
+          leslie.rotation.x = home.rotX + ease * 1.35;
+          leslie.rotation.z = Math.sin(ease * Math.PI) * 0.08;
+          // Soft squash as she goes inverted
+          const sq = 1 + Math.sin(ease * Math.PI) * 0.06;
+          leslie.scale.set(sq, 1 / sq, sq);
+        }
+        if (k < 1) break;
+        job.t = 0;
+        job.shake = 0;
+        job.state = GS.EMPTY;
+        break;
+      }
+      case GS.EMPTY: {
+        // Shake the goods out — Leslie's happy to be light again
+        job.t += dt;
+        job.shake += dt;
+        const shake = Math.sin(job.shake * 28) * 0.06;
+        truck.userData.setLift?.(1.0);
+        if (leslie && home) {
+          leslie.position.y = home.y + 1.85 + Math.abs(Math.sin(job.shake * 20)) * 0.05;
+          leslie.rotation.x = home.rotX + 1.35;
+          leslie.rotation.z = shake;
+          leslie.scale.set(1.05, 0.92, 1.05);
+        }
+        // Brief hopper pulse via scale on truck (reads as packer kicking)
+        truck.scale.y = 1 + Math.sin(job.shake * 16) * 0.015;
+        if (job.t < 1.6) break;
+        truck.scale.y = 1;
+        job.t = 0;
+        job.state = GS.LOWER;
+        break;
+      }
+      case GS.LOWER: {
+        job.t += dt;
+        const k = Math.min(1, job.t / 2.0);
+        const ease = k * k * (3 - 2 * k);
+        truck.userData.setLift?.(1.0 - ease);
+        if (leslie && home) {
+          leslie.position.y = home.y + (1 - ease) * 1.85;
+          leslie.rotation.x = home.rotX + (1 - ease) * 1.35;
+          leslie.rotation.z = (1 - ease) * 0.04;
+          const s = 1 + (1 - ease) * 0.04;
+          leslie.scale.set(s, 1 / s, s);
+        }
+        if (k < 1) break;
+        this._resetLeslie();
+        // Little grateful hop
+        job.t = 0;
+        job.happy = 0.85;
+        // Fall through into a short happy beat then leave
+        job.state = GS.DRIVE_OUT;
+        job.path = this._pathGarbageOut(job);
+        job.pathI = 0;
+        // one-frame settle: actually do happy hop via residual
+        job._hop = 0.9;
+        break;
+      }
+      case GS.DRIVE_OUT: {
+        // Leslie's post-empty hop while the truck rolls away
+        if (job._hop > 0 && leslie) {
+          job._hop -= dt;
+          const w = Math.max(0, job._hop);
+          const s = Math.sin(w * 15);
+          leslie.position.y = home.y + Math.abs(s) * 0.07 * w;
+          leslie.scale.set(1 + s * 0.03 * w, 1 - s * 0.04 * w, 1 + s * 0.03 * w);
+          if (job._hop <= 0) this._resetLeslie();
+        }
+        const r = this._advance(
+          truck,
+          job.path,
+          job.pathI,
+          this._garbageSpeed(job) * this.frontSpeedScale(truck),
+          dt
+        );
+        job.pathI = r.pathI;
+        if (r.done) {
+          this._resetLeslie();
+          job.state = "done";
+        }
+        break;
+      }
+      default:
+        job.state = "done";
+    }
   }
 
   _finishDelivery(del) {

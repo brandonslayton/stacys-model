@@ -3405,7 +3405,8 @@ export function createStacys(parcel) {
   const dumpsterZ = padEast + 0.65; // inset from east edge
   const dumpster = createDumpster(dumpsterX, dumpsterZ);
   dumpster.rotation.y = Math.PI * 0.5; // face into the lot
-  dumpster.name = "dumpster"; // chores.js animates this
+  dumpster.name = "dumpster"; // chores.js + garbage truck animate this
+  dumpster.userData.displayName = "Leslie";
   g.add(dumpster);
 
   // Day: patio neon / marquee / dance lights off · Night: full glow + glimmer + flashes
@@ -3503,14 +3504,18 @@ export function createStacys(parcel) {
     railY: wallH + fenceH,
   };
 
-  // Dumpster, for the take-out-the-trash chore. `approach` is where a worker stands
-  // to toss a bag in — offset into the lot, since the far sides of the dumpster are
-  // up against the property edges.
+  // Leslie the dumpster — take-out-the-trash chore + garbage truck empties.
+  // `approach` is where a worker stands to toss a bag in — offset into the lot,
+  // since the far sides of the dumpster are up against the property edges.
   g.userData.dumpster = {
+    name: "Leslie",
     x: dumpsterX,
     z: dumpsterZ,
     approachX: dumpsterX + 0.95,
     approachZ: dumpsterZ + 0.55,
+    /** Truck stop: aisle-side stand-off so the packer can grab her. */
+    serviceX: dumpsterX + 1.55,
+    serviceZ: dumpsterZ + 1.35,
     lidY: 1.08,
   };
 
