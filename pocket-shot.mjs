@@ -6,6 +6,7 @@
  *   node pocket-shot.mjs                 # 2pm + 10pm
  *   node pocket-shot.mjs --hour=3
  *   node pocket-shot.mjs --settle=40     # let the sim run N seconds per hour
+ *   node pocket-shot.mjs --url=https://brandonslayton.github.io/stacys-model/pocket.html
  *
  * Writes shots/pocket-<hour>h.png
  *
@@ -24,6 +25,8 @@ const arg = (k, d) => {
 const settle = arg("settle", 20);
 const hours = args.some((a) => a.startsWith("--hour=")) ? [arg("hour", 22)] : [14, 22];
 const PORT = process.env.PORT || 8090;
+const urlArg = args.find((a) => a.startsWith("--url="));
+const TARGET = urlArg ? urlArg.slice(6) : `http://localhost:${PORT}/pocket.html`;
 
 fs.mkdirSync("shots", { recursive: true });
 
@@ -67,7 +70,7 @@ for (const h of hours) {
     window.Date = Patched;
   }, h);
 
-  await page.goto(`http://localhost:${PORT}/pocket.html`, { waitUntil: "load" });
+  await page.goto(TARGET, { waitUntil: "load" });
   await page.waitForFunction("window.__ready === true", { timeout: 60000 });
   await page.waitForTimeout(1500); // fonts + canvas textures
   await page.evaluate(() => window.__pocket.setSpin(false));
