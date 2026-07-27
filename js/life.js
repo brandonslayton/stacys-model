@@ -19,7 +19,14 @@
  *    coming out the back door is how the real patio works.
  */
 import * as THREE from "three";
-import { createCar, createPedestrian, CAR_COLORS, PED_COLORS } from "./agents.js";
+import {
+  createCar,
+  createRamTruck,
+  createPedestrian,
+  CAR_COLORS,
+  CAR_STYLES,
+  PED_COLORS,
+} from "./agents.js";
 import {
   STREET,
   lanePoint,
@@ -270,12 +277,22 @@ export class LifeSystem {
   }
 
   _buildPools() {
-    for (let i = 0; i < POOL_CARS; i++) {
-      const mesh = createCar(CAR_COLORS[i % CAR_COLORS.length]);
+    // Signature black Ram — one slot so it shows up parking at the bar
+    const ram = createRamTruck();
+    ram.visible = false;
+    ram.castShadow = false;
+    this.root.add(ram);
+    this.carPool.push({ mesh: ram, busy: false, kind: "ram" });
+
+    // Rest of the pool: mixed body styles + paint
+    for (let i = 1; i < POOL_CARS; i++) {
+      const style = CAR_STYLES[(i - 1) % CAR_STYLES.length];
+      const color = CAR_COLORS[i % CAR_COLORS.length];
+      const mesh = createCar({ color, style });
       mesh.visible = false;
       mesh.castShadow = false;
       this.root.add(mesh);
-      this.carPool.push({ mesh, busy: false });
+      this.carPool.push({ mesh, busy: false, kind: style });
     }
     for (let i = 0; i < POOL_PEDS; i++) {
       const mesh = createPedestrian(PED_COLORS[i % PED_COLORS.length]);
@@ -286,8 +303,17 @@ export class LifeSystem {
     }
   }
 
+  /**
+   * Grab a free car. Bias slightly toward the Ram when it's available so the
+   * signature truck parks at the bar with some regularity without monopolising
+   * every arrival.
+   */
   _takeCar() {
-    return this.carPool.find((c) => !c.busy) || null;
+    const free = this.carPool.filter((c) => !c.busy);
+    if (!free.length) return null;
+    const ram = free.find((c) => c.kind === "ram");
+    if (ram && Math.random() < 0.28) return ram;
+    return free[(Math.random() * free.length) | 0];
   }
 
   _takePed() {
