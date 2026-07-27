@@ -276,18 +276,42 @@ export class IncidentSystem {
     return false;
   }
 
+  /**
+   * World-space mouth: head is a child of the patron group, which pitches forward
+   * on rotation.x when they hunch — a fixed y 0.72 looked like it came from the
+   * shoes because the mesh rotates around the feet.
+   */
+  _mouthWorld(out = new THREE.Vector3()) {
+    this.patron.updateWorldMatrix(true, false);
+    // Local mouth: a bit below head centre (head sits at y 0.95), forward of face
+    out.set(0, 0.88, 0.2);
+    out.applyMatrix4(this.patron.matrixWorld);
+    return out;
+  }
+
+  /** Forward (+ local Z) with a slight downward bias, in world space. */
+  _pukeDir(out = new THREE.Vector3()) {
+    out.set(0, -0.35, 1);
+    out.applyQuaternion(this.patron.quaternion);
+    out.normalize();
+    return out;
+  }
+
   _emitSpray(from, dir) {
     const s = this.spray;
     let launched = 0;
-    for (let i = 0; i < s.count && launched < 14; i++) {
+    for (let i = 0; i < s.count && launched < 16; i++) {
       if (s.age[i] < s.life) continue;
       const j = i * 3;
-      s.geo.attributes.position.array[j] = from.x;
-      s.geo.attributes.position.array[j + 1] = from.y;
-      s.geo.attributes.position.array[j + 2] = from.z;
-      s.vel[j] = dir.x * (0.9 + Math.random() * 0.7) + (Math.random() - 0.5) * 0.4;
-      s.vel[j + 1] = 0.5 + Math.random() * 0.5;
-      s.vel[j + 2] = dir.z * (0.9 + Math.random() * 0.7) + (Math.random() - 0.5) * 0.4;
+      // Small jitter at the mouth so the retch isn't a single ray
+      s.geo.attributes.position.array[j] = from.x + (Math.random() - 0.5) * 0.06;
+      s.geo.attributes.position.array[j + 1] = from.y + (Math.random() - 0.5) * 0.04;
+      s.geo.attributes.position.array[j + 2] = from.z + (Math.random() - 0.5) * 0.06;
+      const speed = 1.4 + Math.random() * 1.1;
+      s.vel[j] = dir.x * speed + (Math.random() - 0.5) * 0.35;
+      // Mostly forward/down — not blasting straight up from the ground
+      s.vel[j + 1] = dir.y * speed + 0.15 + Math.random() * 0.35;
+      s.vel[j + 2] = dir.z * speed + (Math.random() - 0.5) * 0.35;
       s.age[i] = 0;
       launched++;
     }
@@ -402,15 +426,8 @@ export class IncidentSystem {
         const beat = Math.floor((1.5 - job.wait) / 0.42);
         if (beat > job.sprayed && beat <= 3) {
           job.sprayed = beat;
-          const yaw = this.patron.rotation.y;
-          this._emitSpray(
-            {
-              x: this.patron.position.x + Math.sin(yaw) * 0.2,
-              y: 0.72,
-              z: this.patron.position.z + Math.cos(yaw) * 0.2,
-            },
-            { x: Math.sin(yaw), z: Math.cos(yaw) }
-          );
+          // Mouth tracks the hunched head in world space (not a fixed height)
+          this._emitSpray(this._mouthWorld(), this._pukeDir());
         }
         this.puddle.visible = true;
         this.puddle.scale.setScalar(
