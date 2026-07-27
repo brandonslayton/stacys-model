@@ -194,6 +194,11 @@ export class BirdSystem {
     this._up = new THREE.Vector3(0, 1, 0);
     this._quat = new THREE.Quaternion();
     this._mat = new THREE.Matrix4();
+    // Model is built beak = +Z; Object3D/Matrix4.lookAt uses −Z as forward.
+    this._faceFwd = new THREE.Quaternion().setFromAxisAngle(
+      new THREE.Vector3(0, 1, 0),
+      Math.PI
+    );
   }
 
   get busy() {
@@ -282,10 +287,10 @@ export class BirdSystem {
     const bob = Math.sin(this.clock * 3.2) * 0.08;
     this.bird.position.set(this._pos.x, this._pos.y + bob, this._pos.z);
 
-    // Orient: +Z forward along tangent
+    // Orient along tangent. lookAt aims −Z; model beak is +Z → flip 180° on Y.
     this._look.copy(this.bird.position).add(this._tan);
     this._mat.lookAt(this.bird.position, this._look, this._up);
-    this._quat.setFromRotationMatrix(this._mat);
+    this._quat.setFromRotationMatrix(this._mat).multiply(this._faceFwd);
     this.bird.quaternion.slerp(this._quat, 1 - Math.exp(-t * 10));
 
     // Bank into curvature: approximate with lateral change of tangent
@@ -294,7 +299,7 @@ export class BirdSystem {
     // Cross product y-component ≈ horizontal turn rate
     const turn = this._tan.x * tan2.z - this._tan.z * tan2.x;
     const bank = THREE.MathUtils.clamp(-turn * 8, -0.55, 0.55);
-    // Apply bank in local space after lookAt
+    // Apply bank in local space after heading is set (beak-forward frame)
     this.bird.rotateZ(bank * 0.85);
 
     // Wing flap rate: faster when climbing / early flight
