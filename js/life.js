@@ -37,10 +37,14 @@ const SPAWN_CHECK_S = 0.3;
 
 /** Pedestrian personal space — close is fine, overlapping is not. */
 const PED_MIN = 0.48;
-/** Car following: full stop / start braking / lane width (lateral). */
-const CAR_STOP = 2.35;
-const CAR_BRAKE = 4.6;
-const CAR_LANE = 1.35;
+/**
+ * Car following. Distances are centre-to-centre; body half-length is ~1.1 so
+ * CAR_STOP must clear two half-bodies plus a bumper gap.
+ */
+const CAR_RADIUS = 1.15;
+const CAR_STOP = 3.1;
+const CAR_BRAKE = 6.0;
+const CAR_LANE = 2.0;
 
 /** Car states. */
 const CS = {
@@ -550,26 +554,79 @@ export class LifeSystem {
       const dx = o.position.x - car.position.x;
       const dz = o.position.z - car.position.z;
       const along = dx * fx + dz * fz;
-      if (along < 0.4) continue; // behind or alongside rear
+      if (along < 0.25) continue; // behind or alongside rear
       const lat = Math.abs(dx * fz - dz * fx);
       if (lat > CAR_LANE) continue;
-      if (along < nearest) nearest = along;
+      // Gap to the *near* face of the other vehicle, not its centre
+      const faceGap = along - CAR_RADIUS;
+      if (faceGap < nearest) nearest = faceGap;
     }
     return nearest;
   }
 
   /**
-   * 0..1 speed scale from traffic ahead. 0 = slam on brakes.
-   * Also returns whether a honk is warranted (fully stopped behind someone).
+   * 0..1 speed scale from traffic. Combines lane-following with a hard
+   * proximity bubble so cross-paths and aisle cuts still stop (Gaymo in the
+   * lot was getting sideswiped when not strictly "ahead").
    */
   trafficScale(car, others = null) {
-    const gap = this.gapAhead(car, others);
-    if (gap >= CAR_BRAKE) return { scale: 1, stop: false };
-    if (gap <= CAR_STOP) return { scale: 0, stop: true };
-    return {
-      scale: (gap - CAR_STOP) / (CAR_BRAKE - CAR_STOP),
-      stop: false,
-    };
+    const list = others || this.vehicleMeshes(car);
+    let scale = 1;
+    let stop = false;
+
+    const gap = this.gapAhead(car, list);
+    if (gap <= CAR_STOP) {
+      scale = 0;
+      stop = true;
+    } else if (gap < CAR_BRAKE) {
+      scale = Math.min(scale, (gap - CAR_STOP) / (CAR_BRAKE - CAR_STOP));
+    }
+
+    // Omnidirectional bubble — catches side entries / perpendicular aisle traffic
+    const bubbleHard = CAR_RADIUS * 2.05;
+    const bubbleSoft = CAR_RADIUS * 2.05 + 2.2;
+    for (const o of list) {
+      if (o === car || !o.visible) continue;
+      const d = Math.hypot(
+        o.position.x - car.position.x,
+        o.position.z - car.position.z
+      );
+      if (d < bubbleHard) {
+        scale = 0;
+        stop = true;
+        break;
+      }
+      if (d < bubbleSoft) {
+        scale = Math.min(scale, (d - bubbleHard) / (bubbleSoft - bubbleHard));
+      }
+    }
+    return { scale, stop };
+  }
+
+  /**
+   * Push overlapping vehicle centres apart so even a missed brake never
+   * leaves two meshes stacked. Call once per frame after all car moves.
+   */
+  separateVehicles() {
+    const meshes = this.vehicleMeshes();
+    const minD = CAR_RADIUS * 2.05;
+    for (let i = 0; i < meshes.length; i++) {
+      for (let j = i + 1; j < meshes.length; j++) {
+        const a = meshes[i];
+        const b = meshes[j];
+        const dx = a.position.x - b.position.x;
+        const dz = a.position.z - b.position.z;
+        const d = Math.hypot(dx, dz);
+        if (d < 1e-4 || d >= minD) continue;
+        const push = (minD - d) * 0.5;
+        const nx = dx / d;
+        const nz = dz / d;
+        a.position.x += nx * push;
+        a.position.z += nz * push;
+        b.position.x -= nx * push;
+        b.position.z -= nz * push;
+      }
+    }
   }
 
   _honkTexture() {
@@ -739,6 +796,9 @@ export class LifeSystem {
     // Second ped pass after walkers moved
     const peds2 = this.pedMeshes();
     for (const m of peds2) this.separatePed(m, peds2);
+
+    // Hard vehicle depenetration (Gaymo included via getExtraVehicles)
+    this.separateVehicles();
 
     // Trim the rolling arrival log to the last 10 minutes of sim time
     const cutoff = this.now - 600;

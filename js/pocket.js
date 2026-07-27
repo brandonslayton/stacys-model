@@ -599,6 +599,46 @@ function showGaymoSms(body) {
   }, 4800);
 }
 
+const _floatSmsWorld = new THREE.Vector3();
+
+/**
+ * Project the rideshare wait-SMS anchor into screen space so the bubble always
+ * sits above the guest — readable on a phone even when the 3D sprite is tiny.
+ */
+function paintFloatSms(rideshare) {
+  const el = $("float-sms");
+  if (!el) return;
+  const anchor = rideshare?.waitSmsAnchor;
+  if (!anchor || (rideshare.waitSmsT ?? 0) <= 0) {
+    el.classList.remove("show");
+    if (!el.hidden) {
+      // defer hide until fade finishes
+      setTimeout(() => {
+        if (!el.classList.contains("show")) el.hidden = true;
+      }, 280);
+    }
+    return;
+  }
+  _floatSmsWorld.set(anchor.x, anchor.y, anchor.z);
+  _floatSmsWorld.project(camera);
+  // Behind camera
+  if (_floatSmsWorld.z > 1) {
+    el.classList.remove("show");
+    return;
+  }
+  const body = $("float-sms-body");
+  if (body && anchor.text) body.textContent = anchor.text;
+  const x = (_floatSmsWorld.x * 0.5 + 0.5) * innerWidth;
+  const y = (-_floatSmsWorld.y * 0.5 + 0.5) * innerHeight;
+  el.hidden = false;
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+  // Opacity follows the 3D sprite fade at the end
+  const fade = rideshare.waitSmsT < 1 ? Math.max(0.15, rideshare.waitSmsT) : 1;
+  el.style.opacity = String(fade);
+  el.classList.add("show");
+}
+
 /**
  * Gaymo button (Waymo-branded hover robotaxi).
  *
@@ -900,6 +940,7 @@ async function boot() {
     incident.update(dt);
     rideshare.update(dt);
     mist.update(dt);
+    paintFloatSms(rideshare);
 
     stepFocus(dt, chores.busy || incident.busy || rideshare.busy);
 

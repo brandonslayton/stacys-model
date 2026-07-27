@@ -197,69 +197,78 @@ export function createWaymo() {
   skirt.position.y = 0.14;
   g.add(skirt);
 
-  // Road shadow disc — makes the float gap legible against asphalt
+  // Ground FX sit ABOVE the asphalt/pad (~padTop 0.09) so they aren't buried
+  // under the lot mesh. depthTest off so the glow never loses a z-fight.
+  const GLOW_Y = 0.13;
   const shadow = new THREE.Mesh(
     new THREE.CircleGeometry(0.78, 24),
     new THREE.MeshBasicMaterial({
       color: 0x000000,
       transparent: true,
-      opacity: 0.3,
+      opacity: 0.28,
       depthWrite: false,
+      depthTest: false,
     })
   );
   shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = 0.022;
+  shadow.position.y = GLOW_Y - 0.02;
+  shadow.renderOrder = 2;
   shadow.name = "hoverShadow";
   g.add(shadow);
 
-  // Rainbow underglow — multi-layer, soft/diffused, additive
+  // Rainbow underglow — multi-layer, soft/diffused, additive, above the lot
   const rainbowMap = _rainbowGlowTexture();
   const rainbow = new THREE.Mesh(
-    new THREE.CircleGeometry(1.15, 64),
+    new THREE.CircleGeometry(1.2, 64),
     new THREE.MeshBasicMaterial({
       map: rainbowMap,
       transparent: true,
-      opacity: 0.72,
+      opacity: 0.85,
       depthWrite: false,
+      depthTest: false,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     })
   );
   rainbow.rotation.x = -Math.PI / 2;
-  rainbow.position.y = 0.032;
+  rainbow.position.y = GLOW_Y;
+  rainbow.renderOrder = 3;
   rainbow.name = "rainbowGlow";
   g.add(rainbow);
 
   const halo = new THREE.Mesh(
-    new THREE.CircleGeometry(1.75, 64),
+    new THREE.CircleGeometry(1.85, 64),
     new THREE.MeshBasicMaterial({
       map: rainbowMap,
       transparent: true,
-      opacity: 0.38,
+      opacity: 0.48,
       depthWrite: false,
+      depthTest: false,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     })
   );
   halo.rotation.x = -Math.PI / 2;
-  halo.position.y = 0.026;
+  halo.position.y = GLOW_Y - 0.01;
+  halo.renderOrder = 3;
   halo.name = "rainbowHalo";
   g.add(halo);
 
-  // Extra soft bloom ring — very large, very faint, sells diffusion
   const bloom = new THREE.Mesh(
-    new THREE.CircleGeometry(2.35, 48),
+    new THREE.CircleGeometry(2.5, 48),
     new THREE.MeshBasicMaterial({
       map: rainbowMap,
       transparent: true,
-      opacity: 0.18,
+      opacity: 0.24,
       depthWrite: false,
+      depthTest: false,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     })
   );
   bloom.rotation.x = -Math.PI / 2;
-  bloom.position.y = 0.022;
+  bloom.position.y = GLOW_Y - 0.015;
+  bloom.renderOrder = 3;
   bloom.name = "rainbowBloom";
   g.add(bloom);
 
@@ -395,22 +404,31 @@ export function createWaymo() {
     dome.rotation.y += dt * 3.2;
   };
 
+  /** When true (stopped for boarding), hover gets a more obvious wave/shake. */
+  g.userData.idleHover = false;
+
   g.userData.tickHover = (t) => {
-    const bob = Math.sin(t * 2.6) * HOVER_BOB;
+    const idle = !!g.userData.idleHover;
+    const bobAmp = idle ? HOVER_BOB * 2.4 : HOVER_BOB;
+    const bob = Math.sin(t * (idle ? 4.2 : 2.6)) * bobAmp;
+    // Side-to-side sway + nose rock when idling at the curb
+    const sway = idle ? Math.sin(t * 5.1) * 0.04 : 0;
+    const rock = idle ? Math.sin(t * 3.4 + 0.8) * 0.035 : Math.sin(t * 1.9) * 0.012;
+    const roll = idle ? Math.sin(t * 4.6) * 0.03 : Math.sin(t * 2.3 + 0.4) * 0.01;
     hull.position.y = HOVER_Y + bob;
-    hull.rotation.x = Math.sin(t * 1.9) * 0.012;
-    hull.rotation.z = Math.sin(t * 2.3 + 0.4) * 0.01;
-    const lift = (bob + HOVER_BOB) / (HOVER_BOB * 2);
+    hull.position.x = sway;
+    hull.rotation.x = rock;
+    hull.rotation.z = roll;
+    const lift = (bob + bobAmp) / (bobAmp * 2 || 1);
     shadow.scale.setScalar(0.88 + lift * 0.12);
-    shadow.material.opacity = 0.32 - lift * 0.08;
-    // Diffused rainbow: slow counter-rotating layers
+    shadow.material.opacity = 0.3 - lift * 0.08;
     rainbow.rotation.z = t * 0.55;
     halo.rotation.z = -t * 0.28;
     bloom.rotation.z = t * 0.14;
     const pulse = 0.65 + 0.35 * (0.5 + 0.5 * Math.sin(t * 3.8));
-    rainbow.material.opacity = 0.55 + pulse * 0.28;
-    halo.material.opacity = 0.28 + pulse * 0.16;
-    bloom.material.opacity = 0.12 + pulse * 0.1;
+    rainbow.material.opacity = 0.7 + pulse * 0.25;
+    halo.material.opacity = 0.38 + pulse * 0.18;
+    bloom.material.opacity = 0.18 + pulse * 0.12;
     const breath = 0.94 + pulse * 0.1;
     rainbow.scale.setScalar(breath);
     halo.scale.setScalar(breath * 1.02);
@@ -622,8 +640,9 @@ export class RideshareSystem {
     // Floating reaction sprites for the closed-hours bit + wait SMS
     this.qMark = this._makeBillboard(_questionTexture(), 0.55);
     this.knockFx = this._makeBillboard(_knockTexture(), 0.7);
-    this.waitSms = this._makeBillboard(_waitSmsTexture(), 1.35);
-    this.waitSms.scale.set(1.6, 0.72, 1);
+    // Big readable bubble — also mirrored to an HTML float in pocket.js
+    this.waitSms = this._makeBillboard(_waitSmsTexture(), 1);
+    this.waitSms.scale.set(2.8, 1.15, 1);
     this.phone = this._buildPhone();
     this.phone.visible = false;
     this.root.add(this.phone);
@@ -632,6 +651,8 @@ export class RideshareSystem {
     this.bob = 0;
     this.clock = 0;
     this.waitSmsT = 0;
+    /** World position the HTML float should track (null when hidden). */
+    this.waitSmsAnchor = null;
   }
 
   _makeBillboard(map, size) {
@@ -640,9 +661,11 @@ export class RideshareSystem {
         map,
         transparent: true,
         depthWrite: false,
+        depthTest: false, // always on top of the model for UI readability
       })
     );
     s.scale.setScalar(size);
+    s.renderOrder = 20;
     s.visible = false;
     this.root.add(s);
     return s;
@@ -796,6 +819,12 @@ export class RideshareSystem {
     this.phone.visible = false;
     this.waitSms.visible = false;
     this.waitSmsT = 0;
+    this.waitSmsAnchor = null;
+    if (this.waymo?.userData) this.waymo.userData.idleHover = false;
+  }
+
+  _setIdleHover(on) {
+    if (this.waymo?.userData) this.waymo.userData.idleHover = !!on;
   }
 
   /**
@@ -829,29 +858,43 @@ export class RideshareSystem {
     if (!g) return;
     this.waitSms.visible = true;
     this.waitSms.material.opacity = 1;
-    this.waitSmsT = 3.4;
-    this.waitSms.position.set(g.position.x, 1.55, g.position.z);
+    this.waitSmsT = 5.5;
+    const y = 2.15;
+    this.waitSms.position.set(g.position.x, y, g.position.z);
+    this.waitSmsAnchor = {
+      x: g.position.x,
+      y: y + 0.15,
+      z: g.position.z,
+      text: "Your Gaymo will arrive shortly!",
+    };
   }
 
   _tickWaitSms(dt) {
     if (this.waitSmsT <= 0) {
       this.waitSms.visible = false;
+      this.waitSmsAnchor = null;
       return;
     }
     this.waitSmsT -= dt;
     const g = this.guests.find((x) => x.visible);
     if (g) {
-      this.waitSms.position.set(
-        g.position.x,
-        1.5 + Math.sin(this.clock * 2.5) * 0.04,
-        g.position.z
-      );
+      const y = 2.15 + Math.sin(this.clock * 2.5) * 0.05;
+      this.waitSms.position.set(g.position.x, y, g.position.z);
+      this.waitSmsAnchor = {
+        x: g.position.x,
+        y: y + 0.2,
+        z: g.position.z,
+        text: "Your Gaymo will arrive shortly!",
+      };
     }
-    // Fade last 0.7s
-    if (this.waitSmsT < 0.7) {
-      this.waitSms.material.opacity = Math.max(0, this.waitSmsT / 0.7);
+    // Fade last second
+    if (this.waitSmsT < 1.0) {
+      this.waitSms.material.opacity = Math.max(0, this.waitSmsT / 1.0);
     }
-    if (this.waitSmsT <= 0) this.waitSms.visible = false;
+    if (this.waitSmsT <= 0) {
+      this.waitSms.visible = false;
+      this.waitSmsAnchor = null;
+    }
   }
 
   _faceDoor(guest) {
@@ -1116,12 +1159,12 @@ export class RideshareSystem {
 
   _tickCar(job, t) {
     if (!job.carPath || !this.waymo.visible) return true;
+    this._setIdleHover(false);
     // Brake for ambient traffic (and they brake for us via getExtraVehicles)
     let scale = 1;
     if (this.life?.trafficScale) {
       const tr = this.life.trafficScale(this.waymo);
       scale = tr.scale;
-      // Soft nose dip when slammed on the brakes
       if (tr.stop && this.waymo.userData.hull) {
         this.waymo.userData.hull.rotation.x = 0.06;
       }
@@ -1134,6 +1177,8 @@ export class RideshareSystem {
       t
     );
     job.carI = r.pathI;
+    // Depenetrate against life cars this frame (life already moved)
+    this.life?.separateVehicles?.();
     return r.done;
   }
 
@@ -1216,12 +1261,13 @@ export class RideshareSystem {
 
         this.waymo.position.copy(this.carStop);
         this.waymo.rotation.y = this.stopFaceY;
+        this._setIdleHover(true); // wave / hover shake while loading
 
         if (job.mode === "pickup") {
           job.paths = this._pathsCurbToCar(job.n);
           job.pathI = new Array(job.n).fill(0);
           job.state = ST.BOARD;
-          job.wait = 0.35;
+          job.wait = 0.45;
         } else {
           job.paths = this._pathsCarToDoor(job.n);
           job.pathI = new Array(job.n).fill(0);
@@ -1231,12 +1277,13 @@ export class RideshareSystem {
             g.position.copy(job.paths[i][0]);
           }
           job.state = ST.DEBOARD;
-          job.wait = 0.4;
+          job.wait = 0.45;
         }
         break;
       }
 
       case ST.BOARD: {
+        this._setIdleHover(true);
         if (job.wait > 0) {
           job.wait -= t;
           break;
@@ -1244,6 +1291,7 @@ export class RideshareSystem {
         if (!this._tickGuests(job, t, WALK * 1.05)) break;
         for (let i = 0; i < job.n; i++) this.guests[i].visible = false;
         job.wait = 0.35;
+        this._setIdleHover(false);
         job.state = ST.WAYMO_OUT;
         job.carPath = this._leavePath();
         job.carI = 0;
@@ -1251,6 +1299,7 @@ export class RideshareSystem {
       }
 
       case ST.DEBOARD: {
+        this._setIdleHover(true);
         if (job.wait > 0) {
           job.wait -= t;
           break;
@@ -1259,10 +1308,12 @@ export class RideshareSystem {
         job.pathI = new Array(job.n).fill(0);
         if (job.closed) {
           // Gaymo peels off immediately; guest heads to the (locked) door
+          this._setIdleHover(false);
           job.carPath = this._leavePath();
           job.carI = 0;
           job.state = ST.CLOSED_WALK;
         } else {
+          this._setIdleHover(false);
           job.state = ST.TO_DOOR;
         }
         break;
@@ -1397,16 +1448,18 @@ export class RideshareSystem {
         if (!carDone) break;
         this.waymo.position.copy(this.carStop);
         this.waymo.rotation.y = this.stopFaceY;
+        this._setIdleHover(true);
         if (!guestDone) break;
         // Board the rescue
         job.paths = this._pathsCurbToCar(1);
         job.pathI = [0];
         job.state = ST.RESCUE_BOARD;
-        job.wait = 0.25;
+        job.wait = 0.3;
         break;
       }
 
       case ST.RESCUE_BOARD: {
+        this._setIdleHover(true);
         if (job.wait > 0) {
           job.wait -= t;
           break;
@@ -1414,6 +1467,7 @@ export class RideshareSystem {
         if (!this._tickGuests(job, t, WALK * 1.05)) break;
         this.guests[0].visible = false;
         job.wait = 0.3;
+        this._setIdleHover(false);
         job.state = ST.RESCUE_OUT;
         job.carPath = this._leavePath();
         job.carI = 0;
@@ -1472,36 +1526,36 @@ function _knockTexture() {
   return canvasTexture(c);
 }
 
-/** iMessage-style bubble above a waiting guest. */
+/** iMessage-style bubble above a waiting guest — large for phone readability. */
 function _waitSmsTexture() {
   const c = document.createElement("canvas");
-  c.width = 512;
-  c.height = 160;
+  c.width = 768;
+  c.height = 240;
   const ctx = c.getContext("2d");
   // Dark glass bubble
-  ctx.fillStyle = "rgba(30, 28, 48, 0.92)";
-  roundRect(ctx, 12, 20, 488, 120, 28);
+  ctx.fillStyle = "rgba(22, 20, 38, 0.94)";
+  roundRect(ctx, 16, 24, 736, 168, 36);
   ctx.fill();
-  ctx.strokeStyle = "rgba(255,255,255,0.12)";
-  ctx.lineWidth = 2;
-  roundRect(ctx, 12, 20, 488, 120, 28);
+  ctx.strokeStyle = "rgba(62, 200, 255, 0.45)";
+  ctx.lineWidth = 3;
+  roundRect(ctx, 16, 24, 736, 168, 36);
   ctx.stroke();
-  // Tail
-  ctx.fillStyle = "rgba(30, 28, 48, 0.92)";
+  // Tail pointing at the guest
+  ctx.fillStyle = "rgba(22, 20, 38, 0.94)";
   ctx.beginPath();
-  ctx.moveTo(80, 130);
-  ctx.lineTo(100, 156);
-  ctx.lineTo(120, 130);
+  ctx.moveTo(120, 180);
+  ctx.lineTo(150, 228);
+  ctx.lineTo(180, 180);
   ctx.closePath();
   ctx.fill();
   // From line
   ctx.fillStyle = "#3ec8ff";
-  ctx.font = "bold 22px system-ui, sans-serif";
+  ctx.font = "bold 36px system-ui, 'Segoe UI', sans-serif";
   ctx.textAlign = "left";
-  ctx.fillText("Gaymo", 36, 52);
-  // Body
+  ctx.fillText("Gaymo", 48, 78);
+  // Body — slightly wrapped feel with one clear line
   ctx.fillStyle = "#f2eef8";
-  ctx.font = "600 28px system-ui, sans-serif";
-  ctx.fillText("Your Gaymo will arrive shortly!", 36, 98);
+  ctx.font = "600 40px system-ui, 'Segoe UI', sans-serif";
+  ctx.fillText("Your Gaymo will arrive shortly!", 48, 140);
   return canvasTexture(c);
 }
