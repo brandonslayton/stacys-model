@@ -454,7 +454,12 @@ export class RideshareSystem {
   /**
    * @param {THREE.Object3D} parent
    * @param {THREE.Group} venue
-   * @param {{streetDoor: THREE.Vector3, aisleX?: number}} anchors from LifeSystem
+   * @param {{
+   *   streetDoor: THREE.Vector3,
+   *   mouth?: THREE.Vector3,
+   *   aisle?: THREE.Vector3,
+   *   yardCorner?: THREE.Vector3,
+   * }} anchors from LifeSystem (world space)
    */
   constructor(parent, venue, anchors) {
     this.root = new THREE.Group();
@@ -462,16 +467,32 @@ export class RideshareSystem {
     parent.add(this.root);
 
     this.streetDoor = anchors.streetDoor.clone();
-    // Curb stop: near-lane right in front of the porch so the default street
-    // framing (and RIDESHARE_VIEW) catch both the guests and the robotaxi.
-    this.stopX = this.streetDoor.x + 0.35;
-    this.arriveX = Math.min(STREET.xMax - 1, this.stopX + ARRIVE_LEAD);
-    this.waitPoints = [
-      sidewalkPoint(this.streetDoor.x - 0.4),
-      sidewalkPoint(this.streetDoor.x + 0.55),
-    ];
-    // Guests stand on the sidewalk; car stops in the near lane abeam them.
-    this.carStop = new THREE.Vector3(this.stopX, 0.02, STREET.nearLaneZ);
+    this.mouth = anchors.mouth ? anchors.mouth.clone() : null;
+    this.aisle = anchors.aisle ? anchors.aisle.clone() : null;
+    this.yardCorner = anchors.yardCorner
+      ? anchors.yardCorner.clone()
+      : new THREE.Vector3(
+          this.aisle ? this.aisle.x : this.streetDoor.x,
+          0,
+          this.streetDoor.z + 0.5
+        );
+
+    // Dumpster in world space — exit continues past it, then left, then off-map
+    venue.updateWorldMatrix(true, true);
+    const m = venue.matrixWorld;
+    const dumpUd = venue.userData.dumpster;
+    this.dump = dumpUd
+      ? {
+          pos: new THREE.Vector3(dumpUd.x, 0.02, dumpUd.z).applyMatrix4(m),
+          approach: new THREE.Vector3(
+            dumpUd.approachX,
+            0.02,
+            dumpUd.approachZ
+          ).applyMatrix4(m),
+        }
+      : null;
+
+    this._setupStop();
 
     this.waymo = createWaymo();
     this.waymo.visible = false;
@@ -486,6 +507,49 @@ export class RideshareSystem {
     this.job = null;
     this.bob = 0;
     this.clock = 0;
+  }
+
+  /**
+   * Loading zone in the parking aisle (not the street curb). Guests walk out of
+   * the porch across the front yard; the Gaymo pulls in from 7th via the driveway.
+   * Falls back to a curb stop if driveway anchors are missing.
+   */
+  _setupStop() {
+    if (this.mouth && this.aisle) {
+      // Abeam the porch, on the aisle centreline — clear of stalls and the mouth
+      const zLo = Math.min(this.mouth.z, this.aisle.z) + 0.6;
+      const zHi = Math.max(this.mouth.z, this.aisle.z) - 0.8;
+      const stopZ = THREE.MathUtils.clamp(this.streetDoor.z + 0.55, zLo, zHi);
+      this.carStop = new THREE.Vector3(this.aisle.x, 0.02, stopZ);
+      // Enter from the south on 7th, same as life.js cars
+      this.arriveX = Math.min(STREET.xMax - 1, this.mouth.x + ARRIVE_LEAD);
+      // Guests wait on the building side of the aisle (+X from aisle centre)
+      this.waitPoints = [
+        new THREE.Vector3(this.aisle.x + 0.85, 0, stopZ + 0.35),
+        new THREE.Vector3(this.aisle.x + 0.85, 0, stopZ - 0.3),
+      ];
+      // Face along the aisle toward the rear after pulling in
+      this.stopFaceY = Math.atan2(
+        this.aisle.x - this.mouth.x,
+        this.aisle.z - this.mouth.z
+      );
+      this.inLot = true;
+      return;
+    }
+
+    // Fallback: curb on 7th Ave
+    this.carStop = new THREE.Vector3(
+      this.streetDoor.x + 0.35,
+      0.02,
+      STREET.nearLaneZ
+    );
+    this.arriveX = Math.min(STREET.xMax - 1, this.carStop.x + ARRIVE_LEAD);
+    this.waitPoints = [
+      sidewalkPoint(this.streetDoor.x - 0.4),
+      sidewalkPoint(this.streetDoor.x + 0.55),
+    ];
+    this.stopFaceY = -Math.PI / 2;
+    this.inLot = false;
   }
 
   get busy() {
@@ -556,21 +620,67 @@ export class RideshareSystem {
       wait: 0,
       carPath: path,
       carI: 0,
+      lotFrom: this.inLot ? 3 : path.length,
     };
     return true;
   }
 
+  /**
+   * Into the lot: south on 7th → right into the driveway mouth → up the aisle
+   * to the loading zone. Mirrors life.js `_pathIntoLot` without a stall.
+   */
   _arrivePath() {
+    if (this.inLot && this.mouth && this.aisle) {
+      return this._clean([
+        ...roadPolyline(this.arriveX, this.mouth.x, -1),
+        new THREE.Vector3(this.mouth.x, 0.02, STREET.curbZ),
+        this.mouth.clone(),
+        // Mid-aisle waypoint so the turn into the stop isn't a hard corner
+        new THREE.Vector3(this.aisle.x, 0.02, (this.mouth.z + this.carStop.z) * 0.5),
+        this.carStop.clone(),
+      ]);
+    }
     return this._clean([
-      ...roadPolyline(this.arriveX, this.stopX, -1),
+      ...roadPolyline(this.arriveX, this.carStop.x, -1),
       this.carStop.clone(),
     ]);
   }
 
+  /**
+   * Out: keep going deeper into the lot, past the dumpster, turn left, then
+   * glide off the north edge and despawn. No reverse out the driveway.
+   */
   _leavePath() {
+    if (this.inLot && this.aisle && this.dump) {
+      const d = this.dump;
+      // Facing roughly toward the dumpster (north / −X) at the end of the aisle;
+      // left is +Z (street-ward). Exit past the dumpster then bank left off-map.
+      return this._clean([
+        this.carStop.clone(),
+        // Continue along the aisle toward the dumpster bay
+        new THREE.Vector3(this.aisle.x, 0.02, d.approach.z + 0.4),
+        d.approach.clone(),
+        // Clear of the dumpster on its north side
+        new THREE.Vector3(d.pos.x - 1.1, 0.02, d.pos.z + 0.3),
+        // Left turn — sweep toward +Z while still heading off the property
+        new THREE.Vector3(d.pos.x - 2.0, 0.02, d.pos.z + 3.2),
+        // Spawn-out: well past the pad, off-camera
+        new THREE.Vector3(d.pos.x - 4.5, 0.02, d.pos.z + 7.5),
+        new THREE.Vector3(d.pos.x - 7.0, 0.02, d.pos.z + 10.0),
+      ]);
+    }
+    if (this.inLot && this.aisle) {
+      // No dumpster data — roll north along the aisle and off the pad
+      return this._clean([
+        this.carStop.clone(),
+        this.aisle.clone(),
+        new THREE.Vector3(this.aisle.x - 6, 0.02, this.aisle.z),
+        new THREE.Vector3(this.aisle.x - 10, 0.02, this.aisle.z + 2),
+      ]);
+    }
     return this._clean([
       this.carStop.clone(),
-      ...roadPolyline(this.stopX, LEAVE_X, -1),
+      ...roadPolyline(this.carStop.x, LEAVE_X, -1),
     ]);
   }
 
@@ -590,53 +700,87 @@ export class RideshareSystem {
     void n;
   }
 
+  /** Porch → front yard → wait spots on the aisle (building side). */
   _pathsDoorToCurb(n) {
     const paths = [];
     for (let i = 0; i < n; i++) {
       const wait = this.waitPoints[i] || this.waitPoints[0];
-      paths.push(
-        this._clean([
-          this.streetDoor.clone(),
-          sidewalkPoint(this.streetDoor.x),
-          wait.clone(),
-        ])
-      );
+      if (this.inLot) {
+        paths.push(
+          this._clean([
+            this.streetDoor.clone(),
+            this.yardCorner.clone(),
+            wait.clone(),
+          ])
+        );
+      } else {
+        paths.push(
+          this._clean([
+            this.streetDoor.clone(),
+            sidewalkPoint(this.streetDoor.x),
+            wait.clone(),
+          ])
+        );
+      }
     }
     return paths;
   }
 
+  /** Wait spots → passenger door on the building side of the Gaymo. */
   _pathsCurbToCar(n) {
     const paths = [];
     const car = this.waymo.position;
     for (let i = 0; i < n; i++) {
-      // Approach the sidewalk-side door of the northbound car
-      const door = new THREE.Vector3(
-        car.x + (i === 0 ? -0.25 : 0.3),
-        0,
-        STREET.sidewalkZ + 0.4
-      );
       const wait = this.waitPoints[i] || this.waitPoints[0];
+      const door = this.inLot
+        ? new THREE.Vector3(
+            car.x + 0.7,
+            0,
+            car.z + (i === 0 ? 0.2 : -0.25)
+          )
+        : new THREE.Vector3(
+            car.x + (i === 0 ? -0.25 : 0.3),
+            0,
+            STREET.sidewalkZ + 0.4
+          );
       paths.push(this._clean([wait.clone(), door]));
     }
     return paths;
   }
 
+  /** Step out of the Gaymo and walk porch-ward into the bar. */
   _pathsCarToDoor(n) {
     const paths = [];
     const car = this.waymo.position;
     for (let i = 0; i < n; i++) {
-      const start = new THREE.Vector3(
-        car.x + (i === 0 ? -0.2 : 0.25),
-        0,
-        STREET.sidewalkZ + 0.15
-      );
-      paths.push(
-        this._clean([
-          start,
-          sidewalkPoint(this.streetDoor.x + (i === 0 ? -0.2 : 0.25)),
-          this.streetDoor.clone(),
-        ])
-      );
+      const start = this.inLot
+        ? new THREE.Vector3(
+            car.x + 0.7,
+            0,
+            car.z + (i === 0 ? 0.2 : -0.25)
+          )
+        : new THREE.Vector3(
+            car.x + (i === 0 ? -0.2 : 0.25),
+            0,
+            STREET.sidewalkZ + 0.15
+          );
+      if (this.inLot) {
+        paths.push(
+          this._clean([
+            start,
+            this.yardCorner.clone(),
+            this.streetDoor.clone(),
+          ])
+        );
+      } else {
+        paths.push(
+          this._clean([
+            start,
+            sidewalkPoint(this.streetDoor.x + (i === 0 ? -0.2 : 0.25)),
+            this.streetDoor.clone(),
+          ])
+        );
+      }
     }
     return paths;
   }
@@ -705,11 +849,14 @@ export class RideshareSystem {
   }
 
   _carSpeed(job) {
-    // Ease down in the last ~4m of the approach
     const path = job.carPath;
     if (!path || job.carI >= path.length) return ROAD_SLOW;
     const remaining = path.length - job.carI;
+    // Crawl the last few waypoints (into the stop, or the dumpster left-turn)
     if (remaining <= 3) return ROAD_SLOW;
+    // Lot speed once off 7th Ave
+    if (job.state === ST.WAYMO_OUT) return this.inLot ? 5.2 : ROAD;
+    if (this.inLot && job.carI >= (job.lotFrom ?? 2)) return 4.6;
     return ROAD;
   }
 
@@ -729,9 +876,13 @@ export class RideshareSystem {
     switch (job.state) {
       case ST.GUESTS_OUT: {
         if (!this._tickGuests(job, t)) break;
-        // Face the street while waiting
+        // Face toward the aisle / arriving car while waiting
         for (let i = 0; i < job.n; i++) {
-          this.guests[i].rotation.y = 0; // look roughly +Z toward road
+          const w = this.waitPoints[i] || this.waitPoints[0];
+          this.guests[i].rotation.y = Math.atan2(
+            this.carStop.x - w.x,
+            this.carStop.z - w.z
+          );
         }
         job.state = ST.WAIT_CURB;
         job.wait = 0.55 + Math.random() * 0.35;
@@ -755,6 +906,8 @@ export class RideshareSystem {
         );
         job.carPath = path;
         job.carI = 0;
+        // Index where the path leaves the road for the lot (after curb waypoint)
+        job.lotFrom = this.inLot ? 3 : path.length;
         job.state = ST.WAYMO_IN;
         break;
       }
@@ -770,9 +923,8 @@ export class RideshareSystem {
         job.carI = r.pathI;
         if (!r.done) break;
 
-        // Park parallel to the curb, facing northbound (−X)
-        this.waymo.rotation.y = -Math.PI / 2;
         this.waymo.position.copy(this.carStop);
+        this.waymo.rotation.y = this.stopFaceY;
 
         if (job.mode === "pickup") {
           job.paths = this._pathsCurbToCar(job.n);
@@ -780,7 +932,6 @@ export class RideshareSystem {
           job.state = ST.BOARD;
           job.wait = 0.35;
         } else {
-          // Spawn guests at the curb side of the car
           job.paths = this._pathsCarToDoor(job.n);
           job.pathI = new Array(job.n).fill(0);
           for (let i = 0; i < job.n; i++) {
@@ -800,9 +951,8 @@ export class RideshareSystem {
           break;
         }
         if (!this._tickGuests(job, t, WALK * 1.05)) break;
-        // Guests vanish into the cabin
         for (let i = 0; i < job.n; i++) this.guests[i].visible = false;
-        job.wait = 0.4;
+        job.wait = 0.35;
         job.state = ST.WAYMO_OUT;
         job.carPath = this._leavePath();
         job.carI = 0;
@@ -831,13 +981,15 @@ export class RideshareSystem {
       case ST.WAYMO_OUT: {
         if (job.wait > 0) {
           job.wait -= t;
-          // Face north before rolling
-          if (job.wait <= 0) {
-            this.waymo.rotation.y = -Math.PI / 2;
-          }
           break;
         }
-        const r = this._advance(this.waymo, job.carPath, job.carI, ROAD, t);
+        const r = this._advance(
+          this.waymo,
+          job.carPath,
+          job.carI,
+          this._carSpeed(job),
+          t
+        );
         job.carI = r.pathI;
         if (!r.done) break;
         this._finish();

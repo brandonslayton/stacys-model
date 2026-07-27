@@ -208,10 +208,11 @@ const PATIO_VIEW = { az: 268, el: 30, zoom: 0.86, target: [0, 0.9, -3.9] };
 const INCIDENT_VIEW = { az: 186, el: 30, zoom: 0.5, target: [-5.4, 0.6, 3.1] };
 
 /**
- * Curb in front of the porch — where the Waymo stops. Default az 58 already faces
- * the street facade, so this is a mild zoom-in rather than a hard swing.
+ * Parking aisle / lot entrance — where the Gaymo stops for pickup. Street-side
+ * az would hide the aisle behind the building; this looks in from the north-west
+ * so the driveway, loading zone and dumpster exit are all readable.
  */
-const RIDESHARE_VIEW = { az: 38, el: 16, zoom: 0.48, target: [-1.5, 0.35, 6.8] };
+const RIDESHARE_VIEW = { az: 210, el: 28, zoom: 0.55, target: [-4.2, 0.5, 2.2] };
 
 /** Eased-to view, or null when the user is in control. */
 let focusTarget = null;
@@ -690,7 +691,9 @@ async function boot() {
   const incident = new IncidentSystem(scene, model, life);
   const rideshare = new RideshareSystem(scene, model, {
     streetDoor: life.streetDoor,
-    aisleX: life.aisle ? life.aisle.x : life.streetDoor.x,
+    mouth: life.mouth,
+    aisle: life.aisle,
+    yardCorner: life.yardCorner,
   });
   const mist = new MistSystem(scene, model);
   mistRef = mist;
