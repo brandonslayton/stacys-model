@@ -3786,12 +3786,7 @@ export function createInterior() {
       }
     }
 
-    // King post drops under the ridge at a few bays (vertical timber)
-    for (const x of [-3.2, 0, 3.2]) {
-      const king = box(0.12, rise * 0.55, 0.12, RAFTER_WOOD, { roughness: 0.85 });
-      king.position.set(x, EAVE_H + rise * 0.35, 0);
-      add(king);
-    }
+    // (No king posts under the ridge — they hung empty with nothing on them.)
   }
 
   // Truss ring + disco ball hang from near the ridge (under the vault)
