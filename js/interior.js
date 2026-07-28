@@ -44,6 +44,17 @@ const RH = EAVE_H;
 const WALL = 0.14;
 const halfW = RW * 0.5;
 const halfD = RD * 0.5;
+/**
+ * Manager lookout above the Stacy's diamond (south / bar wall).
+ * Real open aperture through wall + gable — no glass slab (that read as a dead TV).
+ * Club-side and office-side openings share these world sizes.
+ */
+const LOOKOUT_W = 1.55;
+const LOOKOUT_H = 1.05;
+const LOOKOUT_Y = 3.5; // world center Y of the opening
+const LOOKOUT_Z = 0.15; // above the diamond
+/** Office-local window center Y (floor → sill/mid of opening). */
+const OFFICE_WIN_Y = 1.55;
 const RAFTER_WOOD = 0x2a1e16;
 const RAFTER_DARK = 0x1a120e;
 
@@ -309,10 +320,10 @@ function buildManagerOffice(lit) {
     wall.position.set(0, H * 0.5, side * (D * 0.5 - 0.05));
     g.add(wall);
   }
-  // Front wall with window opening (−X toward club)
-  const winW = 1.5;
-  const winH = 0.95;
-  const winY = 1.55;
+  // Front wall with window opening (−X toward club) — same size as club hole
+  const winW = LOOKOUT_W;
+  const winH = LOOKOUT_H;
+  const winY = OFFICE_WIN_Y;
   const fw = 0.1;
   const sideSpan = (D - winW) * 0.5;
   const frontL = box(fw, H, sideSpan, 0x2a241c, { roughness: 0.82 });
@@ -330,24 +341,31 @@ function buildManagerOffice(lit) {
   frontTop.position.set(-W * 0.5 + fw * 0.5, winY + winH * 0.5 + topH * 0.5, 0);
   g.add(frontTop);
 
-  // Open lookout (no solid glass) — frame only so you can look down into the club
-  const frame = box(0.06, winH + 0.1, winW + 0.1, 0x1a1a22, { metalness: 0.35, roughness: 0.4 });
-  frame.position.set(-W * 0.5 + 0.04, winY, 0);
-  g.add(frame);
-  // Very light tint volume so the hole still reads as a window from outside
-  const glass = box(0.02, winH, winW, 0xa0d0f0, {
-    transparent: true,
-    opacity: 0.08,
-    roughness: 0.05,
-    metalness: 0.05,
-    depthWrite: false,
-  });
-  glass.position.set(-W * 0.5 + 0.01, winY, 0);
-  g.add(glass);
-  // Sill to lean on while looking out
-  const sill = box(0.22, 0.05, winW + 0.06, 0x3a2a1e, { roughness: 0.7 });
-  sill.position.set(-W * 0.5 + 0.14, winY - winH * 0.5 - 0.02, 0);
+  // True open aperture — hollow frame rails only (no solid fill / no glass slab)
+  const fr = 0.05;
+  const fx = -W * 0.5 + 0.03;
+  // Left / right rails of the opening
+  for (const sz of [-1, 1]) {
+    const rail = box(fr, winH + fr * 2, fr, 0x3a342c, { roughness: 0.65 });
+    rail.position.set(fx, winY, sz * (winW * 0.5));
+    g.add(rail);
+  }
+  // Top / bottom rails
+  for (const sy of [-1, 1]) {
+    const rail = box(fr, fr, winW + fr * 2, 0x3a342c, { roughness: 0.65 });
+    rail.position.set(fx, winY + sy * (winH * 0.5), 0);
+    g.add(rail);
+  }
+  // Deep sill to lean on while looking out
+  const sill = box(0.28, 0.06, winW + 0.08, 0x4a3a2e, { roughness: 0.7 });
+  sill.position.set(-W * 0.5 + 0.16, winY - winH * 0.5 - 0.03, 0);
   g.add(sill);
+  // Curtain tie-backs on sides (reads as a real room window)
+  for (const sz of [-1, 1]) {
+    const drape = box(0.08, winH * 0.85, 0.12, 0x3a2040, { roughness: 0.85 });
+    drape.position.set(fx + 0.02, winY - 0.05, sz * (winW * 0.5 + 0.1));
+    g.add(drape);
+  }
 
   // Desk against the back wall
   const desk = box(0.7, 0.08, 1.6, 0x3a2a1e, { roughness: 0.55 });
@@ -3240,10 +3258,34 @@ export function createInterior() {
     const north = wallMesh(WALL, EAVE_H, RD, "brick");
     north.position.set(-halfW, EAVE_H * 0.5, 0);
     add(north);
-    // Full dark-purple wall behind the bar / liquor shelves
-    const south = wallMesh(WALL, EAVE_H, RD, "purpleDark");
-    south.position.set(halfW, EAVE_H * 0.5, 0);
-    add(south);
+    // Full dark-purple wall behind the bar / liquor shelves —
+    // leave a real HOLE for the elevated manager lookout (no solid fill).
+    {
+      const winBot = LOOKOUT_Y - LOOKOUT_H * 0.5;
+      const winL = LOOKOUT_Z - LOOKOUT_W * 0.5;
+      const winR = LOOKOUT_Z + LOOKOUT_W * 0.5;
+      const botH = Math.min(EAVE_H, Math.max(0.2, winBot));
+      // Solid band under the lookout sill (full wall width)
+      const southBot = wallMesh(WALL, botH, RD, "purpleDark");
+      southBot.position.set(halfW, botH * 0.5, 0);
+      add(southBot);
+      // Flanks above the sill up to the eave (window sits mostly in the gable)
+      if (EAVE_H > botH + 0.04) {
+        const topH = EAVE_H - botH;
+        const leftLen = winL - (-halfD);
+        if (leftLen > 0.08) {
+          const left = wallMesh(WALL, topH, leftLen, "purpleDark");
+          left.position.set(halfW, botH + topH * 0.5, -halfD + leftLen * 0.5);
+          add(left);
+        }
+        const rightLen = halfD - winR;
+        if (rightLen > 0.08) {
+          const right = wallMesh(WALL, topH, rightLen, "purpleDark");
+          right.position.set(halfW, botH + topH * 0.5, winR + rightLen * 0.5);
+          add(right);
+        }
+      }
+    }
     const barWallWash = new THREE.PointLight(0x7040a0, 0.4, 9, 2);
     barWallWash.position.set(halfW - 1.5, 2.3, 0.15);
     add(barWallWash);
@@ -3299,9 +3341,15 @@ export function createInterior() {
       }
     }
 
-    // Gable triangles — brick N, dark purple S (matches bar wall)
+    // Gable triangles — brick N, dark purple S (matches bar wall).
+    // South gable is cut open for the manager lookout so the hole is real, not a dark TV slab.
+    const lookBot = LOOKOUT_Y - LOOKOUT_H * 0.5;
+    const lookTop = LOOKOUT_Y + LOOKOUT_H * 0.5;
+    const lookL = LOOKOUT_Z - LOOKOUT_W * 0.5;
+    const lookR = LOOKOUT_Z + LOOKOUT_W * 0.5;
     for (const x of [-halfW, halfW]) {
       const gableKind = x < 0 ? "brick" : "purpleDark";
+      const cutLookout = x > 0; // south only
       const steps = 10;
       for (let i = 0; i < steps; i++) {
         const t0 = i / steps;
@@ -3309,15 +3357,41 @@ export function createInterior() {
         const y0 = EAVE_H + rise * t0;
         const y1 = EAVE_H + rise * t1;
         const midY = (y0 + y1) * 0.5;
+        const bandH = Math.max(0.08, y1 - y0 + 0.02);
         const zW = RD * (1 - (t0 + t1) * 0.5) + 0.15;
-        const slab = wallMesh(WALL + 0.02, Math.max(0.08, y1 - y0 + 0.02), zW, gableKind);
-        // Don't over-repeat brick on thin gable bands
-        if (slab.material?.map) {
-          slab.material.map = slab.material.map.clone();
-          slab.material.map.repeat.set(gableKind === "brick" ? 2.2 : 3, 0.35);
+        const placeBand = (depth, zCenter, yCenter, h) => {
+          if (depth < 0.06 || h < 0.04) return;
+          const slab = wallMesh(WALL + 0.02, h, depth, gableKind);
+          if (slab.material?.map) {
+            slab.material.map = slab.material.map.clone();
+            slab.material.map.repeat.set(gableKind === "brick" ? 2.2 : 3, 0.35);
+          }
+          slab.position.set(x, yCenter, zCenter);
+          add(slab);
+        };
+        // North gable (or south bands that miss the lookout) stay solid
+        if (!cutLookout || y1 <= lookBot + 0.02 || y0 >= lookTop - 0.02) {
+          placeBand(zW, 0, midY, bandH);
+          continue;
         }
-        slab.position.set(x, midY, 0);
-        add(slab);
+        // South band overlaps lookout — flanks + strips above/below the hole
+        const halfZW = zW * 0.5;
+        const leftDepth = lookL - (-halfZW);
+        if (leftDepth > 0.08) placeBand(leftDepth, -halfZW + leftDepth * 0.5, midY, bandH);
+        const rightDepth = halfZW - lookR;
+        if (rightDepth > 0.08) placeBand(rightDepth, lookR + rightDepth * 0.5, midY, bandH);
+        // Fill below the sill inside the window Z column
+        const belowTop = Math.min(y1, lookBot);
+        if (belowTop > y0 + 0.03) {
+          const h = belowTop - y0;
+          placeBand(LOOKOUT_W + 0.04, LOOKOUT_Z, y0 + h * 0.5, h);
+        }
+        // Fill above the head inside the window Z column
+        const aboveBot = Math.max(y0, lookTop);
+        if (y1 > aboveBot + 0.03) {
+          const h = y1 - aboveBot;
+          placeBand(LOOKOUT_W + 0.04, LOOKOUT_Z, aboveBot + h * 0.5, h);
+        }
       }
       // Decorative gable rafter outline on the inside face
       for (const side of [-1, 1]) {
@@ -4309,16 +4383,15 @@ export function createInterior() {
     add(photosNeon);
 
     // ══════════════════════════════════════════════════════════════
-    // FULL-HEIGHT dark-purple back-bar wall + elevated lookout window
-    // ABOVE the Stacy's diamond. Bar floor stays unchanged — office is
-    // BEHIND the wall at window height (button teleport). Real hole in
-    // the wall so you can look down onto the bar.
+    // Elevated lookout ABOVE the Stacy's diamond — real open aperture
+    // (shell south wall + gable are cut to match LOOKOUT_*). Office sits
+    // BEHIND the wall; hollow wood frame only — no glass / no solid slab.
     // ══════════════════════════════════════════════════════════════
     {
-      const winW = 1.35;
-      const winH = 0.9;
-      const winY = 3.45; // world center of the lookout
-      const winZ = 0.15; // above the diamond
+      const winW = LOOKOUT_W;
+      const winH = LOOKOUT_H;
+      const winY = LOOKOUT_Y;
+      const winZ = LOOKOUT_Z;
       const winBot = winY - winH * 0.5;
       const winTop = winY + winH * 0.5;
       const tallH = PEAK_H - 0.15;
@@ -4328,74 +4401,93 @@ export function createInterior() {
       const sideL = winZ - winW * 0.5 - wallZ0; // z length left of window
       const sideR = wallZ1 - (winZ + winW * 0.5);
 
-      // Tall purple wall in pieces — HOLE where the lookout window is
-      // Bottom band (eave up to window sill)
+      // Inset purple reveal around the hole (reads as wall thickness, not a screen)
+      const revealX = wallX + 0.02;
       if (winBot > 0.1) {
         const bot = wallMesh(WALL, winBot, wallSpan, "purpleDark");
-        bot.position.set(wallX + 0.02, winBot * 0.5, 0.1);
+        bot.position.set(revealX, winBot * 0.5, 0.1);
         add(bot);
       }
-      // Left / right of window
       if (sideL > 0.08) {
         const left = wallMesh(WALL, winH, sideL, "purpleDark");
-        left.position.set(wallX + 0.02, winY, wallZ0 + sideL * 0.5);
+        left.position.set(revealX, winY, wallZ0 + sideL * 0.5);
         add(left);
       }
       if (sideR > 0.08) {
         const right = wallMesh(WALL, winH, sideR, "purpleDark");
-        right.position.set(wallX + 0.02, winY, wallZ1 - sideR * 0.5);
+        right.position.set(revealX, winY, wallZ1 - sideR * 0.5);
         add(right);
       }
-      // Above window to ridge
       const topH = tallH - winTop;
       if (topH > 0.08) {
         const top = wallMesh(WALL, topH, wallSpan, "purpleDark");
-        top.position.set(wallX + 0.02, winTop + topH * 0.5, 0.1);
+        top.position.set(revealX, winTop + topH * 0.5, 0.1);
         add(top);
       }
+      // Inner jamb lips (depth into the wall so the opening feels 3D)
+      const jambDepth = 0.16;
+      const jambX = wallX - 0.01;
+      for (const sz of [-1, 1]) {
+        const jamb = box(jambDepth, winH, 0.05, 0x2a1e28, { roughness: 0.82 });
+        jamb.position.set(jambX, winY, winZ + sz * (winW * 0.5 - 0.02));
+        add(jamb);
+      }
+      const head = box(jambDepth, 0.05, winW, 0x2a1e28, { roughness: 0.82 });
+      head.position.set(jambX, winTop - 0.02, winZ);
+      add(head);
 
-      // Window frame in the hole (open — clear lookout)
-      const winFrame = box(0.1, winH + 0.12, winW + 0.12, 0x1a1420, {
-        metalness: 0.3,
-        roughness: 0.45,
-      });
-      winFrame.position.set(wallX - 0.02, winY, winZ);
-      add(winFrame);
-      const mullV = box(0.035, winH, 0.035, 0x2a2030, { metalness: 0.25, roughness: 0.5 });
-      mullV.position.set(wallX - 0.04, winY, winZ);
+      // Hollow wood window frame — rails only (NOT a solid fill slab)
+      const fr = 0.06;
+      const fx = wallX - 0.06;
+      for (const sz of [-1, 1]) {
+        const post = box(0.1, winH + fr * 2, fr, 0x4a3a2e, {
+          roughness: 0.72,
+          metalness: 0.04,
+        });
+        post.position.set(fx, winY, winZ + sz * (winW * 0.5));
+        add(post);
+      }
+      for (const sy of [-1, 1]) {
+        const rail = box(0.1, fr, winW + fr * 2, 0x4a3a2e, {
+          roughness: 0.72,
+          metalness: 0.04,
+        });
+        rail.position.set(fx, winY + sy * (winH * 0.5), winZ);
+        add(rail);
+      }
+      // Thin center mullions (keep the open view — not a screen grid)
+      const mullV = box(0.035, winH - 0.06, 0.035, 0x3a2e24, { roughness: 0.7 });
+      mullV.position.set(fx - 0.01, winY, winZ);
       add(mullV);
-      const mullH = box(0.035, 0.035, winW, 0x2a2030, { metalness: 0.25, roughness: 0.5 });
-      mullH.position.set(wallX - 0.04, winY, winZ);
+      const mullH = box(0.035, 0.035, winW - 0.06, 0x3a2e24, { roughness: 0.7 });
+      mullH.position.set(fx - 0.01, winY, winZ);
       add(mullH);
-      // Barely-there glass tint (see-through both ways)
-      const winGlass = box(0.02, winH * 0.98, winW * 0.98, 0x90c8e8, {
-        transparent: true,
-        opacity: 0.1,
-        roughness: 0.05,
-        metalness: 0.05,
-        depthWrite: false,
-      });
-      winGlass.position.set(wallX - 0.05, winY, winZ);
-      add(winGlass);
-      const sill = box(0.14, 0.05, winW + 0.08, 0x2a1e28, { roughness: 0.65 });
-      sill.position.set(wallX - 0.1, winBot - 0.03, winZ);
+      // Deep sill / ledge you could lean on
+      const sill = box(0.22, 0.07, winW + 0.14, 0x5a4535, { roughness: 0.7 });
+      sill.position.set(wallX - 0.14, winBot - 0.04, winZ);
       add(sill);
-      // Soft office light spill into the club through the hole
-      const winGlow = new THREE.PointLight(0xffd0a0, 0.55, 6, 2);
-      winGlow.position.set(wallX - 0.5, winY, winZ);
+      // Warm office light THROUGH the open hole (occupied loft, not black void)
+      const winGlow = new THREE.PointLight(0xffe0b0, 1.25, 7.5, 2);
+      winGlow.position.set(wallX + 0.55, winY, winZ);
       add(winGlow);
-      nightLights.push({ light: winGlow, day: 0.3, night: 0.7 });
+      nightLights.push({ light: winGlow, day: 0.6, night: 1.35 });
+      // Spill into the club so the hole glows warm from below
+      const spill = new THREE.PointLight(0xffd0a0, 0.55, 5.5, 2);
+      spill.position.set(wallX - 0.85, winY - 0.2, winZ);
+      add(spill);
+      nightLights.push({ light: spill, day: 0.3, night: 0.65 });
 
-      // Elevated manager office behind the wall (floor at window sill height)
-      // Bar / vault below stay empty — no loft slab over the room.
-      const loftFloorY = winBot - 0.05; // ~2.95 — standing eyes ≈ 4.5, look down through window
-      // Align office interior window with the club hole:
-      // office local winY is 1.55 → place floor so loftFloorY + 1.55 ≈ winY
+      // Elevated manager office behind the wall (floor aligns with window)
       const office = buildManagerOffice(lit);
       const officeW = office.userData.size.w;
-      const officeFloorY = winY - 1.55; // matches buildManagerOffice window center
+      const officeFloorY = winY - OFFICE_WIN_Y;
       office.position.set(wallX + officeW * 0.5 + 0.08, officeFloorY, winZ);
       add(office);
+      // Desk lamp spill so the loft looks lived-in from the bar floor
+      const loftLamp = new THREE.PointLight(0xffc080, 0.85, 4.5, 2);
+      loftLamp.position.set(wallX + 0.9, officeFloorY + 1.2, winZ + 0.3);
+      add(loftLamp);
+      nightLights.push({ light: loftLamp, day: 0.45, night: 0.95 });
 
       const ob = office.userData.bounds;
       g.userData.office = {
