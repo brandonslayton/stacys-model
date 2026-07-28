@@ -1540,19 +1540,20 @@ function buildDraftTower(_lit) {
 
 /**
  * Big cartoony commercial ice machine — stainless body, lit bin, ICE badge.
- * Local +Z = front face.
+ * Local +Z = front face. Pass `scale` to squeeze into a tight service bay.
  */
-function buildIceMachine(lit) {
+function buildIceMachine(lit, opts = {}) {
   const g = new THREE.Group();
   g.name = "iceMachine";
-  // Main chassis (slightly shorter / less "fridge fridge")
+  const s = opts.scale ?? 1;
+  // Main chassis
   const body = box(0.95, 1.55, 0.78, 0xc8ccd4, {
     metalness: 0.55,
     roughness: 0.3,
   });
   body.position.y = 0.82;
   g.add(body);
-  // Side panels (reads as equipment, not one big slab)
+  // Side panels
   for (const sx of [-1, 1]) {
     const side = box(0.04, 1.45, 0.72, 0xb0b4bc, { metalness: 0.5, roughness: 0.32 });
     side.position.set(sx * 0.48, 0.82, 0);
@@ -1572,7 +1573,7 @@ function buildIceMachine(lit) {
   const door = box(0.85, 0.95, 0.05, 0xd0d4dc, { metalness: 0.5, roughness: 0.32 });
   door.position.set(0, 0.95, 0.38);
   g.add(door);
-  // Ice bin window (soft cool glow — not a floodlight)
+  // Ice bin window (soft cool glow)
   const bin = box(0.62, 0.38, 0.04, 0x90d0e8, {
     emissive: 0x50a8c8,
     emissiveIntensity: 0.35,
@@ -1582,7 +1583,7 @@ function buildIceMachine(lit) {
   bin.position.set(0, 0.78, 0.42);
   lit(bin, 0.55, 0.3, { glimmerSpeed: 1.6 });
   g.add(bin);
-  // Chunks of ice (cartoony cubes)
+  // Chunks of ice
   for (let i = 0; i < 6; i++) {
     const cube = box(0.09, 0.09, 0.09, 0xe0f4ff, {
       transparent: true,
@@ -1596,7 +1597,7 @@ function buildIceMachine(lit) {
     cube.rotation.y = i * 0.35;
     g.add(cube);
   }
-  // Scoop resting on lip
+  // Scoop on lip
   const scoop = box(0.11, 0.035, 0.2, 0xe8ecf0, { metalness: 0.45, roughness: 0.35 });
   scoop.position.set(0.26, 1.05, 0.44);
   scoop.rotation.z = -0.2;
@@ -1615,7 +1616,7 @@ function buildIceMachine(lit) {
     lit(btn, 0.45, 0.28, { glimmerSpeed: 2.2 + i });
     g.add(btn);
   }
-  // Big ICE badge
+  // ICE badge
   const badge = new THREE.Mesh(
     new THREE.PlaneGeometry(0.48, 0.14),
     new THREE.MeshStandardMaterial({
@@ -1636,7 +1637,7 @@ function buildIceMachine(lit) {
   );
   badge.position.set(0, 1.5, 0.44);
   g.add(badge);
-  // Drain pan under front
+  // Drain pan
   const pan = box(0.7, 0.04, 0.22, 0x2a2e38, { metalness: 0.3, roughness: 0.5 });
   pan.position.set(0, 0.14, 0.42);
   g.add(pan);
@@ -1644,10 +1645,11 @@ function buildIceMachine(lit) {
   const kick = box(0.92, 0.1, 0.74, 0x2a2e38, { roughness: 0.6 });
   kick.position.y = 0.05;
   g.add(kick);
-  // Soft cold glow (kept modest so it doesn't blast the alcove)
+  // Soft cold glow
   const glow = new THREE.PointLight(0xa0d8e8, 0.28, 2.8, 2);
   glow.position.set(0, 0.9, 0.65);
   g.add(glow);
+  if (s !== 1) g.scale.set(s, s, s);
   return g;
 }
 
@@ -3238,19 +3240,7 @@ function buildBackBar(nightMats, lit, add, nightLights, wallX) {
   lit(posScreen, 0.9, 0.55);
   add(posScreen);
 
-  // Draft tower
-  const draft = box(0.4, 0.6, 0.4, METAL, { metalness: 0.45, roughness: 0.4 });
-  draft.position.set(railX + 0.12, 1.45, 2.0);
-  add(draft);
-  for (const dz of [-0.1, 0, 0.1]) {
-    const spout = cyl(0.025, 0.02, 0.22, 0xc8ccd0, { metalness: 0.5 }, 6);
-    spout.rotation.x = Math.PI / 2;
-    spout.position.set(railX - 0.1, 1.5, 2.0 + dz);
-    add(spout);
-    const handle = box(0.04, 0.14, 0.04, [0xc41e3a, 0xf0c14d, 0x2a5a3a][Math.round((dz + 0.1) * 10)] || 0xc41e3a);
-    handle.position.set(railX + 0.12, 1.75, 2.0 + dz);
-    add(handle);
-  }
+  // (Beer drafts live at the EAST end of the bar / walk-in corner — not here.)
 
   // Hanging stem rack above the glassware end (right / east side of bar)
   for (let i = 0; i < 8; i++) {
@@ -4239,121 +4229,79 @@ export function createInterior() {
     lit(exit, 1.05, 0.7);
     add(exit);
 
-    // ── Service alcove past patio: walk-in + draft station + ice ──
-    // Wall steps into the room; equipment sits on stainless / floor so it
-    // reads as a real bar back pocket — not floating boxes on blank purple.
+    // ── SE service corner: walk-in + drafts + ice (LEFT of bar when facing it) ──
+    // Facing the bar (+X): left = east (−Z). Walk-in bulk is wider and touches
+    // the bar's east tip. Draft tower faces the room so the taps read clearly.
     {
-      const jogX = patioX + 0.55; // just past patio door
-      const insetDepth = 1.25;
-      const insetZ = z + insetDepth;
-      const insetX1 = halfW - 0.15;
-      const jogThick = 0.58;
+      // Match south-block bar geometry so the walk-in can kiss the bar edge
+      const wallX = halfW - 0.08;
+      const barX = wallX - 2.55;
+      const barDepth = 1.05;
+      const barZc = 0.15;
+      const barLen = 5.6;
+      const barEastZ = barZc - barLen * 0.5; // ~−2.65 — east tip of bar
+      const barFrontX = barX - barDepth * 0.5;
+      const barRearX = barX + barDepth * 0.5;
       const wallH = EAVE_H;
-      const insetW = insetX1 - (jogX + jogThick);
-      const stationX0 = jogX + jogThick + 0.08;
-      const stationX1 = insetX1 - 0.08;
-      const stationMid = (stationX0 + stationX1) * 0.5;
-      const stationSpan = stationX1 - stationX0;
 
-      // Thick jog bulk — north face holds the walk-in door
-      const jogBulk = box(jogThick, wallH, insetDepth + 0.1, 0x2e2438, { roughness: 0.82 });
-      jogBulk.position.set(jogX + jogThick * 0.5, wallH * 0.5, z + insetDepth * 0.5);
+      // Walk-in bulk: starts just past patio, extends south to the bar tip
+      const jogX = patioX + 0.42;
+      const jogThick = 0.78; // thicker cooler mass
+      // Depth along Z from east wall almost to bar edge (can touch)
+      const insetDepth = Math.max(1.35, barEastZ - z - 0.04);
+      const bulkZc = z + insetDepth * 0.5;
+      const bulkX = jogX + jogThick * 0.5;
+
+      // Cooler shell (deep purple insulated mass)
+      const jogBulk = box(jogThick, wallH, insetDepth + 0.06, 0x2a2234, { roughness: 0.82 });
+      jogBulk.position.set(bulkX, wallH * 0.5, bulkZc);
       add(jogBulk);
+      // South cap of cooler (against bar end)
+      const southCap = box(jogThick + 0.08, wallH, 0.1, 0x241c30, { roughness: 0.8 });
+      southCap.position.set(bulkX, wallH * 0.5, z + insetDepth);
+      add(southCap);
+      // Ceiling bulkhead over the pocket
+      const bulkhead = box(jogThick + 0.2, 0.14, insetDepth + 0.15, 0x1c1624, { roughness: 0.85 });
+      bulkhead.position.set(bulkX, wallH - 0.06, bulkZc);
+      add(bulkhead);
 
-      // Inset wall (cooler face) — slightly cooler gray-purple, not dead flat
-      const insetFace = box(Math.max(0.4, insetW) + 0.12, wallH, 0.14, 0x342840, {
-        roughness: 0.78,
-      });
-      insetFace.position.set(jogX + jogThick + insetW * 0.5, wallH * 0.5, insetZ);
-      add(insetFace);
-
-      // Stainless backsplash band behind the station (waist to eye height)
-      const splash = box(stationSpan + 0.15, 0.95, 0.04, 0xb0b4bc, {
-        metalness: 0.55,
-        roughness: 0.28,
-      });
-      splash.position.set(stationMid, 1.45, insetZ - 0.08);
-      add(splash);
-      // Tile / panel lines on backsplash
-      for (let i = 0; i < 4; i++) {
-        const line = box(stationSpan + 0.1, 0.012, 0.02, 0x8a9098, {
-          metalness: 0.4,
-          roughness: 0.4,
-        });
-        line.position.set(stationMid, 1.15 + i * 0.2, insetZ - 0.1);
-        add(line);
-      }
-
-      // Wainscot band under the splash (darker service panel)
-      const wain = box(stationSpan + 0.15, 0.7, 0.05, 0x1e1828, { roughness: 0.85 });
-      wain.position.set(stationMid, 0.4, insetZ - 0.07);
-      add(wain);
-
-      // Ceiling bulkhead + under-cabinet light strip
-      const bulk = box(jogThick + insetW + 0.15, 0.14, insetDepth + 0.12, 0x221828, {
-        roughness: 0.85,
-      });
-      bulk.position.set(jogX + (jogThick + insetW) * 0.5, wallH - 0.06, z + insetDepth * 0.5);
-      add(bulk);
-      const strip = box(stationSpan * 0.9, 0.04, 0.08, 0xffe8c0, {
-        emissive: 0xffd090,
-        emissiveIntensity: 0.7,
-        roughness: 0.4,
-      });
-      strip.position.set(stationMid, wallH - 0.2, insetZ - 0.35);
-      lit(strip, 0.95, 0.55);
-      add(strip);
-      const stationFill = new THREE.PointLight(0xffe0b8, 0.55, 4.5, 2);
-      stationFill.position.set(stationMid, 2.2, insetZ - 0.55);
-      add(stationFill);
-      nightLights.push({ light: stationFill, day: 0.3, night: 0.65 });
-
-      // Rubber floor mat under the whole station
-      const mat = box(stationSpan + 0.2, 0.03, insetDepth * 0.85, 0x1a1a1e, { roughness: 0.95 });
-      mat.position.set(stationMid, 0.065, z + insetDepth * 0.55);
-      add(mat);
-
-      // ── Walk-in door on the NORTH face of the jog bulk (faces −X) ──
-      const wiZ = z + insetDepth * 0.52;
-      const wiDoorH = 2.05;
-      const wiDoorD = insetDepth * 0.7;
+      // ── Wide walk-in door on the NORTH face (−X into the room) ──
+      const wiDoorH = 2.1;
+      const wiDoorD = insetDepth * 0.9; // wider door
+      const wiZ = bulkZc;
       const wiFaceX = jogX - 0.02;
-      // Door slab + gasket frame
-      const wiFrame = box(0.08, wiDoorH + 0.1, wiDoorD + 0.1, 0x3a4048, {
+      const wiFrame = box(0.09, wiDoorH + 0.12, wiDoorD + 0.12, 0x3a4048, {
         metalness: 0.35,
         roughness: 0.45,
       });
-      wiFrame.position.set(wiFaceX + 0.02, 1.1, wiZ);
+      wiFrame.position.set(wiFaceX + 0.02, 1.12, wiZ);
       add(wiFrame);
-      const walkIn = box(0.1, wiDoorH, wiDoorD, 0x5a6270, {
+      const walkIn = box(0.11, wiDoorH, wiDoorD, 0x5a6270, {
         metalness: 0.45,
         roughness: 0.38,
       });
-      walkIn.position.set(wiFaceX, 1.08, wiZ);
+      walkIn.position.set(wiFaceX, 1.1, wiZ);
       add(walkIn);
-      // Horizontal insulation ribs
       for (let i = 0; i < 5; i++) {
-        const rib = box(0.04, 0.035, wiDoorD * 0.88, 0x4a525c, {
+        const rib = box(0.04, 0.035, wiDoorD * 0.9, 0x4a525c, {
           metalness: 0.4,
           roughness: 0.42,
         });
         rib.position.set(wiFaceX - 0.06, 0.4 + i * 0.38, wiZ);
         add(rib);
       }
-      // Lever handle
-      const wiHandle = box(0.1, 0.5, 0.1, 0xd0d4dc, { metalness: 0.6, roughness: 0.25 });
-      wiHandle.position.set(wiFaceX - 0.12, 1.15, wiZ + wiDoorD * 0.28);
+      const wiHandle = box(0.1, 0.55, 0.1, 0xd0d4dc, { metalness: 0.6, roughness: 0.25 });
+      wiHandle.position.set(wiFaceX - 0.12, 1.2, wiZ + wiDoorD * 0.3);
       add(wiHandle);
-      const wiGrip = box(0.14, 0.08, 0.08, 0xa8acb4, { metalness: 0.55, roughness: 0.3 });
-      wiGrip.position.set(wiFaceX - 0.18, 1.35, wiZ + wiDoorD * 0.28);
+      const wiGrip = box(0.15, 0.08, 0.08, 0xa8acb4, { metalness: 0.55, roughness: 0.3 });
+      wiGrip.position.set(wiFaceX - 0.19, 1.4, wiZ + wiDoorD * 0.3);
       add(wiGrip);
-      // Thermometer puck
       const thermo = cyl(0.06, 0.06, 0.04, 0x1a1a22, { roughness: 0.4 }, 10);
       thermo.rotation.z = Math.PI / 2;
-      thermo.position.set(wiFaceX - 0.08, 1.85, wiZ - wiDoorD * 0.15);
+      thermo.position.set(wiFaceX - 0.08, 1.9, wiZ - wiDoorD * 0.2);
       add(thermo);
       const wiBadge = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.55, 0.13),
+        new THREE.PlaneGeometry(0.58, 0.14),
         new THREE.MeshStandardMaterial({
           map: labelTex("WALK-IN", {
             w: 220,
@@ -4370,53 +4318,63 @@ export function createInterior() {
           flatShading: true,
         })
       );
-      wiBadge.position.set(wiFaceX - 0.08, 2.2, wiZ);
+      wiBadge.position.set(wiFaceX - 0.08, 2.25, wiZ);
       wiBadge.rotation.y = -Math.PI / 2;
       add(wiBadge);
-      const wiGlow = new THREE.PointLight(0xa0d0e8, 0.35, 3.5, 2);
-      wiGlow.position.set(wiFaceX - 0.45, 1.3, wiZ);
+      const wiGlow = new THREE.PointLight(0xa0d0e8, 0.4, 3.8, 2);
+      wiGlow.position.set(wiFaceX - 0.5, 1.35, wiZ);
       add(wiGlow);
-      nightLights.push({ light: wiGlow, day: 0.18, night: 0.4 });
+      nightLights.push({ light: wiGlow, day: 0.2, night: 0.45 });
 
-      // ── Draft tower (left / north of ice) ──
-      const draftX = stationX0 + 0.55;
+      // ── Draft tower at the bar's east tip (clearly LEFT of bar) ──
+      // Sits just west of the walk-in, near the bar end; pour face toward customers (−X).
+      const draftX = Math.min(barFrontX + 0.15, wiFaceX - 0.55);
+      const draftZ = barEastZ - 0.05; // kiss the bar end
       const draft = buildDraftTower(lit);
-      // Face into the room (−Z from the inset wall → pour toward −Z? )
-      // Inset wall is at +Z edge of pocket; pour face is −Z into the room.
-      draft.rotation.y = Math.PI; // local +Z was pour face; flip to face −Z (into club)
-      draft.position.set(draftX, 0, insetZ - 0.42);
+      draft.scale.set(0.92, 0.95, 0.9);
+      // local +Z = pour → face −X into the room/customer side
+      draft.rotation.y = -Math.PI / 2;
+      draft.position.set(draftX, 0, draftZ);
       add(draft);
-
-      // Small glass stack / bar caddy between draft and ice (fills dead gap)
-      const caddyX = draftX + 0.72;
-      const caddy = box(0.35, 0.95, 0.4, 0x2a2430, { roughness: 0.75 });
-      caddy.position.set(caddyX, 0.48, insetZ - 0.35);
-      add(caddy);
-      const caddyTop = box(0.38, 0.05, 0.42, 0xc0c4cc, { metalness: 0.45, roughness: 0.3 });
-      caddyTop.position.set(caddyX, 0.98, insetZ - 0.35);
-      add(caddyTop);
-      for (let i = 0; i < 4; i++) {
-        const gl = buildGlass(i % 3);
-        gl.position.set(caddyX - 0.08 + (i % 2) * 0.14, 1.05, insetZ - 0.42 + Math.floor(i / 2) * 0.14);
-        gl.scale.setScalar(0.85);
-        add(gl);
-      }
-      // Bar tools on caddy
-      const shaker = cyl(0.04, 0.045, 0.22, 0xc8ccd4, { metalness: 0.6, roughness: 0.25 }, 8);
-      shaker.position.set(caddyX + 0.1, 1.15, insetZ - 0.28);
-      add(shaker);
-
-      // ── Ice machine (floor unit, right / south) ──
-      const ice = buildIceMachine(lit);
-      ice.rotation.y = Math.PI; // front faces into room (−Z)
-      ice.position.set(stationX1 - 0.5, 0, insetZ - 0.45);
-      add(ice);
-
-      // Tiny "BEER" neon chip above the station for color pop
-      const beerNeon = neonBox(0.5, 0.12, 0.05, 0xff80c0, 0.8);
-      beerNeon.position.set(draftX, 2.35, insetZ - 0.12);
-      lit(beerNeon, 1.1, 0.7);
+      // Small service mat under the tower
+      const draftMat = box(0.85, 0.025, 0.7, 0x1a1a1e, { roughness: 0.95 });
+      draftMat.position.set(draftX, 0.06, draftZ);
+      add(draftMat);
+      // Warm fill so chrome + knobs read from the floor
+      const draftLite = new THREE.PointLight(0xffe8d0, 0.45, 3.2, 2);
+      draftLite.position.set(draftX - 0.4, 1.5, draftZ);
+      add(draftLite);
+      nightLights.push({ light: draftLite, day: 0.25, night: 0.55 });
+      const beerNeon = neonBox(0.48, 0.11, 0.05, 0xff80c0, 0.85);
+      beerNeon.position.set(draftX - 0.05, 2.15, draftZ);
+      lit(beerNeon, 1.15, 0.7);
       add(beerNeon);
+
+      // ── Ice machine: just past the bar's east tip, bartender side ──
+      // Sits between the walk-in bulk and the south wall; faces −X into the aisle.
+      const iceX = barRearX - 0.05;
+      const iceZ = barEastZ - 0.55;
+      const ice = buildIceMachine(lit, { scale: 0.86 });
+      ice.rotation.y = -Math.PI / 2; // front → −X (into aisle / room)
+      ice.position.set(iceX, 0, iceZ);
+      add(ice);
+      // Slim stainless splash on the cooler face behind the ice
+      const iceSplash = box(0.06, 1.15, 0.85, 0xb0b4bc, { metalness: 0.5, roughness: 0.3 });
+      iceSplash.position.set(iceX + 0.42, 1.05, iceZ);
+      add(iceSplash);
+      // Drain mat under ice
+      const iceMat = box(0.7, 0.025, 0.8, 0x1a1a1e, { roughness: 0.95 });
+      iceMat.position.set(iceX, 0.06, iceZ);
+      add(iceMat);
+      const iceLite = new THREE.PointLight(0xa0d8e8, 0.3, 2.8, 2);
+      iceLite.position.set(iceX - 0.35, 1.2, iceZ);
+      add(iceLite);
+      nightLights.push({ light: iceLite, day: 0.15, night: 0.35 });
+
+      // Rubber runner from patio → bar end under the whole service strip
+      const runner = box(1.1, 0.025, insetDepth * 0.9, 0x141418, { roughness: 0.95 });
+      runner.position.set(wiFaceX - 0.35, 0.05, bulkZc);
+      add(runner);
     }
   }
 
