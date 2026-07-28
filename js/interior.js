@@ -23,7 +23,14 @@ import {
   trackNightMesh,
   installVenueNight,
 } from "./kit.js";
-import { makeStacysDiamondLogoTexture } from "./stacys.js";
+import {
+  makeStacysDiamondLogoTexture,
+  STACYS_DISPLAY,
+  STACYS_UI,
+} from "./stacys.js";
+
+/** Thick modern club UI type (Outfit). Stacy's wordmark uses STACYS_DISPLAY via font:"logo". */
+const FUN_FONT = `Outfit, "DM Sans", "Segoe UI", system-ui, sans-serif`;
 
 // Room shell — bigger than exterior (6.4×4.6) for walkaround comfort
 const RW = 11.5; // N–S (X)
@@ -150,12 +157,20 @@ function wallMesh(w, h, d, kind) {
   return mesh;
 }
 
+/**
+ * Canvas label texture. Default = fun thick Outfit (readable club UI).
+ * Pass `font: "logo"` for Stacy's brand face; or a custom CSS font stack.
+ * `text` may include `\n` for multi-line.
+ */
 function labelTex(text, {
   w = 256,
   h = 96,
   bg = "#1a1020",
   fg = "#ff6ec7",
   size = 42,
+  weight = 800,
+  font = "fun",
+  tracking = 0.02,
 } = {}) {
   const c = document.createElement("canvas");
   c.width = w;
@@ -164,10 +179,24 @@ function labelTex(text, {
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, w, h);
   ctx.fillStyle = fg;
-  ctx.font = `bold ${size}px Arial, sans-serif`;
+  const family =
+    font === "logo"
+      ? STACYS_DISPLAY
+      : font === "ui"
+        ? STACYS_UI
+        : font === "fun"
+          ? FUN_FONT
+          : font;
+  ctx.font = `${weight} ${size}px ${family}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(text, w / 2, h / 2);
+  if (tracking) ctx.letterSpacing = `${Math.round(size * tracking)}px`;
+  const lines = String(text).split("\n");
+  const lineH = size * 1.15;
+  const startY = h / 2 - ((lines.length - 1) * lineH) / 2;
+  for (let i = 0; i < lines.length; i++) {
+    ctx.fillText(lines[i], w / 2, startY + i * lineH);
+  }
   return canvasTexture(c, 2);
 }
 
@@ -584,7 +613,7 @@ function tvScreenTex(seed = 0) {
   ctx.fillStyle = "rgba(0,0,0,0.45)";
   ctx.fillRect(0, 0, 256, 28);
   ctx.fillStyle = "#fff";
-  ctx.font = "bold 16px Arial, sans-serif";
+  ctx.font = `800 16px ${FUN_FONT}`;
   ctx.textAlign = "center";
   const titles = ["STARSTRUCK", "RISING STAR", "KARAOKE", "COMMUNION", "MILKSHAKE", "TNT"];
   ctx.fillText(titles[seed % titles.length], 128, 20);
@@ -1150,7 +1179,15 @@ function buildDjBooth(nightMats, lit, nightLights) {
   const facadeLabel = new THREE.Mesh(
     new THREE.PlaneGeometry(0.85, 0.09),
     new THREE.MeshStandardMaterial({
-      map: labelTex("Stacy's", { w: 256, h: 64, bg: "#102040", fg: "#80c0ff", size: 36 }),
+      map: labelTex("Stacy's", {
+        w: 256,
+        h: 64,
+        bg: "#102040",
+        fg: "#80c0ff",
+        size: 36,
+        font: "logo",
+        weight: 800,
+      }),
       emissive: 0x3060ff,
       emissiveIntensity: 0.45,
       roughness: 0.4,
@@ -1235,53 +1272,93 @@ function buildPartyCam(lit) {
   head.position.set(0, 1.58, 0.02);
   g.add(head);
 
-  // Ring light (faces +Z)
-  const ring = cyl(0.3, 0.3, 0.045, 0xf4f6fa, {
+  // Ring light around the iPad (faces +Z toward subject)
+  const ringY = 1.58;
+  const ringZ = 0.14;
+  const ring = cyl(0.32, 0.32, 0.05, 0xf4f6fa, {
     emissive: 0xffffff,
     emissiveIntensity: 0.95,
     roughness: 0.25,
     metalness: 0.15,
-  }, 22);
+  }, 24);
   ring.rotation.x = Math.PI / 2;
-  ring.position.set(0, 1.58, 0.14);
+  ring.position.set(0, ringY, ringZ);
   lit(ring, 1.35, 0.9, { glimmerSpeed: 1.8 });
   g.add(ring);
-  // Inner dark bezel
-  const ringIn = cyl(0.18, 0.18, 0.05, 0x12141a, { roughness: 0.55 }, 18);
+  // Inner dark ring so the light reads as a torus, not a solid disc
+  const ringIn = cyl(0.2, 0.2, 0.055, 0x12141a, { roughness: 0.55 }, 20);
   ringIn.rotation.x = Math.PI / 2;
-  ringIn.position.set(0, 1.58, 0.13);
+  ringIn.position.set(0, ringY, ringZ - 0.005);
   g.add(ringIn);
   // Soft fill from the ring
   const ringGlow = new THREE.PointLight(0xfff0e8, 0.75, 3.5, 2);
-  ringGlow.position.set(0, 1.55, 0.45);
+  ringGlow.position.set(0, ringY, 0.45);
   g.add(ringGlow);
   const ringPink = new THREE.PointLight(0xff80c0, 0.25, 2.5, 2);
   ringPink.position.set(0, 1.4, 0.35);
   g.add(ringPink);
 
-  // Phone in the clamp (screen toward subject)
-  const phone = box(0.1, 0.18, 0.02, 0x0a0c10, { metalness: 0.5, roughness: 0.3 });
-  phone.position.set(0, 1.58, 0.1);
-  g.add(phone);
-  const phoneScreen = box(0.085, 0.15, 0.012, 0x1a3048, {
-    emissive: 0x2060a0,
-    emissiveIntensity: 0.7,
-    roughness: 0.25,
-  });
-  phoneScreen.position.set(0, 1.58, 0.115);
-  lit(phoneScreen, 0.9, 0.5);
-  g.add(phoneScreen);
-  // Tiny camera lens dot
-  const lens = cyl(0.015, 0.015, 0.02, 0x111118, { metalness: 0.6, roughness: 0.25 }, 8);
-  lens.rotation.x = Math.PI / 2;
-  lens.position.set(0.03, 1.64, 0.12);
-  g.add(lens);
+  // iPad in the center — screen faces OUT (+Z) so subjects see themselves / the cam UI
+  {
+    const padW = 0.2;
+    const padH = 0.28;
+    const padD = 0.012;
+    // Dark chassis
+    const chassis = box(padW, padH, padD, 0x1a1a1e, { metalness: 0.55, roughness: 0.28 });
+    chassis.position.set(0, ringY, ringZ - 0.01);
+    g.add(chassis);
+    // Slightly inset glass / screen body
+    const glass = box(padW * 0.9, padH * 0.92, 0.008, 0x0a1020, {
+      emissive: 0x183050,
+      emissiveIntensity: 0.55,
+      roughness: 0.2,
+    });
+    glass.position.set(0, ringY, ringZ - 0.002);
+    lit(glass, 0.95, 0.55);
+    g.add(glass);
+    // Live camera UI facing the room
+    const camUi = new THREE.Mesh(
+      new THREE.PlaneGeometry(padW * 0.84, padH * 0.86),
+      new THREE.MeshStandardMaterial({
+        map: labelTex("PARTY\nCAM", {
+          w: 256,
+          h: 360,
+          bg: "#0c1830",
+          fg: "#80e8ff",
+          size: 42,
+          weight: 800,
+          font: "fun",
+        }),
+        emissive: 0x2060a0,
+        emissiveIntensity: 0.55,
+        roughness: 0.35,
+        flatShading: true,
+      })
+    );
+    camUi.position.set(0, ringY, ringZ + 0.006);
+    g.add(camUi);
+    // Front-camera notch pill at top of bezel
+    const notch = box(0.045, 0.012, 0.006, 0x0a0a0c, { metalness: 0.4, roughness: 0.35 });
+    notch.position.set(0, ringY + padH * 0.4, ringZ + 0.004);
+    g.add(notch);
+    const frontCam = cyl(0.006, 0.006, 0.008, 0x111118, { metalness: 0.6, roughness: 0.25 }, 8);
+    frontCam.rotation.x = Math.PI / 2;
+    frontCam.position.set(0.012, ringY + padH * 0.4, ringZ + 0.008);
+    g.add(frontCam);
+    // Home indicator bar
+    const home = box(0.06, 0.008, 0.004, 0x808890, { roughness: 0.4 });
+    home.position.set(0, ringY - padH * 0.4, ringZ + 0.005);
+    g.add(home);
+  }
 
-  // Clamp arms
+  // Clamp arms holding the iPad in the ring
   for (const side of [-1, 1]) {
-    const arm = box(0.04, 0.06, 0.08, 0x2a2a32, { metalness: 0.4, roughness: 0.4 });
-    arm.position.set(side * 0.08, 1.58, 0.06);
+    const arm = box(0.035, 0.08, 0.1, 0x2a2a32, { metalness: 0.4, roughness: 0.4 });
+    arm.position.set(side * 0.12, ringY, 0.04);
     g.add(arm);
+    const pad = box(0.04, 0.05, 0.03, 0x1a1a22, { metalness: 0.35, roughness: 0.45 });
+    pad.position.set(side * 0.11, ringY, 0.1);
+    g.add(pad);
   }
 
   // "SMILE" tag hanging off the pole
@@ -1352,20 +1429,29 @@ function buildAtm(nightMats, lit) {
   lit(domeLens, 0.6, 0.35, { glimmerSpeed: 6 });
   g.add(domeLens);
 
-  // Brand header — Stacy's Cash
-  const brand = box(0.66, 0.12, 0.06, 0xff4fa8, {
-    emissive: 0xff2a80,
-    emissiveIntensity: 0.6,
+  // Brand header — Metro Financial
+  const brand = box(0.66, 0.14, 0.06, 0x1a4a8a, {
+    emissive: 0x1850a0,
+    emissiveIntensity: 0.55,
     roughness: 0.4,
   });
   brand.position.set(0, 1.62, 0.22);
-  lit(brand, 0.95, 0.55, { glimmerSpeed: 2.2 });
+  lit(brand, 0.9, 0.5, { glimmerSpeed: 2.0 });
   g.add(brand);
   const brandLabel = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.56, 0.09),
+    new THREE.PlaneGeometry(0.6, 0.12),
     new THREE.MeshStandardMaterial({
-      map: labelTex("STACY'S CASH", { w: 320, h: 64, bg: "#ff2a80", fg: "#ffffff", size: 28 }),
-      emissive: 0xff4fa8,
+      map: labelTex("METRO\nFINANCIAL", {
+        w: 360,
+        h: 120,
+        bg: "#1a4a8a",
+        fg: "#ffffff",
+        size: 30,
+        weight: 800,
+        font: "fun",
+        tracking: 0.04,
+      }),
+      emissive: 0x2060b0,
       emissiveIntensity: 0.4,
       roughness: 0.45,
       flatShading: true,
