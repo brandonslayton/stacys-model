@@ -1345,105 +1345,49 @@ function barAdTex(seed = 0) {
 }
 
 /**
- * Cartoony lounge banquette + table for under the video wall.
- * Local +Z = open side toward the room (away from wall).
+ * Simple cute cartoony banquette + table (under video wall).
+ * Local +Z = open side toward the room.
  */
 function buildLoungeBooth(lit, accent = 0xff4fa8) {
   const g = new THREE.Group();
   g.name = "loungeBooth";
-  const seatCol = 0x3a2030;
-  const seatLite = 0x4a2a3a;
-  const wood = 0x2a1e18;
+  const seat = 0x4a2840;
+  const seatHi = 0x5a3450;
 
-  // Raised platform / plinth
-  const plinth = box(1.15, 0.1, 1.05, 0x1a1218, { roughness: 0.8 });
-  plinth.position.set(0, 0.05, 0.05);
-  g.add(plinth);
-
-  // Back cushion (against wall, −Z)
-  const back = box(1.1, 0.7, 0.22, seatCol, { roughness: 0.78 });
-  back.position.set(0, 0.55, -0.35);
+  // Backrest against wall
+  const back = box(0.95, 0.55, 0.18, seat, { roughness: 0.8 });
+  back.position.set(0, 0.48, -0.28);
   g.add(back);
-  const backTop = box(1.05, 0.18, 0.2, seatLite, { roughness: 0.72 });
-  backTop.position.set(0, 0.95, -0.34);
-  g.add(backTop);
-
-  // Side wings (U-banquette)
-  for (const side of [-1, 1]) {
-    const wing = box(0.22, 0.55, 0.85, seatCol, { roughness: 0.78 });
-    wing.position.set(side * 0.44, 0.48, 0.05);
-    g.add(wing);
-    // Arm cap
-    const arm = box(0.24, 0.1, 0.3, seatLite, { roughness: 0.7 });
-    arm.position.set(side * 0.44, 0.8, 0.28);
-    g.add(arm);
-  }
-
-  // Seat cushion
-  const seat = box(0.9, 0.16, 0.7, seatLite, { roughness: 0.7 });
-  seat.position.set(0, 0.28, 0.02);
-  g.add(seat);
-  // Seat stitch lines (cartoon detail)
-  for (const dz of [-0.15, 0.1]) {
-    const stitch = box(0.82, 0.02, 0.03, 0x2a1820, { roughness: 0.85 });
-    stitch.position.set(0, 0.37, dz);
-    g.add(stitch);
-  }
-
-  // Throw pillows
-  for (const [sx, col] of [
-    [-0.28, accent],
-    [0.28, 0x40e0ff],
-  ]) {
-    const pillow = box(0.2, 0.22, 0.12, col, {
-      roughness: 0.65,
-      emissive: col,
-      emissiveIntensity: 0.12,
-    });
-    pillow.position.set(sx, 0.52, -0.22);
-    pillow.rotation.z = sx > 0 ? -0.15 : 0.15;
-    g.add(pillow);
-  }
-
-  // Round cocktail table
-  const top = cyl(0.28, 0.28, 0.06, wood, { roughness: 0.45, metalness: 0.08 }, 12);
-  top.position.set(0, 0.72, 0.22);
-  g.add(top);
-  const rim = cyl(0.29, 0.29, 0.025, 0x1a120e, { roughness: 0.5 }, 12);
-  rim.position.set(0, 0.69, 0.22);
-  g.add(rim);
-  const pedestal = cyl(0.07, 0.1, 0.38, METAL, { metalness: 0.45, roughness: 0.4 }, 8);
-  pedestal.position.set(0, 0.48, 0.22);
-  g.add(pedestal);
-  const base = cyl(0.18, 0.18, 0.04, 0x1a1a22, { metalness: 0.35, roughness: 0.45 }, 10);
-  base.position.set(0, 0.28, 0.22);
-  g.add(base);
-
-  // Tiny candle / LED votive on table
-  const votive = cyl(0.04, 0.045, 0.06, 0x2a1a20, { roughness: 0.6 }, 8);
-  votive.position.set(0.08, 0.78, 0.22);
-  g.add(votive);
-  const flame = cyl(0.025, 0.02, 0.04, accent, {
+  // Seat
+  const cushion = box(0.9, 0.14, 0.55, seatHi, { roughness: 0.75 });
+  cushion.position.set(0, 0.28, 0.0);
+  g.add(cushion);
+  // One cute pillow
+  const pillow = box(0.22, 0.18, 0.1, accent, {
+    roughness: 0.7,
     emissive: accent,
-    emissiveIntensity: 0.85,
-  }, 6);
-  flame.position.set(0.08, 0.84, 0.22);
-  lit(flame, 0.75, 0.4, { glimmerSpeed: 4.5 });
-  g.add(flame);
-
-  // Soft under-seat neon toe-kick
-  const kick = box(1.0, 0.04, 0.06, accent, {
-    emissive: accent,
-    emissiveIntensity: 0.55,
+    emissiveIntensity: 0.1,
   });
-  kick.position.set(0, 0.12, 0.48);
-  lit(kick, 0.7, 0.35, { glimmerSpeed: 2.2 });
-  g.add(kick);
+  pillow.position.set(-0.22, 0.48, -0.18);
+  pillow.rotation.z = 0.2;
+  g.add(pillow);
 
-  // Warm pool light over the booth
-  const pool = new THREE.PointLight(accent, 0.25, 2.2, 2);
-  pool.position.set(0, 1.1, 0.15);
-  g.add(pool);
+  // Simple round table
+  const top = cyl(0.22, 0.22, 0.05, 0x2a1e18, { roughness: 0.5 }, 10);
+  top.position.set(0, 0.68, 0.28);
+  g.add(top);
+  const leg = cyl(0.045, 0.055, 0.4, METAL, { metalness: 0.4, roughness: 0.45 }, 6);
+  leg.position.set(0, 0.45, 0.28);
+  g.add(leg);
+
+  // Tiny toe neon
+  const kick = box(0.75, 0.03, 0.04, accent, {
+    emissive: accent,
+    emissiveIntensity: 0.45,
+  });
+  kick.position.set(0, 0.1, 0.28);
+  lit(kick, 0.55, 0.28, { glimmerSpeed: 2.0 });
+  g.add(kick);
 
   return g;
 }
@@ -2506,214 +2450,68 @@ function buildAmiJukebox(nightMats, lit) {
 }
 
 /**
- * Sleek modern DJ booth: black riser, LED-edge desk, dual decks + mixer,
- * laptop on stand facing the DJ. Local +Z = audience; local −Z = DJ stand zone.
+ * Simple club DJ booth (reference-style): dark riser, desk, decks + mixer,
+ * laptop facing the DJ. Local +Z = audience; local −Z = stand space.
  */
 function buildDjBooth(nightMats, lit, nightLights) {
   const g = new THREE.Group();
   g.name = "djBooth";
 
-  // Deeper platform: desk toward audience (+Z), clear standing pad on −Z
-  const platform = box(1.95, 0.14, 1.75, 0x101018, { roughness: 0.55, metalness: 0.2 });
-  platform.position.set(0, 0.07, -0.05);
+  // Compact platform
+  const platform = box(1.7, 0.12, 1.35, 0x121018, { roughness: 0.6 });
+  platform.position.set(0, 0.06, 0);
   g.add(platform);
-  // LED toe-kick (audience face)
-  const kick = box(1.9, 0.04, 0.05, 0x40e0ff, {
-    emissive: 0x20c0ff,
-    emissiveIntensity: 0.75,
+  // Front kick glow
+  const kick = box(1.65, 0.035, 0.04, 0x3060ff, {
+    emissive: 0x2040c0,
+    emissiveIntensity: 0.65,
   });
-  kick.position.set(0, 0.05, 0.8);
-  lit(kick, 1.05, 0.6, { glimmerSpeed: 2.5 });
+  kick.position.set(0, 0.05, 0.66);
+  lit(kick, 0.9, 0.5, { glimmerSpeed: 2.2 });
   g.add(kick);
 
-  // Subtle standing pad for the DJ (behind the desk)
-  const standPad = box(1.2, 0.025, 0.62, 0x1a1420, { roughness: 0.75 });
-  standPad.position.set(0, 0.15, -0.58);
-  g.add(standPad);
-  const padEdge = box(1.15, 0.015, 0.03, 0x40e0ff, {
-    emissive: 0x2080d0,
-    emissiveIntensity: 0.45,
-  });
-  padEdge.position.set(0, 0.16, -0.3);
-  lit(padEdge, 0.6, 0.3, { glimmerSpeed: 2.2 });
-  g.add(padEdge);
+  // Front facade (solid booth face like the real dark console)
+  const facade = box(1.65, 0.85, 0.1, 0x0e1016, { roughness: 0.5 });
+  facade.position.set(0, 0.52, 0.62);
+  g.add(facade);
 
-  // Desk pushed toward audience so DJ has room behind
-  const desk = box(1.85, 0.08, 0.72, 0x0a0c12, { roughness: 0.3, metalness: 0.45 });
-  desk.position.set(0, 1.0, 0.28);
+  // Desk top
+  const desk = box(1.55, 0.07, 0.7, 0x1a1a22, { roughness: 0.4, metalness: 0.25 });
+  desk.position.set(0, 0.98, 0.15);
   g.add(desk);
-  // RGB edge under desk (audience side)
-  const edge = box(1.85, 0.03, 0.04, 0x9b6dff, {
-    emissive: 0x7040c0,
-    emissiveIntensity: 0.85,
-  });
-  edge.position.set(0, 0.95, 0.62);
-  lit(edge, 1.15, 0.7, { glimmerSpeed: 2.8 });
-  g.add(edge);
 
-  // Dual decks + mixer on the desk (audience-facing edge of gear)
+  // Simple dual decks + mixer (keep readable, not overbuilt)
   const deckL = buildDjDeck(lit, 0x40e0ff);
-  deckL.position.set(-0.55, 1.04, 0.32);
+  deckL.scale.setScalar(0.85);
+  deckL.position.set(-0.45, 1.02, 0.18);
   g.add(deckL);
   const deckR = buildDjDeck(lit, 0xff4fa8);
-  deckR.position.set(0.55, 1.04, 0.32);
+  deckR.scale.setScalar(0.85);
+  deckR.position.set(0.45, 1.02, 0.18);
   g.add(deckR);
   const mixer = buildDjMixer(lit);
-  mixer.position.set(0, 1.04, 0.32);
+  mixer.scale.setScalar(0.85);
+  mixer.position.set(0, 1.02, 0.18);
   g.add(mixer);
 
-  // Laptop on stand — screen faces the DJ (local −Z) with a strong face-glow
-  {
-    const stand = new THREE.Group();
-    stand.name = "djLaptopStand";
-    // Base on the DJ side of the desk
-    const base = box(0.2, 0.02, 0.16, 0x1a1a22, { metalness: 0.45, roughness: 0.35 });
-    base.position.y = 0.01;
-    stand.add(base);
-    const post = cyl(0.022, 0.028, 0.16, 0x3a3e46, { metalness: 0.55, roughness: 0.35 }, 8);
-    post.position.y = 0.1;
-    stand.add(post);
-    const knuckle = cyl(0.035, 0.035, 0.045, 0x2a2a32, { metalness: 0.5, roughness: 0.4 }, 8);
-    knuckle.position.y = 0.19;
-    stand.add(knuckle);
-
-    // Face group: its local +Z points at the DJ after rotation.y = π
-    const face = new THREE.Group();
-    face.position.set(0, 0.34, -0.02);
-    face.rotation.y = Math.PI; // children face local −Z (DJ)
-    // Slight tilt: top of screen leans toward DJ for a natural laptop angle
-    face.rotation.x = 0.28;
-    stand.add(face);
-
-    // Chassis back (dark, not glowing)
-    const chassis = box(0.34, 0.22, 0.012, 0x12141a, { metalness: 0.5, roughness: 0.3 });
-    chassis.position.z = -0.008;
-    face.add(chassis);
-    // Bright screen slab
-    const screen = box(0.32, 0.2, 0.01, 0x0a2848, {
-      emissive: 0x28a0e0,
-      emissiveIntensity: 1.15,
-      roughness: 0.18,
-    });
-    screen.position.z = 0.004;
-    lit(screen, 1.35, 0.85, { glimmerSpeed: 2.4 });
-    face.add(screen);
-    // UI texture on the glowing face
-    const ui = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.3, 0.18),
-      new THREE.MeshStandardMaterial({
-        map: labelTex("SERATO", {
-          w: 256,
-          h: 140,
-          bg: "#0a3060",
-          fg: "#80f0ff",
-          size: 40,
-          weight: 800,
-          font: "fun",
-        }),
-        emissive: 0x40c0ff,
-        emissiveIntensity: 0.85,
-        roughness: 0.3,
-        flatShading: true,
-      })
-    );
-    ui.position.z = 0.012;
-    face.add(ui);
-    // Bezel rim glow (reads which way the screen points)
-    const rim = box(0.34, 0.22, 0.006, 0x40e0ff, {
-      emissive: 0x20c0ff,
-      emissiveIntensity: 0.7,
-      roughness: 0.25,
-    });
-    rim.position.z = 0.0;
-    lit(rim, 1.0, 0.55, { glimmerSpeed: 2.8 });
-    face.add(rim);
-
-    // Directional glow spilling toward the DJ (local −Z)
-    const faceGlow = new THREE.PointLight(0x60e0ff, 0.95, 1.6, 2);
-    faceGlow.position.set(0, 0.38, -0.28);
-    stand.add(faceGlow);
-    const faceGlowSoft = new THREE.PointLight(0xa0f0ff, 0.4, 1.2, 2);
-    faceGlowSoft.position.set(0, 0.32, -0.18);
-    stand.add(faceGlowSoft);
-
-    // Accent LED on stand arm
-    const led = cyl(0.015, 0.015, 0.02, 0xff4fa8, {
-      emissive: 0xff2a80,
-      emissiveIntensity: 0.8,
-    }, 6);
-    led.position.set(0.06, 0.16, 0.02);
-    lit(led, 0.7, 0.4, { glimmerSpeed: 3 });
-    stand.add(led);
-
-    // On the DJ edge of the desk (not buried in the decks)
-    stand.position.set(0, 1.04, 0.02);
-    g.add(stand);
-  }
-
-  // Booth facade toward audience (front only — leave back open for standing)
-  const facade = box(1.9, 0.75, 0.08, 0x0e1018, { roughness: 0.4, metalness: 0.3 });
-  facade.position.set(0, 0.48, 0.78);
-  g.add(facade);
-  const facadeLed = box(1.25, 0.11, 0.04, 0x3060ff, {
-    emissive: 0x2040c0,
-    emissiveIntensity: 0.9,
+  // Flat laptop on the desk facing the DJ (−Z)
+  const lapBase = box(0.28, 0.015, 0.2, 0x1a1a22, { metalness: 0.45, roughness: 0.35 });
+  lapBase.position.set(0, 1.08, -0.12);
+  g.add(lapBase);
+  const lapScr = box(0.28, 0.18, 0.012, 0x0a2848, {
+    emissive: 0x186080,
+    emissiveIntensity: 0.7,
+    roughness: 0.25,
   });
-  facadeLed.position.set(0, 0.6, 0.84);
-  lit(facadeLed, 1.2, 0.75, { glimmerSpeed: 3.2 });
-  g.add(facadeLed);
-  const facadeLabel = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.85, 0.09),
-    new THREE.MeshStandardMaterial({
-      map: labelTex("Stacy's", {
-        w: 256,
-        h: 64,
-        bg: "#102040",
-        fg: "#80c0ff",
-        size: 36,
-        font: "logo",
-        weight: 800,
-      }),
-      emissive: 0x3060ff,
-      emissiveIntensity: 0.45,
-      roughness: 0.4,
-      flatShading: true,
-    })
-  );
-  facadeLabel.position.set(0, 0.6, 0.87);
-  g.add(facadeLabel);
+  lapScr.position.set(0, 1.18, -0.2);
+  lapScr.rotation.x = -0.4;
+  lit(lapScr, 0.95, 0.55);
+  g.add(lapScr);
 
-  // Side speakers — on the front corners, not blocking the stand pad
-  for (const side of [-1, 1]) {
-    const spk = box(0.22, 0.48, 0.22, 0x12141a, { roughness: 0.6 });
-    spk.position.set(side * 0.9, 0.4, 0.45);
-    g.add(spk);
-    const cone = cyl(0.065, 0.08, 0.03, 0x2a2a32, { roughness: 0.5 }, 10);
-    cone.rotation.x = Math.PI / 2;
-    cone.position.set(side * 0.9, 0.45, 0.58);
-    g.add(cone);
-  }
-
-  // Small gear crate only on the side (not in the middle of the stand pad)
-  const crate = box(0.35, 0.28, 0.28, 0x1a1420, { roughness: 0.7 });
-  crate.position.set(-0.75, 0.3, -0.55);
-  g.add(crate);
-
-  // Overhead bar light
-  const bar = box(1.45, 0.06, 0.08, 0x40a0ff, {
-    emissive: 0x2080d0,
-    emissiveIntensity: 0.8,
-  });
-  bar.position.set(0, 2.1, 0.15);
-  lit(bar, 1.15, 0.7, { glimmerSpeed: 2.6 });
-  g.add(bar);
-  const boothLight = new THREE.PointLight(0x80c0ff, 0.7, 4.2, 2);
-  boothLight.position.set(0, 1.85, 0.25);
+  // Soft work light
+  const boothLight = new THREE.PointLight(0x80c0ff, 0.55, 3.5, 2);
+  boothLight.position.set(0, 1.7, 0.1);
   g.add(boothLight);
-  // Soft fill over the DJ stand zone
-  const cozy = new THREE.PointLight(0xffa080, 0.4, 2.8, 2);
-  cozy.position.set(0, 1.55, -0.45);
-  g.add(cozy);
 
   return g;
 }
@@ -4080,15 +3878,7 @@ export function createInterior() {
       nightLights.push({ light: mvLite, day: 0.22, night: 0.5 });
     }
 
-    // Small lounge seating south of the corner booth (not over the pit)
-    for (const [bx, bz] of [
-      [x + 2.45, -3.95],
-      [x + 2.45, -3.35],
-    ]) {
-      const booth = box(0.95, 0.55, 0.5, 0x3a2030);
-      booth.position.set(bx, 0.35, bz);
-      add(booth);
-    }
+    // (No extra lounge blocks near DJ — east-wall booths stay clear of this corner)
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -4191,18 +3981,20 @@ export function createInterior() {
       nightLights.push({ light: bankLite, day: 0.3, night: 0.7 });
     }
 
-    // Cartoony lounge banquettes under the video wall
+    // Simple cute banquettes under the video wall —
+    // keep clear of DJ corner (NE, x≲−3.5, z≲−2.5) and patio door.
     {
-      const accents = [0xff4fa8, 0x40e0ff, 0x9b6dff, 0x3dd68c];
-      const count = 4;
-      const spanStart = -halfW + 0.85;
-      const spanEnd = 0.55; // stop before patio door
-      const step = (spanEnd - spanStart) / (count - 1);
+      const accents = [0xff4fa8, 0x40e0ff, 0x9b6dff];
+      const count = 3;
+      // DJ booth occupies roughly x −5.5…−3.6 near this wall; start booths east of that
+      const spanStart = -2.0;
+      const spanEnd = 0.35; // stop before patio door (~1.55)
+      const step = (spanEnd - spanStart) / Math.max(1, count - 1);
       for (let i = 0; i < count; i++) {
         const bx = spanStart + i * step;
         const booth = buildLoungeBooth(lit, accents[i % accents.length]);
         // Open side faces into the room (+Z); wall is at −Z
-        booth.position.set(bx, 0, z + 0.72);
+        booth.position.set(bx, 0, z + 0.65);
         add(booth);
       }
     }
