@@ -1624,113 +1624,154 @@ function buildDraftTower(_lit) {
 }
 
 /**
- * Wall-bay stack for the walk-in side: low ice chest + draft taps above.
- * Local +Z = service face (into the room). Reads as one working unit.
+ * One classic wall-mount beer tap: flange on the wall, chrome faucet + spout,
+ * long brand handle sticking up (reads as beer, not a soda fountain knob).
+ * Local +Z = pour face.
+ */
+function buildBeerTap(handleCol) {
+  const t = new THREE.Group();
+  const chrome = { metalness: 0.72, roughness: 0.22 };
+  // Round wall flange
+  const flange = cyl(0.055, 0.055, 0.03, 0xd0d4dc, chrome, 10);
+  flange.rotation.x = Math.PI / 2;
+  flange.position.set(0, 0, 0.02);
+  t.add(flange);
+  // Faucet body (short chrome stub out of wall)
+  const body = cyl(0.028, 0.032, 0.1, 0xc0c4cc, chrome, 8);
+  body.rotation.x = Math.PI / 2;
+  body.position.set(0, 0, 0.08);
+  t.add(body);
+  // Collar where the handle seats
+  const collar = cyl(0.035, 0.03, 0.04, 0xb8bcc4, chrome, 8);
+  collar.position.set(0, 0.04, 0.1);
+  t.add(collar);
+  // Spout — curves down/forward so beer pours into a glass
+  const spout = cyl(0.014, 0.018, 0.14, 0xb0b4bc, chrome, 6);
+  spout.rotation.x = Math.PI / 2 + 0.55;
+  spout.position.set(0, -0.05, 0.16);
+  t.add(spout);
+  // Spout tip (slightly wider nozzle)
+  const nozzle = cyl(0.016, 0.012, 0.035, 0xa8acb4, chrome, 6);
+  nozzle.rotation.x = Math.PI / 2 + 0.55;
+  nozzle.position.set(0, -0.1, 0.2);
+  t.add(nozzle);
+  // Long handle shaft — wood/plastic stick (the "beer handle" silhouette)
+  const shaft = cyl(0.016, 0.014, 0.38, 0x2a2218, { roughness: 0.65, metalness: 0.05 }, 6);
+  // Pivot at collar, lean toward pourer
+  shaft.position.set(0, 0.22, 0.06);
+  shaft.rotation.x = -0.55;
+  t.add(shaft);
+  // Tall brand topper (ceramic / plastic beer handle head)
+  const topper = cyl(0.042, 0.038, 0.16, handleCol, {
+    metalness: 0.08,
+    roughness: 0.42,
+    emissive: handleCol,
+    emissiveIntensity: 0.1,
+  }, 8);
+  topper.position.set(0, 0.4, -0.02);
+  topper.rotation.x = -0.55;
+  t.add(topper);
+  // Small metal cap on topper tip
+  const tip = cyl(0.03, 0.028, 0.025, 0xd8dce4, chrome, 8);
+  tip.position.set(0, 0.49, -0.07);
+  tip.rotation.x = -0.55;
+  t.add(tip);
+  return t;
+}
+
+/**
+ * Wall draft row + low ice bin on the cooler face.
+ * Taps stick out of the wall (no chrome machine housing) so it reads as beer.
+ * Local +Z = service face (into the room).
  */
 function buildIceAndTapBay(lit) {
   const g = new THREE.Group();
   g.name = "iceAndTapBay";
-  const bayW = 1.15;
+  const bayW = 1.2;
 
-  // Stainless back panel (mounts to cooler face)
-  const panel = box(bayW + 0.08, 2.15, 0.06, 0xb8bcc4, { metalness: 0.55, roughness: 0.28 });
-  panel.position.set(0, 1.1, -0.02);
-  g.add(panel);
-  // Vertical trim rails
-  for (const sx of [-1, 1]) {
-    const trim = box(0.04, 2.15, 0.08, 0xd0d4dc, { metalness: 0.6, roughness: 0.25 });
-    trim.position.set(sx * (bayW * 0.5 + 0.02), 1.1, 0.01);
-    g.add(trim);
+  // Dark wood plaque on the cooler face — taps mount into this, not a soda bank
+  const plaque = box(bayW + 0.06, 0.72, 0.05, 0x3a2a1e, { roughness: 0.78, metalness: 0.05 });
+  plaque.position.set(0, 1.42, 0.01);
+  g.add(plaque);
+  // Thin brass/chrome rail under the handles (classic bar detail)
+  const rail = box(bayW * 0.92, 0.04, 0.06, 0xc8a060, { metalness: 0.55, roughness: 0.3 });
+  rail.position.set(0, 1.12, 0.06);
+  g.add(rail);
+
+  // ── Six wall taps ──
+  const tapColors = [0xc41e3a, 0xf0c14d, 0x1e5a2e, 0x2a3a8a, 0xd47820, 0xe8e4dc];
+  const tapY = 1.38;
+  const n = 6;
+  const span = bayW * 0.78;
+  for (let i = 0; i < n; i++) {
+    const tx = -span * 0.5 + (i / (n - 1)) * span;
+    const tap = buildBeerTap(tapColors[i]);
+    tap.position.set(tx, tapY, 0.04);
+    g.add(tap);
   }
 
-  // ── Low ice chest ──
-  const iceH = 0.95;
-  const iceBody = box(bayW, iceH, 0.72, 0xc8ccd4, { metalness: 0.55, roughness: 0.28 });
-  iceBody.position.set(0, iceH * 0.5, 0.28);
-  g.add(iceBody);
-  // Toe kick
-  const toe = box(bayW * 0.98, 0.1, 0.68, 0x2a2e38, { roughness: 0.6 });
-  toe.position.set(0, 0.05, 0.28);
-  g.add(toe);
-  // Bin window (glowing ice)
-  const bin = box(bayW * 0.72, 0.38, 0.04, 0x90d0e8, {
-    emissive: 0x50a8c8,
-    emissiveIntensity: 0.4,
-    roughness: 0.28,
-    metalness: 0.12,
-  });
-  bin.position.set(0, 0.52, 0.64);
-  lit(bin, 0.6, 0.35, { glimmerSpeed: 1.5 });
-  g.add(bin);
+  // Drip tray shelf under the spouts (not a machine counter)
+  const trayY = 0.98;
+  const tray = box(bayW * 0.95, 0.05, 0.38, 0x2a2e34, { metalness: 0.35, roughness: 0.4 });
+  tray.position.set(0, trayY, 0.22);
+  g.add(tray);
+  // Grate bars
   for (let i = 0; i < 5; i++) {
-    const cube = box(0.08, 0.08, 0.08, 0xe0f4ff, {
+    const bar = box(bayW * 0.88, 0.012, 0.02, 0x6a7078, { metalness: 0.5, roughness: 0.3 });
+    bar.position.set(0, trayY + 0.03, 0.1 + i * 0.055);
+    g.add(bar);
+  }
+  // Tray lip
+  const lip = box(bayW * 0.95, 0.03, 0.02, 0x1a1c22, { metalness: 0.3, roughness: 0.45 });
+  lip.position.set(0, trayY + 0.03, 0.4);
+  g.add(lip);
+
+  // ── Low ice bin under the tray (simple chest, not a commercial machine) ──
+  const iceH = 0.88;
+  const iceBody = box(bayW * 0.92, iceH, 0.62, 0xb8bcc4, { metalness: 0.45, roughness: 0.32 });
+  iceBody.position.set(0, iceH * 0.5, 0.24);
+  g.add(iceBody);
+  const toe = box(bayW * 0.9, 0.08, 0.58, 0x2a2e38, { roughness: 0.65 });
+  toe.position.set(0, 0.04, 0.24);
+  g.add(toe);
+  // Sliding lid on top (under drip tray)
+  const lid = box(bayW * 0.88, 0.04, 0.58, 0xa8acb4, { metalness: 0.4, roughness: 0.35 });
+  lid.position.set(0, iceH + 0.02, 0.24);
+  g.add(lid);
+  // Cool ice glow window
+  const bin = box(bayW * 0.62, 0.32, 0.03, 0x90d0e8, {
+    emissive: 0x50a8c8,
+    emissiveIntensity: 0.35,
+    roughness: 0.3,
+    metalness: 0.1,
+  });
+  bin.position.set(0, 0.48, 0.55);
+  lit(bin, 0.55, 0.3, { glimmerSpeed: 1.4 });
+  g.add(bin);
+  for (let i = 0; i < 4; i++) {
+    const cube = box(0.07, 0.07, 0.07, 0xe0f4ff, {
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.75,
       emissive: 0x80c0d8,
-      emissiveIntensity: 0.15,
+      emissiveIntensity: 0.12,
       roughness: 0.2,
     });
-    cube.position.set(-0.22 + i * 0.11, 0.45 + (i % 2) * 0.1, 0.68);
-    cube.rotation.y = i * 0.4;
+    cube.position.set(-0.18 + i * 0.12, 0.42 + (i % 2) * 0.08, 0.58);
+    cube.rotation.y = i * 0.35;
     g.add(cube);
   }
-  // Scoop
-  const scoop = box(0.1, 0.03, 0.18, 0xe8ecf0, { metalness: 0.45, roughness: 0.35 });
-  scoop.position.set(0.32, 0.78, 0.62);
-  scoop.rotation.z = -0.25;
+  // Scoop handle resting on lid edge
+  const scoop = box(0.08, 0.025, 0.16, 0xe8ecf0, { metalness: 0.4, roughness: 0.35 });
+  scoop.position.set(0.28, iceH + 0.05, 0.42);
+  scoop.rotation.z = -0.2;
   g.add(scoop);
-  // Lid seam / top of chest
-  const lid = box(bayW * 0.96, 0.05, 0.7, 0xa8acb4, { metalness: 0.5, roughness: 0.3 });
-  lid.position.set(0, iceH + 0.02, 0.28);
-  g.add(lid);
-
-  // ── Draft bank above ice ──
-  const tapY = 1.35;
-  // Chrome rail housing
-  const housing = box(bayW * 0.92, 0.38, 0.28, 0xc8ccd4, { metalness: 0.65, roughness: 0.22 });
-  housing.position.set(0, tapY, 0.18);
-  g.add(housing);
-  // Top cap
-  const cap = box(bayW * 0.88, 0.07, 0.24, 0xd8dce4, { metalness: 0.7, roughness: 0.18 });
-  cap.position.set(0, tapY + 0.22, 0.18);
-  g.add(cap);
-  // Drip tray above ice lid
-  const tray = box(bayW * 0.88, 0.04, 0.32, 0x1a1c22, { metalness: 0.35, roughness: 0.4 });
-  tray.position.set(0, iceH + 0.1, 0.42);
-  g.add(tray);
-  for (let i = 0; i < 6; i++) {
-    const grate = box(bayW * 0.82, 0.012, 0.02, 0x6a7078, { metalness: 0.5, roughness: 0.3 });
-    grate.position.set(0, iceH + 0.13, 0.3 + i * 0.04);
-    g.add(grate);
-  }
-  // Six taps
-  const tapColors = [0xc41e3a, 0xf0c14d, 0x2a5a3a, 0x3a3a8a, 0xe8a040, 0xf0f0f4];
-  for (let i = 0; i < 6; i++) {
-    const tx = -0.4 + i * 0.16;
-    const spout = cyl(0.016, 0.02, 0.14, 0xb0b4bc, { metalness: 0.7, roughness: 0.22 }, 6);
-    spout.rotation.x = Math.PI / 2;
-    spout.position.set(tx, tapY - 0.05, 0.38);
-    g.add(spout);
-    const stem = box(0.024, 0.24, 0.024, 0xa8acb4, { metalness: 0.6, roughness: 0.25 });
-    stem.position.set(tx, tapY + 0.12, 0.28);
-    stem.rotation.x = -0.4;
-    g.add(stem);
-    const knob = cyl(0.04, 0.035, 0.06, tapColors[i], {
-      metalness: 0.15,
-      roughness: 0.4,
-      emissive: tapColors[i],
-      emissiveIntensity: 0.14,
-    }, 8);
-    knob.position.set(tx, tapY + 0.24, 0.2);
-    g.add(knob);
-  }
 
   // Soft service lights
-  const iceGlow = new THREE.PointLight(0xa0d8e8, 0.3, 2.4, 2);
-  iceGlow.position.set(0, 0.55, 0.85);
+  const iceGlow = new THREE.PointLight(0xa0d8e8, 0.28, 2.2, 2);
+  iceGlow.position.set(0, 0.5, 0.8);
   g.add(iceGlow);
-  const tapGlow = new THREE.PointLight(0xffe8d0, 0.35, 2.6, 2);
-  tapGlow.position.set(0, 1.5, 0.7);
+  const tapGlow = new THREE.PointLight(0xffe8d0, 0.32, 2.4, 2);
+  tapGlow.position.set(0, 1.55, 0.55);
   g.add(tapGlow);
 
   g.userData.bayW = bayW;
