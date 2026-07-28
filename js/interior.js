@@ -220,20 +220,24 @@ function buildManagerOffice(lit) {
   frontTop.position.set(-W * 0.5 + fw * 0.5, winY + winH * 0.5 + topH * 0.5, 0);
   g.add(frontTop);
 
-  // Window glass + frame (looks into the club)
+  // Open lookout (no solid glass) — frame only so you can look down into the club
   const frame = box(0.06, winH + 0.1, winW + 0.1, 0x1a1a22, { metalness: 0.35, roughness: 0.4 });
   frame.position.set(-W * 0.5 + 0.04, winY, 0);
   g.add(frame);
-  const glass = box(0.03, winH, winW, 0x80c0e8, {
+  // Very light tint volume so the hole still reads as a window from outside
+  const glass = box(0.02, winH, winW, 0xa0d0f0, {
     transparent: true,
-    opacity: 0.35,
-    roughness: 0.1,
-    metalness: 0.15,
-    emissive: 0x406080,
-    emissiveIntensity: 0.25,
+    opacity: 0.08,
+    roughness: 0.05,
+    metalness: 0.05,
+    depthWrite: false,
   });
-  glass.position.set(-W * 0.5 + 0.02, winY, 0);
+  glass.position.set(-W * 0.5 + 0.01, winY, 0);
   g.add(glass);
+  // Sill to lean on while looking out
+  const sill = box(0.22, 0.05, winW + 0.06, 0x3a2a1e, { roughness: 0.7 });
+  sill.position.set(-W * 0.5 + 0.14, winY - winH * 0.5 - 0.02, 0);
+  g.add(sill);
 
   // Desk against the back wall
   const desk = box(0.7, 0.08, 1.6, 0x3a2a1e, { roughness: 0.55 });
@@ -3546,88 +3550,115 @@ export function createInterior() {
     add(photosNeon);
 
     // ══════════════════════════════════════════════════════════════
-    // FULL-HEIGHT dark-purple back-bar wall + lookout window ABOVE
-    // the Stacy's diamond. Vault stays open (no loft / cross beams).
-    // Manager office sits BEHIND the wall — enter via UI button.
+    // FULL-HEIGHT dark-purple back-bar wall + elevated lookout window
+    // ABOVE the Stacy's diamond. Bar floor stays unchanged — office is
+    // BEHIND the wall at window height (button teleport). Real hole in
+    // the wall so you can look down onto the bar.
     // ══════════════════════════════════════════════════════════════
     {
-      // Tall purple panel from eave up toward the ridge
-      const tallH = PEAK_H - 0.15;
-      const tallWall = wallMesh(WALL, tallH, 5.6, "purpleDark");
-      tallWall.position.set(wallX + 0.02, tallH * 0.5, 0.1);
-      add(tallWall);
-
-      // Lookout window directly above the Stacy's diamond neon
-      // Diamond sits ~y 2.7 at z 0.15 — window centered above it.
       const winW = 1.35;
-      const winH = 0.85;
-      const winY = 3.45;
-      const winZ = 0.15;
-      const winFrame = box(0.1, winH + 0.14, winW + 0.14, 0x1a1420, {
+      const winH = 0.9;
+      const winY = 3.45; // world center of the lookout
+      const winZ = 0.15; // above the diamond
+      const winBot = winY - winH * 0.5;
+      const winTop = winY + winH * 0.5;
+      const tallH = PEAK_H - 0.15;
+      const wallSpan = 5.6; // Z span of tall purple wall
+      const wallZ0 = 0.1 - wallSpan * 0.5;
+      const wallZ1 = 0.1 + wallSpan * 0.5;
+      const sideL = winZ - winW * 0.5 - wallZ0; // z length left of window
+      const sideR = wallZ1 - (winZ + winW * 0.5);
+
+      // Tall purple wall in pieces — HOLE where the lookout window is
+      // Bottom band (eave up to window sill)
+      if (winBot > 0.1) {
+        const bot = wallMesh(WALL, winBot, wallSpan, "purpleDark");
+        bot.position.set(wallX + 0.02, winBot * 0.5, 0.1);
+        add(bot);
+      }
+      // Left / right of window
+      if (sideL > 0.08) {
+        const left = wallMesh(WALL, winH, sideL, "purpleDark");
+        left.position.set(wallX + 0.02, winY, wallZ0 + sideL * 0.5);
+        add(left);
+      }
+      if (sideR > 0.08) {
+        const right = wallMesh(WALL, winH, sideR, "purpleDark");
+        right.position.set(wallX + 0.02, winY, wallZ1 - sideR * 0.5);
+        add(right);
+      }
+      // Above window to ridge
+      const topH = tallH - winTop;
+      if (topH > 0.08) {
+        const top = wallMesh(WALL, topH, wallSpan, "purpleDark");
+        top.position.set(wallX + 0.02, winTop + topH * 0.5, 0.1);
+        add(top);
+      }
+
+      // Window frame in the hole (open — clear lookout)
+      const winFrame = box(0.1, winH + 0.12, winW + 0.12, 0x1a1420, {
         metalness: 0.3,
         roughness: 0.45,
       });
       winFrame.position.set(wallX - 0.02, winY, winZ);
       add(winFrame);
-      // Simple mullions
-      const mullV = box(0.04, winH, 0.04, 0x2a2030, { metalness: 0.25, roughness: 0.5 });
+      const mullV = box(0.035, winH, 0.035, 0x2a2030, { metalness: 0.25, roughness: 0.5 });
       mullV.position.set(wallX - 0.04, winY, winZ);
       add(mullV);
-      const mullH = box(0.04, 0.04, winW, 0x2a2030, { metalness: 0.25, roughness: 0.5 });
+      const mullH = box(0.035, 0.035, winW, 0x2a2030, { metalness: 0.25, roughness: 0.5 });
       mullH.position.set(wallX - 0.04, winY, winZ);
       add(mullH);
-      // Clear-ish glass so you can imagine looking out of / into the office
-      const winGlass = box(0.03, winH, winW, 0x70b0d8, {
+      // Barely-there glass tint (see-through both ways)
+      const winGlass = box(0.02, winH * 0.98, winW * 0.98, 0x90c8e8, {
         transparent: true,
-        opacity: 0.38,
-        roughness: 0.1,
-        metalness: 0.12,
-        emissive: 0xffd0a8,
-        emissiveIntensity: 0.4,
+        opacity: 0.1,
+        roughness: 0.05,
+        metalness: 0.05,
+        depthWrite: false,
       });
       winGlass.position.set(wallX - 0.05, winY, winZ);
-      lit(winGlass, 0.75, 0.45);
       add(winGlass);
-      // Soft light through the window (office glow + lookout feel)
-      const winGlow = new THREE.PointLight(0xffd0a0, 0.65, 6, 2);
-      winGlow.position.set(wallX - 0.7, winY, winZ);
-      add(winGlow);
-      nightLights.push({ light: winGlow, day: 0.35, night: 0.8 });
-      // Thin sill under the glass
-      const sill = box(0.12, 0.05, winW + 0.08, 0x2a1e28, { roughness: 0.65 });
-      sill.position.set(wallX - 0.08, winY - winH * 0.5 - 0.04, winZ);
+      const sill = box(0.14, 0.05, winW + 0.08, 0x2a1e28, { roughness: 0.65 });
+      sill.position.set(wallX - 0.1, winBot - 0.03, winZ);
       add(sill);
+      // Soft office light spill into the club through the hole
+      const winGlow = new THREE.PointLight(0xffd0a0, 0.55, 6, 2);
+      winGlow.position.set(wallX - 0.5, winY, winZ);
+      add(winGlow);
+      nightLights.push({ light: winGlow, day: 0.3, night: 0.7 });
 
-      // Manager office — behind the south wall (does not cover the vault)
+      // Elevated manager office behind the wall (floor at window sill height)
+      // Bar / vault below stay empty — no loft slab over the room.
+      const loftFloorY = winBot - 0.05; // ~2.95 — standing eyes ≈ 4.5, look down through window
+      // Align office interior window with the club hole:
+      // office local winY is 1.55 → place floor so loftFloorY + 1.55 ≈ winY
       const office = buildManagerOffice(lit);
       const officeW = office.userData.size.w;
-      // Align office with the lookout window above the diamond
-      office.position.set(wallX + officeW * 0.5 + 0.08, 0, winZ);
+      const officeFloorY = winY - 1.55; // matches buildManagerOffice window center
+      office.position.set(wallX + officeW * 0.5 + 0.08, officeFloorY, winZ);
       add(office);
 
       const ob = office.userData.bounds;
       g.userData.office = {
-        // World-space walk bounds inside the office
         xMin: office.position.x + ob.xMin,
         xMax: office.position.x + ob.xMax,
         zMin: office.position.z + ob.zMin,
         zMax: office.position.z + ob.zMax,
         eyeY: ob.eyeY,
-        floorY: 0,
-        // Teleport spawn facing the club window (−X)
+        floorY: officeFloorY,
+        // Stand near the window, look out and slightly down at the bar
         spawn: {
-          x: office.position.x - 0.3,
-          y: ob.eyeY,
+          x: office.position.x + ob.xMin + 0.25,
+          y: officeFloorY + ob.eyeY,
           z: office.position.z,
-          yaw: 270, // look −X toward club
-          pitch: -4,
+          yaw: 270, // −X into the club
+          pitch: -18, // look down onto the bar
         },
-        // Return spot on the club floor near the bar
         returnSpawn: {
           x: barX - barDepth * 0.5 - 0.9,
           y: WALK.eyeY,
           z: 0.2,
-          yaw: 90, // look toward bar / south
+          yaw: 90,
           pitch: -4,
         },
       };

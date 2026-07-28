@@ -277,7 +277,7 @@ function enterOffice() {
   fp.x = sp.x;
   fp.z = sp.z;
   fp.yaw = sp.yaw ?? 270;
-  fp.pitch = sp.pitch ?? -4;
+  fp.pitch = sp.pitch ?? -18; // look down through the loft window onto the bar
   officeMode = true;
   clampFp();
   applyFpCamera();
