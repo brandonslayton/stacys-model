@@ -5716,14 +5716,15 @@ export function createInterior() {
     g.userData.interiorLife?.tick?.(nowSec, g.userData._lifeOpts || { karaoke: true, open: true });
   };
 
-  // Spawn just inside the wooden front doors (west of the rail), looking in —
-  // NOT at the party cam (that washed the load-in view pure white).
+  // Default entrance view — hero shot of the rainbow bar (matches the
+  // reference screenshot: bar centered, party cam right, rail/column left).
+  // Standing mid-room on the customer side looking south at the bar.
   g.userData.spawn = {
-    x: -0.5,
+    x: 0.55,
     y: WALK.eyeY,
-    z: halfD - 1.15, // clear of the wood rail at railZ ≈ 2.58
-    yaw: 165, // into the room toward dance floor / north
-    pitch: -6,
+    z: 1.15,
+    yaw: 92, // almost due south (+X) at the bar, slight east bias
+    pitch: -7,
   };
   g.userData.walk = { ...WALK };
   // First-person solids (bar, rail, ATM, cooler, stage, …)
