@@ -1135,7 +1135,127 @@ function buildDjBooth(nightMats, lit, nightLights) {
   return g;
 }
 
-/** Freestanding ATM — grey body, lit screen, keypad, card slot, receipt. */
+/**
+ * Freestanding party cam / ring-light stand.
+ * Local +Z = lens faces the subject (point at activation wall).
+ */
+function buildPartyCam(lit) {
+  const g = new THREE.Group();
+  g.name = "partyCam";
+
+  // Weighted round base (won't tip when drunk)
+  const base = cyl(0.22, 0.26, 0.06, 0x1a1a22, { roughness: 0.7, metalness: 0.25 }, 14);
+  base.position.y = 0.03;
+  g.add(base);
+  const baseRing = cyl(0.18, 0.2, 0.03, 0x2a2a32, { metalness: 0.4, roughness: 0.45 }, 12);
+  baseRing.position.y = 0.07;
+  g.add(baseRing);
+
+  // Telescoping pole
+  const poleLow = cyl(0.035, 0.035, 0.85, 0x3a3e46, { metalness: 0.5, roughness: 0.4 }, 8);
+  poleLow.position.y = 0.5;
+  g.add(poleLow);
+  const collar = cyl(0.05, 0.05, 0.06, 0x1a1a22, { metalness: 0.45, roughness: 0.4 }, 8);
+  collar.position.y = 0.95;
+  g.add(collar);
+  const poleUp = cyl(0.028, 0.028, 0.55, 0x4a5060, { metalness: 0.55, roughness: 0.35 }, 8);
+  poleUp.position.y = 1.25;
+  g.add(poleUp);
+
+  // Articulating head
+  const head = box(0.12, 0.1, 0.1, 0x2a2a32, { metalness: 0.4, roughness: 0.4 });
+  head.position.set(0, 1.58, 0.02);
+  g.add(head);
+
+  // Ring light (faces +Z)
+  const ring = cyl(0.3, 0.3, 0.045, 0xf4f6fa, {
+    emissive: 0xffffff,
+    emissiveIntensity: 0.95,
+    roughness: 0.25,
+    metalness: 0.15,
+  }, 22);
+  ring.rotation.x = Math.PI / 2;
+  ring.position.set(0, 1.58, 0.14);
+  lit(ring, 1.35, 0.9, { glimmerSpeed: 1.8 });
+  g.add(ring);
+  // Inner dark bezel
+  const ringIn = cyl(0.18, 0.18, 0.05, 0x12141a, { roughness: 0.55 }, 18);
+  ringIn.rotation.x = Math.PI / 2;
+  ringIn.position.set(0, 1.58, 0.13);
+  g.add(ringIn);
+  // Soft fill from the ring
+  const ringGlow = new THREE.PointLight(0xfff0e8, 0.75, 3.5, 2);
+  ringGlow.position.set(0, 1.55, 0.45);
+  g.add(ringGlow);
+  const ringPink = new THREE.PointLight(0xff80c0, 0.25, 2.5, 2);
+  ringPink.position.set(0, 1.4, 0.35);
+  g.add(ringPink);
+
+  // Phone in the clamp (screen toward subject)
+  const phone = box(0.1, 0.18, 0.02, 0x0a0c10, { metalness: 0.5, roughness: 0.3 });
+  phone.position.set(0, 1.58, 0.1);
+  g.add(phone);
+  const phoneScreen = box(0.085, 0.15, 0.012, 0x1a3048, {
+    emissive: 0x2060a0,
+    emissiveIntensity: 0.7,
+    roughness: 0.25,
+  });
+  phoneScreen.position.set(0, 1.58, 0.115);
+  lit(phoneScreen, 0.9, 0.5);
+  g.add(phoneScreen);
+  // Tiny camera lens dot
+  const lens = cyl(0.015, 0.015, 0.02, 0x111118, { metalness: 0.6, roughness: 0.25 }, 8);
+  lens.rotation.x = Math.PI / 2;
+  lens.position.set(0.03, 1.64, 0.12);
+  g.add(lens);
+
+  // Clamp arms
+  for (const side of [-1, 1]) {
+    const arm = box(0.04, 0.06, 0.08, 0x2a2a32, { metalness: 0.4, roughness: 0.4 });
+    arm.position.set(side * 0.08, 1.58, 0.06);
+    g.add(arm);
+  }
+
+  // "SMILE" tag hanging off the pole
+  const tag = box(0.16, 0.06, 0.02, 0xff4fa8, {
+    emissive: 0xff2a80,
+    emissiveIntensity: 0.65,
+  });
+  tag.position.set(0.14, 1.15, 0.02);
+  lit(tag, 0.9, 0.55, { glimmerSpeed: 2.4 });
+  g.add(tag);
+  const smile = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.14, 0.05),
+    new THREE.MeshStandardMaterial({
+      map: labelTex("SMILE", { w: 160, h: 64, bg: "#ff2a80", fg: "#ffffff", size: 36 }),
+      emissive: 0xff4fa8,
+      emissiveIntensity: 0.4,
+      roughness: 0.45,
+      flatShading: true,
+    })
+  );
+  smile.position.set(0.14, 1.15, 0.04);
+  g.add(smile);
+
+  // Status LED on head
+  const led = cyl(0.02, 0.02, 0.02, 0x3dd68c, {
+    emissive: 0x20c060,
+    emissiveIntensity: 0.9,
+  }, 6);
+  led.position.set(0.05, 1.68, 0.06);
+  lit(led, 0.7, 0.4, { glimmerSpeed: 5 });
+  g.add(led);
+
+  // Cable drape down the pole
+  const cable = cyl(0.012, 0.012, 0.7, 0x1a1a1e, { roughness: 0.9 }, 6);
+  cable.position.set(0.04, 0.7, -0.02);
+  cable.rotation.z = 0.08;
+  g.add(cable);
+
+  return g;
+}
+
+/** Freestanding ATM — club-worn cash machine with fun Stacy's details. */
 function buildAtm(nightMats, lit) {
   const g = new THREE.Group();
   g.name = "atm";
@@ -1151,27 +1271,41 @@ function buildAtm(nightMats, lit) {
   const hood = box(0.72, 0.14, 0.48, 0x1e222a, { roughness: 0.55, metalness: 0.2 });
   hood.position.set(0, 1.72, 0.02);
   g.add(hood);
-  // Brand header bar
-  const brand = box(0.66, 0.12, 0.06, 0x2060a8, {
-    emissive: 0x1850a0,
+  // Mini security dome on hood
+  const dome = cyl(0.06, 0.07, 0.05, 0x1a1a22, { metalness: 0.5, roughness: 0.3 }, 10);
+  dome.position.set(0.22, 1.82, 0.05);
+  g.add(dome);
+  const domeLens = cyl(0.035, 0.035, 0.02, 0x0a1020, {
+    emissive: 0xff2020,
     emissiveIntensity: 0.55,
+    roughness: 0.3,
+  }, 8);
+  domeLens.position.set(0.22, 1.85, 0.08);
+  lit(domeLens, 0.6, 0.35, { glimmerSpeed: 6 });
+  g.add(domeLens);
+
+  // Brand header — Stacy's Cash
+  const brand = box(0.66, 0.12, 0.06, 0xff4fa8, {
+    emissive: 0xff2a80,
+    emissiveIntensity: 0.6,
     roughness: 0.4,
   });
   brand.position.set(0, 1.62, 0.22);
-  lit(brand, 0.8, 0.5);
+  lit(brand, 0.95, 0.55, { glimmerSpeed: 2.2 });
   g.add(brand);
   const brandLabel = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.5, 0.08),
+    new THREE.PlaneGeometry(0.56, 0.09),
     new THREE.MeshStandardMaterial({
-      map: labelTex("CASH", { w: 256, h: 64, bg: "#1850a0", fg: "#ffffff", size: 40 }),
-      emissive: 0x40a0ff,
-      emissiveIntensity: 0.35,
+      map: labelTex("STACY'S CASH", { w: 320, h: 64, bg: "#ff2a80", fg: "#ffffff", size: 28 }),
+      emissive: 0xff4fa8,
+      emissiveIntensity: 0.4,
       roughness: 0.45,
       flatShading: true,
     })
   );
   brandLabel.position.set(0, 1.62, 0.26);
   g.add(brandLabel);
+
   // Screen bezel + glass
   const bezel = box(0.52, 0.42, 0.05, 0x12151a, { roughness: 0.4 });
   bezel.position.set(0, 1.28, 0.22);
@@ -1187,7 +1321,13 @@ function buildAtm(nightMats, lit) {
   const ui = new THREE.Mesh(
     new THREE.PlaneGeometry(0.4, 0.3),
     new THREE.MeshStandardMaterial({
-      map: labelTex("INSERT CARD", { w: 320, h: 200, bg: "#0a3860", fg: "#a0e8ff", size: 28 }),
+      map: labelTex("BUY A ROUND?", {
+        w: 320,
+        h: 200,
+        bg: "#0a3860",
+        fg: "#a0e8ff",
+        size: 26,
+      }),
       emissive: 0x2080c0,
       emissiveIntensity: 0.45,
       roughness: 0.4,
@@ -1196,54 +1336,162 @@ function buildAtm(nightMats, lit) {
   );
   ui.position.set(0, 1.28, 0.28);
   g.add(ui);
-  // Card slot with lip
+  // Fee badge on screen corner
+  const fee = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.16, 0.06),
+    new THREE.MeshStandardMaterial({
+      map: labelTex("$3.99", { w: 128, h: 48, bg: "#401028", fg: "#ff80c0", size: 28 }),
+      emissive: 0xff4fa8,
+      emissiveIntensity: 0.35,
+      roughness: 0.5,
+      flatShading: true,
+    })
+  );
+  fee.position.set(0.14, 1.4, 0.29);
+  g.add(fee);
+
+  // Card slot + half-ejected card (someone mid-withdraw)
   const slotHousing = box(0.36, 0.1, 0.08, 0x1a1a22, { metalness: 0.25, roughness: 0.45 });
   slotHousing.position.set(0, 0.98, 0.24);
   g.add(slotHousing);
   const slot = box(0.3, 0.035, 0.04, 0x050508);
   slot.position.set(0, 0.98, 0.28);
   g.add(slot);
-  // Keypad nest
+  const card = box(0.14, 0.02, 0.09, 0x9b6dff, {
+    emissive: 0x6040a0,
+    emissiveIntensity: 0.25,
+    roughness: 0.4,
+  });
+  card.position.set(0.04, 0.98, 0.34);
+  card.rotation.y = 0.12;
+  g.add(card);
+  // NFC / contactless pad glow
+  const nfc = cyl(0.05, 0.05, 0.015, 0x40e0ff, {
+    emissive: 0x20c0ff,
+    emissiveIntensity: 0.7,
+    roughness: 0.3,
+  }, 10);
+  nfc.rotation.x = Math.PI / 2;
+  nfc.position.set(-0.18, 0.98, 0.29);
+  lit(nfc, 0.85, 0.5, { glimmerSpeed: 3.5 });
+  g.add(nfc);
+
+  // Keypad nest with glowing keys
   const pad = box(0.36, 0.42, 0.06, 0x252830, { roughness: 0.55 });
   pad.position.set(0, 0.62, 0.23);
   g.add(pad);
   for (let r = 0; r < 4; r++) {
     for (let c = 0; c < 3; c++) {
-      const key = box(0.08, 0.07, 0.025, 0x4a5060, {
+      const isOk = r === 3 && c === 1;
+      const key = box(0.08, 0.07, 0.025, isOk ? 0x3dd68c : 0x4a5060, {
         roughness: 0.45,
         metalness: 0.15,
-        emissive: 0x1a2030,
-        emissiveIntensity: 0.15,
+        emissive: isOk ? 0x20a050 : 0x1a2030,
+        emissiveIntensity: isOk ? 0.55 : 0.15,
       });
       key.position.set(-0.1 + c * 0.1, 0.78 - r * 0.1, 0.27);
+      if (isOk) lit(key, 0.65, 0.35, { glimmerSpeed: 2.8 });
       g.add(key);
     }
   }
-  // Receipt slot + paper
+  // Worn "ENTER PIN" strip
+  const pinStrip = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.28, 0.04),
+    new THREE.MeshStandardMaterial({
+      map: labelTex("ENTER PIN", { w: 200, h: 40, bg: "#1a1a22", fg: "#80c0ff", size: 22 }),
+      emissive: 0x2060a0,
+      emissiveIntensity: 0.25,
+      roughness: 0.55,
+      flatShading: true,
+    })
+  );
+  pinStrip.position.set(0, 0.88, 0.27);
+  g.add(pinStrip);
+
+  // Receipt slot + long receipt hanging out
   const receipt = box(0.26, 0.04, 0.05, 0x1a1a22);
   receipt.position.set(0, 0.32, 0.24);
   g.add(receipt);
-  const paper = box(0.2, 0.12, 0.012, 0xf4f0e4, { roughness: 0.9, castShadow: false });
-  paper.position.set(0, 0.26, 0.27);
+  const paper = box(0.18, 0.22, 0.01, 0xf4f0e4, { roughness: 0.92, castShadow: false });
+  paper.position.set(0.02, 0.2, 0.28);
+  paper.rotation.x = 0.15;
+  paper.rotation.z = 0.08;
   g.add(paper);
-  // Side accent LEDs
+  const receiptTxt = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.14, 0.08),
+    new THREE.MeshStandardMaterial({
+      map: labelTex("TIP THE DJ", { w: 160, h: 64, bg: "#f4f0e4", fg: "#401028", size: 20 }),
+      roughness: 0.95,
+      flatShading: true,
+    })
+  );
+  receiptTxt.position.set(0.02, 0.22, 0.29);
+  receiptTxt.rotation.x = 0.15;
+  receiptTxt.rotation.z = 0.08;
+  g.add(receiptTxt);
+
+  // Side accent LEDs (cyan + pink club vibe)
   for (const side of [-1, 1]) {
-    const stripe = box(0.04, 1.35, 0.03, 0x40a0ff, {
-      emissive: 0x2080d0,
-      emissiveIntensity: 0.55,
+    const col = side < 0 ? 0x40e0ff : 0xff4fa8;
+    const stripe = box(0.04, 1.35, 0.03, col, {
+      emissive: col,
+      emissiveIntensity: 0.6,
     });
     stripe.position.set(side * 0.35, 0.9, 0.05);
-    lit(stripe, 0.8, 0.45);
+    lit(stripe, 0.85, 0.5, { glimmerSpeed: 2.5 + side * 0.2 });
     g.add(stripe);
   }
-  // Cash door at bottom
+
+  // Cash door + "OUT OF $1s" sticky note
   const cashDoor = box(0.4, 0.18, 0.04, 0x2a2e38, { metalness: 0.2, roughness: 0.5 });
   cashDoor.position.set(0, 0.22, 0.22);
   g.add(cashDoor);
+  const sticky = box(0.16, 0.12, 0.015, 0xffe14a, { roughness: 0.85 });
+  sticky.position.set(0.14, 0.55, 0.25);
+  sticky.rotation.z = -0.12;
+  g.add(sticky);
+  const stickyTxt = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.14, 0.1),
+    new THREE.MeshStandardMaterial({
+      map: labelTex("OUT OF $1s", { w: 160, h: 96, bg: "#ffe14a", fg: "#1a1020", size: 22 }),
+      roughness: 0.9,
+      flatShading: true,
+    })
+  );
+  stickyTxt.position.set(0.14, 0.55, 0.26);
+  stickyTxt.rotation.z = -0.12;
+  g.add(stickyTxt);
+
+  // Pride heart sticker on the side
+  const pride = box(0.08, 0.1, 0.02, 0xff4fa8, {
+    emissive: 0xff2a80,
+    emissiveIntensity: 0.4,
+  });
+  pride.position.set(0.36, 1.15, 0.05);
+  lit(pride, 0.6, 0.35);
+  g.add(pride);
+  // "CASH 4 BASS" side decal
+  const sideDecal = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.35, 0.08),
+    new THREE.MeshStandardMaterial({
+      map: labelTex("CASH 4 BASS", { w: 256, h: 64, bg: "#2a2e38", fg: "#40e0ff", size: 26 }),
+      emissive: 0x2080a0,
+      emissiveIntensity: 0.3,
+      roughness: 0.5,
+      flatShading: true,
+    })
+  );
+  sideDecal.position.set(-0.35, 1.2, 0.05);
+  sideDecal.rotation.y = -Math.PI / 2;
+  g.add(sideDecal);
+
   // Soft screen wash
-  const glow = new THREE.PointLight(0x50b0ff, 0.45, 2.8, 2);
+  const glow = new THREE.PointLight(0x50b0ff, 0.5, 2.8, 2);
   glow.position.set(0, 1.25, 0.55);
   g.add(glow);
+  const pinkGlow = new THREE.PointLight(0xff4fa8, 0.25, 2.2, 2);
+  pinkGlow.position.set(0, 1.55, 0.4);
+  g.add(pinkGlow);
   return g;
 }
 
@@ -1783,20 +2031,6 @@ export function createInterior() {
       add(board);
     }
 
-    // Party camera near darts (north / right when facing wall)
-    const camStand = box(0.12, 1.2, 0.12, METAL);
-    camStand.position.set(-2.65, 0.6, z - 0.3);
-    add(camStand);
-    const camRing = cyl(0.26, 0.26, 0.05, 0xf0f0f0, {
-      emissive: 0xffffff,
-      emissiveIntensity: 0.7,
-      roughness: 0.3,
-    }, 16);
-    camRing.rotation.x = Math.PI / 2;
-    camRing.position.set(-2.65, 1.4, z - 0.42);
-    lit(camRing, 1.0, 0.65);
-    add(camRing);
-
     // --- L→R facing west wall: Activation → ATM → Wooden doors ---
     // Screen left = +X, so place activation highest X, doors lowest X.
     const foliageW = 2.15;
@@ -1838,8 +2072,9 @@ export function createInterior() {
     nightLights.push({ light: neonBounce, day: 0.4, night: 0.85 });
     g.userData.diamondBounce = neonBounce;
 
-    // 2) ATM between activation wall and wooden doors
+    // 2) ATM between activation wall and wooden doors (face into room = −Z)
     const atm = buildAtm(nightMats, lit);
+    atm.rotation.y = Math.PI;
     atm.position.set(atmX, 0, z - 0.28);
     add(atm);
 
@@ -2134,6 +2369,30 @@ export function createInterior() {
     prideBrick.position.set(barX - 0.1, 1.28, 0.85);
     prideBrick.rotation.y = 0.15;
     add(prideBrick);
+
+    // Party cam — west end of the bar top (customer corner), aimed at activation wall.
+    // Sits just off the bar edge so stools stay clear; ~1.2+ walk gap to the west wall.
+    {
+      const barFrontX = barX - barDepth * 0.5;
+      const barWestZ = 0.15 + 5.7 * 0.5; // west tip of bar top (~3.0)
+      const westWallZ = halfD - 0.1; // ~4.4
+      const partyCam = buildPartyCam(lit);
+      // Beside bar-top west edge, slightly into the room from the customer face
+      const camX = barFrontX - 0.38;
+      const camZ = barWestZ - 0.28; // still at the bar end, not out in the walkway
+      partyCam.position.set(camX, 0, camZ);
+      // Face activation wall (+Z). Nudge yaw so the ring looks at the green wall center
+      // (activation sits around x≈2.2 on the west wall).
+      const actX = 2.2;
+      const actZ = westWallZ - 0.2;
+      partyCam.rotation.y = Math.atan2(actX - camX, actZ - camZ);
+      add(partyCam);
+      // Soft spill so the shot looks intentional
+      const camFill = new THREE.PointLight(0xfff5ee, 0.35, 3.2, 2);
+      camFill.position.set(camX, 1.5, camZ + 0.55);
+      add(camFill);
+      nightLights.push({ light: camFill, day: 0.2, night: 0.45 });
+    }
     // Stools on the customer side
     for (let i = 0; i < 9; i++) {
       const stool = new THREE.Group();
