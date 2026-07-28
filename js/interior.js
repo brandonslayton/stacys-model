@@ -5085,133 +5085,214 @@ export function createInterior() {
       };
     }
 
-    // Bathroom (SE corner — vape cabinet removed so ice/draft bay can sit flush)
-    const bathDoor = box(0.85, 2.15, 0.12, WOOD_DARK);
-    bathDoor.position.set(wallX - 0.2, 1.15, -3.9);
-    add(bathDoor);
-    solidAt(wallX - 0.2, -3.9, 0.48, 0.14);
-    const bathSign = neonBox(0.22, 0.22, 0.05, 0x9b6dff, 0.65);
-    bathSign.position.set(wallX - 0.25, 2.35, -3.9);
-    lit(bathSign, 0.95, 0.6);
-    add(bathSign);
-
-    // ── Side doorway (west end of bar run) — replaces the photobooth.
-    // Opening faces into the club (−X). A short hall turns LEFT (+Z) into
-    // an undeveloped red-glow room (placeholder for later build-out).
+    // ── Bathroom entrance (SE, east end of bar) ─────────────────────
+    // Open arch + short corridor tease matching venue refs: dark purple
+    // walls, soft diffused red ambient (not neon horror), wood floor, and
+    // a hint of sinks/stalls so it reads walkable (blocked deeper for now).
     {
-      const doorZ = 3.4;
-      const doorW = 1.05;
-      const doorH = 2.2;
-      const jambD = 0.16;
-      // Opening sits in the south wall face; hall digs +X behind it
-      const faceX = wallX - 0.02;
-      const hallDepth = 1.35;
+      const doorZ = -3.55;
+      const doorW = 1.15;
+      const doorH = 2.25;
+      const faceX = wallX - 0.06;
+      const hallDepth = 2.1;
       const hallEndX = faceX + hallDepth;
-      const frameCol = 0x1a1218;
-      const hallCol = 0x100c12;
-      const red = 0xff2040;
+      // Soft club-bathroom palette (refs: deep red walls, warm wash)
+      const wallCol = 0x2a1820;
+      const wallDeep = 0x1a1016;
+      const floorCol = 0x3a2a22;
+      const softRed = 0xc04050;
 
-      // Outer jambs (left / right when facing the door)
+      // Arch frame — rounded read via stepped header
       for (const sz of [-1, 1]) {
-        const jamb = box(jambD, doorH + 0.12, 0.12, frameCol, { roughness: 0.82 });
-        jamb.position.set(faceX, doorH * 0.5 + 0.02, doorZ + sz * (doorW * 0.5));
+        const jamb = box(0.18, doorH + 0.1, 0.14, wallCol, { roughness: 0.88 });
+        jamb.position.set(faceX, doorH * 0.5, doorZ + sz * (doorW * 0.5 + 0.04));
         add(jamb);
       }
-      // Header / lintel
-      const head = box(jambD + 0.04, 0.12, doorW + 0.18, frameCol, { roughness: 0.8 });
-      head.position.set(faceX, doorH + 0.08, doorZ);
-      add(head);
+      // Flat lintel + soft arch stack
+      const lintel = box(0.2, 0.14, doorW + 0.28, wallCol, { roughness: 0.85 });
+      lintel.position.set(faceX, doorH + 0.05, doorZ);
+      add(lintel);
+      // Arch curve suggestion (stepped inset)
+      for (let i = 0; i < 4; i++) {
+        const t = i / 3;
+        const aw = doorW * (1 - t * 0.55);
+        const ay = doorH - 0.05 + t * 0.32;
+        const arch = box(0.12, 0.08, aw, wallDeep, { roughness: 0.88 });
+        arch.position.set(faceX + 0.04, ay, doorZ);
+        add(arch);
+      }
       // Threshold
-      const sill = box(0.22, 0.06, doorW + 0.08, 0x141018, { roughness: 0.88 });
-      sill.position.set(faceX - 0.02, 0.03, doorZ);
+      const sill = box(0.28, 0.05, doorW + 0.1, 0x2a2018, { roughness: 0.9 });
+      sill.position.set(faceX - 0.04, 0.025, doorZ);
       add(sill);
 
-      // Hall floor
-      const hallFloor = box(hallDepth, 0.05, doorW + 0.2, 0x0c0a0e, { roughness: 0.95 });
+      // Corridor volume (+X into south wall)
+      const hallFloor = box(hallDepth, 0.04, doorW + 0.35, floorCol, { roughness: 0.92 });
       hallFloor.position.set(faceX + hallDepth * 0.5, 0.02, doorZ);
       add(hallFloor);
-      // Hall ceiling
-      const hallCeil = box(hallDepth, 0.08, doorW + 0.2, hallCol, { roughness: 0.9 });
-      hallCeil.position.set(faceX + hallDepth * 0.5, doorH + 0.02, doorZ);
+      // Plank strips for wood-floor read
+      for (let i = 0; i < 5; i++) {
+        const plank = box(hallDepth * 0.95, 0.01, 0.12, i % 2 ? 0x342820 : 0x2e241c, {
+          roughness: 0.94,
+          castShadow: false,
+        });
+        plank.position.set(faceX + hallDepth * 0.5, 0.045, doorZ - doorW * 0.28 + i * 0.16);
+        add(plank);
+      }
+      const hallCeil = box(hallDepth, 0.08, doorW + 0.35, 0x140c12, { roughness: 0.9 });
+      hallCeil.position.set(faceX + hallDepth * 0.5, doorH + 0.06, doorZ);
       add(hallCeil);
-      // Right wall of short hall (solid — no turn that way)
-      const hallRight = box(hallDepth, doorH, 0.1, hallCol, { roughness: 0.88 });
-      hallRight.position.set(faceX + hallDepth * 0.5, doorH * 0.5, doorZ - doorW * 0.5 - 0.02);
-      add(hallRight);
-      // Left wall only on the first half — opens into the side room
-      const hallLeftFront = box(hallDepth * 0.42, doorH, 0.1, hallCol, { roughness: 0.88 });
-      hallLeftFront.position.set(
-        faceX + hallDepth * 0.21,
-        doorH * 0.5,
-        doorZ + doorW * 0.5 + 0.02
-      );
-      add(hallLeftFront);
+      // Side walls
+      for (const sz of [-1, 1]) {
+        const side = box(hallDepth, doorH, 0.1, wallCol, { roughness: 0.9 });
+        side.position.set(faceX + hallDepth * 0.5, doorH * 0.5, doorZ + sz * (doorW * 0.5 + 0.08));
+        add(side);
+      }
+      // Soft wall wash strips (diffused red, not neon) — left wall
+      const washL = box(hallDepth * 0.7, 0.04, 0.03, softRed, {
+        emissive: softRed,
+        emissiveIntensity: 0.22,
+        roughness: 0.55,
+      });
+      washL.position.set(faceX + hallDepth * 0.45, 1.1, doorZ + doorW * 0.5 + 0.02);
+      lit(washL, 0.35, 0.18, { glimmerSpeed: 0.8 });
+      add(washL);
+      // Right wall sconce glow panels
+      for (const hy of [1.35, 1.9]) {
+        const sconce = box(0.08, 0.14, 0.06, 0xc8a060, {
+          emissive: 0xffc080,
+          emissiveIntensity: 0.35,
+          roughness: 0.4,
+        });
+        sconce.position.set(faceX + 0.55 + (hy > 1.5 ? 0.7 : 0), hy, doorZ - doorW * 0.5 - 0.02);
+        lit(sconce, 0.45, 0.25, { glimmerSpeed: 1.1 });
+        add(sconce);
+      }
 
-      // Back wall of the short hall (dead end straight ahead)
-      const hallBack = box(0.1, doorH, doorW + 0.22, hallCol, { roughness: 0.9 });
-      hallBack.position.set(hallEndX, doorH * 0.5, doorZ);
+      // Far end: sink vanity tease (reads as restroom continues)
+      const vanity = box(0.45, 0.55, 0.7, 0x1a1218, { roughness: 0.7 });
+      vanity.position.set(hallEndX - 0.35, 0.55, doorZ);
+      add(vanity);
+      // Two vessel sinks
+      for (const sz of [-1, 1]) {
+        const bowl = cyl(0.12, 0.1, 0.08, 0x8a2030, {
+          roughness: 0.35,
+          metalness: 0.15,
+          emissive: 0x401018,
+          emissiveIntensity: 0.12,
+        }, 10);
+        bowl.position.set(hallEndX - 0.35, 0.88, doorZ + sz * 0.18);
+        add(bowl);
+        const faucet = box(0.03, 0.12, 0.03, 0xb0b4bc, { metalness: 0.55, roughness: 0.3 });
+        faucet.position.set(hallEndX - 0.28, 0.98, doorZ + sz * 0.18);
+        add(faucet);
+      }
+      // Mirror over vanity
+      const mirror = box(0.04, 0.55, 0.75, 0x3a5060, {
+        metalness: 0.55,
+        roughness: 0.2,
+        emissive: 0x183040,
+        emissiveIntensity: 0.2,
+      });
+      mirror.position.set(hallEndX - 0.12, 1.55, doorZ);
+      add(mirror);
+      // Stall doors hint (dark panels beyond vanity)
+      for (const sz of [-1, 1]) {
+        const stall = box(0.08, 1.6, 0.35, 0x241820, { roughness: 0.85 });
+        stall.position.set(hallEndX - 0.05, 0.95, doorZ + sz * 0.42);
+        add(stall);
+      }
+      // Back wall
+      const hallBack = box(0.1, doorH + 0.1, doorW + 0.4, wallDeep, { roughness: 0.9 });
+      hallBack.position.set(hallEndX + 0.02, doorH * 0.5, doorZ);
       add(hallBack);
 
-      // Left turn: side room stub extending +Z (west), dark with red wash
-      const sideLen = 1.4;
-      const sideZc = doorZ + doorW * 0.5 + sideLen * 0.5;
-      const sideFloor = box(hallDepth * 0.55, 0.05, sideLen, 0x0c0a0e, { roughness: 0.95 });
-      sideFloor.position.set(faceX + hallDepth * 0.72, 0.02, sideZc);
-      add(sideFloor);
-      const sideCeil = box(hallDepth * 0.55, 0.08, sideLen, hallCol, { roughness: 0.9 });
-      sideCeil.position.set(faceX + hallDepth * 0.72, doorH + 0.02, sideZc);
-      add(sideCeil);
-      // Far wall of side room (tease of more space)
-      const sideFar = box(hallDepth * 0.55, doorH, 0.1, 0x0a080c, { roughness: 0.92 });
-      sideFar.position.set(faceX + hallDepth * 0.72, doorH * 0.5, sideZc + sideLen * 0.5);
-      add(sideFar);
-      // Back of side room (closes the L)
-      const sideBack = box(0.1, doorH, sideLen + 0.1, 0x0a080c, { roughness: 0.92 });
-      sideBack.position.set(faceX + hallDepth * 0.72 + hallDepth * 0.28, doorH * 0.5, sideZc);
-      add(sideBack);
+      // Small restroom sign (soft, not screaming neon)
+      const restSign = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.38, 0.12),
+        new THREE.MeshStandardMaterial({
+          map: labelTex("RESTROOM", {
+            w: 220,
+            h: 64,
+            bg: "#2a1820",
+            fg: "#e8c0c8",
+            size: 26,
+            weight: 700,
+            font: "fun",
+          }),
+          emissive: 0x401828,
+          emissiveIntensity: 0.25,
+          roughness: 0.5,
+          flatShading: true,
+        })
+      );
+      restSign.position.set(faceX - 0.1, doorH + 0.28, doorZ);
+      restSign.rotation.y = -Math.PI / 2;
+      add(restSign);
 
-      // Red door-frame lip (reads as backlit exit / VIP)
-      const redLip = box(0.04, doorH + 0.06, doorW + 0.1, red, {
-        emissive: red,
-        emissiveIntensity: 0.85,
-        roughness: 0.35,
-      });
-      redLip.position.set(faceX - 0.06, doorH * 0.5, doorZ);
-      lit(redLip, 1.15, 0.7, { glimmerSpeed: 1.6 });
-      add(redLip);
-      // Thin red edge on header
-      const redHead = neonBox(0.05, 0.06, doorW * 0.92, red, 0.95);
-      redHead.position.set(faceX - 0.08, doorH + 0.14, doorZ);
-      lit(redHead, 1.2, 0.75, { glimmerSpeed: 2.0 });
-      add(redHead);
+      // Diffused ambient — warm room light + gentle rose (ref vibe, low intensity)
+      const bathKey = new THREE.PointLight(0xffd0b0, 0.38, 4.2, 2);
+      bathKey.position.set(faceX + 0.9, 1.7, doorZ);
+      add(bathKey);
+      nightLights.push({ light: bathKey, day: 0.22, night: 0.42 });
+      const bathRose = new THREE.PointLight(0xd06070, 0.22, 3.6, 2);
+      bathRose.position.set(faceX + 1.4, 1.1, doorZ + 0.15);
+      add(bathRose);
+      nightLights.push({ light: bathRose, day: 0.1, night: 0.26 });
+      // Soft spill into the club (reads as open doorway, not a laser)
+      const bathSpill = new THREE.PointLight(0xffc8b0, 0.18, 3.2, 2);
+      bathSpill.position.set(faceX - 0.45, 1.25, doorZ);
+      add(bathSpill);
+      nightLights.push({ light: bathSpill, day: 0.08, night: 0.2 });
 
-      // Soft red glow from the side room + hall
-      const redHall = new THREE.PointLight(0xff1838, 0.85, 4.5, 2);
-      redHall.position.set(faceX + 0.85, 1.35, doorZ + 0.55);
-      add(redHall);
-      nightLights.push({ light: redHall, day: 0.45, night: 1.0 });
-      const redSpill = new THREE.PointLight(0xff4060, 0.45, 3.8, 2);
-      redSpill.position.set(faceX - 0.55, 1.2, doorZ);
-      add(redSpill);
-      nightLights.push({ light: redSpill, day: 0.22, night: 0.55 });
-      // Floor wash so the L-turn reads as lit space
-      const redFloor = new THREE.PointLight(0xff1028, 0.35, 2.8, 2);
-      redFloor.position.set(faceX + 0.9, 0.25, sideZc);
-      add(redFloor);
-      nightLights.push({ light: redFloor, day: 0.15, night: 0.42 });
+      // Block deep entry; threshold stays open so it feels walkable
+      solid(faceX + 0.55, hallEndX + 0.15, doorZ - doorW * 0.55, doorZ + doorW * 0.55);
+      solidAt(faceX, doorZ - doorW * 0.55, 0.12, 0.1);
+      solidAt(faceX, doorZ + doorW * 0.55, 0.12, 0.1);
 
-      // Block walking deep into undeveloped space; leave a shallow threshold
-      solid(faceX + 0.35, hallEndX + 0.2, doorZ - doorW * 0.55, doorZ + doorW * 0.55 + sideLen);
-      // Frame posts still solid at the sides
-      solidAt(faceX, doorZ - doorW * 0.5, 0.12, 0.1);
-      solidAt(faceX, doorZ + doorW * 0.5, 0.12, 0.1);
-
-      g.userData.sideDoor = {
+      g.userData.bathroom = {
         x: faceX,
         z: doorZ,
-        // Future: build out the left room from this anchor
-        roomHint: "left-turn red hall (undeveloped)",
+        roomHint: "restroom corridor (detail later)",
       };
+    }
+
+    // ── West side doorway (old photobooth bay) — quiet dark arch, no red blast.
+    // Placeholder for later build-out; soft so it never steals the bathroom vibe.
+    {
+      const doorZ = 3.4;
+      const doorW = 0.95;
+      const doorH = 2.15;
+      const faceX = wallX - 0.04;
+      const hallDepth = 0.95;
+      const wallCol = 0x1e1620;
+
+      for (const sz of [-1, 1]) {
+        const jamb = box(0.14, doorH + 0.08, 0.12, wallCol, { roughness: 0.85 });
+        jamb.position.set(faceX, doorH * 0.5, doorZ + sz * (doorW * 0.5));
+        add(jamb);
+      }
+      const head = box(0.16, 0.12, doorW + 0.2, wallCol, { roughness: 0.85 });
+      head.position.set(faceX, doorH + 0.04, doorZ);
+      add(head);
+      // Dark recess
+      const recess = box(hallDepth, doorH, doorW + 0.15, 0x100c14, { roughness: 0.92 });
+      recess.position.set(faceX + hallDepth * 0.5, doorH * 0.5, doorZ);
+      add(recess);
+      const floor = box(hallDepth, 0.04, doorW + 0.15, 0x1a1418, { roughness: 0.95 });
+      floor.position.set(faceX + hallDepth * 0.5, 0.02, doorZ);
+      add(floor);
+      // Tiny warm sconce only
+      const sconce = new THREE.PointLight(0xffc090, 0.2, 2.4, 2);
+      sconce.position.set(faceX + 0.35, 1.6, doorZ);
+      add(sconce);
+      nightLights.push({ light: sconce, day: 0.1, night: 0.22 });
+
+      solid(faceX + 0.2, faceX + hallDepth + 0.1, doorZ - doorW * 0.55, doorZ + doorW * 0.55);
+      solidAt(faceX, doorZ - doorW * 0.5, 0.1, 0.08);
+      solidAt(faceX, doorZ + doorW * 0.5, 0.1, 0.08);
+
+      g.userData.sideDoor = { x: faceX, z: doorZ, roomHint: "west bay (later)" };
     }
 
     // ══════════════════════════════════════════════════════════════
