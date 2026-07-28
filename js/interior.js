@@ -4664,22 +4664,7 @@ export function createInterior() {
     }
   }
 
-  // High-tops — kept clear of The Pit (no furniture over the sunken floor)
-  for (const [hx, hz] of [
-    [0.9, -2.9], // south-east of pit, near patio side
-    [1.4, -1.6], // mid-room south of pit edge
-    [0.6, 1.4], // west side of room, clear of stage
-  ]) {
-    const t = new THREE.Group();
-    const top = cyl(0.28, 0.28, 0.06, WOOD_DARK, {}, 8);
-    top.position.y = 1.0;
-    t.add(top);
-    const leg = cyl(0.045, 0.055, 1.0, METAL, { metalness: 0.4 }, 6);
-    leg.position.y = 0.5;
-    t.add(leg);
-    t.position.set(hx, 0, hz);
-    add(t);
-  }
+  // (No free-standing high-tops near the dance floor — keep the floor open.)
 
   // ── Ambient club lighting ─────────────────────────────────────────
   const amb = new THREE.AmbientLight(0x281828, 0.38);
@@ -5050,11 +5035,11 @@ export function createInterior() {
       { x: -1.2, z: 0.2 }, // dance floor / pit edge
       { x: -0.4, z: -1.0 },
       { x: 0.6, z: 1.2 },
-      { x: 0.9, z: -1.8 }, // high-top area
       { x: -2.0, z: 1.6 }, // near stage apron
       { x: -1.5, z: -2.4 }, // DJ side
       { x: 1.2, z: 0.4 },
       { x: -0.2, z: 2.2 }, // west room
+      { x: 0.5, z: -1.5 }, // open floor south of pit
     ];
     g.userData.interiorLife = createInteriorLife(g, {
       entrance: { x: g.userData.spawn.x, z: g.userData.spawn.z + 0.35 },
