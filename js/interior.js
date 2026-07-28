@@ -307,15 +307,20 @@ function buildFoliageWall(w = 2.4, h = 2.4) {
   return g;
 }
 
+/** Dark brown wood palette for twisted columns + interior railings. */
+const WOOD_COL = 0x3a2418;
+const WOOD_COL_DARK = 0x24160e;
+const WOOD_COL_LITE = 0x4a3020;
+
 /**
- * Twisted Solomonic column — runs floor to ceiling (vault).
+ * Twisted Solomonic column — dark wood, floor to ceiling (vault).
  * `height` is the top of the capital; capital sits under the roof plane.
  */
 function buildTwistedColumn(height = 2.9) {
   const g = new THREE.Group();
   g.name = "twistedColumn";
-  const stone = 0xb8a890;
-  const stoneDark = 0x8a7a68;
+  const wood = WOOD_COL;
+  const woodDark = WOOD_COL_DARK;
   const baseH = 0.22;
   const capH = 0.2;
   const shaftH = Math.max(0.8, height - baseH - capH);
@@ -324,9 +329,9 @@ function buildTwistedColumn(height = 2.9) {
   for (let i = 0; i < segs; i++) {
     const t = i / segs;
     const r = 0.11 + Math.sin(t * Math.PI) * 0.025;
-    const seg = cyl(r, r * 0.98, segH + 0.012, i % 3 ? stone : stoneDark, {
-      roughness: 0.78,
-      metalness: 0.05,
+    const seg = cyl(r, r * 0.98, segH + 0.012, i % 3 ? wood : woodDark, {
+      roughness: 0.82,
+      metalness: 0.04,
     }, 12);
     seg.material.flatShading = false;
     seg.material.needsUpdate = true;
@@ -335,19 +340,19 @@ function buildTwistedColumn(height = 2.9) {
     g.add(seg);
   }
   // Base plinth
-  const base = box(0.4, 0.14, 0.4, stoneDark, { roughness: 0.85 });
+  const base = box(0.4, 0.14, 0.4, woodDark, { roughness: 0.88 });
   base.position.y = 0.07;
   g.add(base);
-  const baseRing = cyl(0.17, 0.19, 0.1, stone, { roughness: 0.8 }, 12);
+  const baseRing = cyl(0.17, 0.19, 0.1, wood, { roughness: 0.84 }, 12);
   baseRing.material.flatShading = false;
   baseRing.position.y = 0.18;
   g.add(baseRing);
   // Capital tight under the ceiling
   const capY = height - capH * 0.45;
-  const cap = box(0.4, 0.12, 0.4, stone, { roughness: 0.75 });
+  const cap = box(0.4, 0.12, 0.4, wood, { roughness: 0.8 });
   cap.position.y = capY;
   g.add(cap);
-  const capTop = box(0.46, 0.06, 0.46, stoneDark, { roughness: 0.8 });
+  const capTop = box(0.46, 0.06, 0.46, woodDark, { roughness: 0.85 });
   capTop.position.y = height - 0.03;
   g.add(capTop);
   for (const [ox, oz] of [
@@ -356,12 +361,72 @@ function buildTwistedColumn(height = 2.9) {
     [-0.13, 0.13],
     [0.13, 0.13],
   ]) {
-    const scroll = cyl(0.05, 0.05, 0.08, stoneDark, { roughness: 0.7 }, 8);
+    const scroll = cyl(0.05, 0.05, 0.08, woodDark, { roughness: 0.78 }, 8);
     scroll.material.flatShading = false;
     scroll.rotation.z = Math.PI / 2;
     scroll.position.set(ox, capY + 0.02, oz);
     g.add(scroll);
   }
+  return g;
+}
+
+/**
+ * Dark wood railing segment along +X (south). Pickets + top/bottom rails.
+ * Runs through column posts without replacing them.
+ */
+function buildWoodRailing(length, {
+  picketH = 0.92,
+  spacing = 0.14,
+} = {}) {
+  const g = new THREE.Group();
+  g.name = "woodRailing";
+  const top = box(length, 0.06, 0.08, WOOD_COL, { roughness: 0.8 });
+  top.position.set(length * 0.5, picketH, 0);
+  g.add(top);
+  const bot = box(length, 0.05, 0.07, WOOD_COL_DARK, { roughness: 0.85 });
+  bot.position.set(length * 0.5, 0.28, 0);
+  g.add(bot);
+  const n = Math.max(2, Math.floor(length / spacing));
+  for (let i = 0; i <= n; i++) {
+    const px = (i / n) * length;
+    const picket = box(0.045, picketH - 0.12, 0.045, i % 2 ? WOOD_COL : WOOD_COL_DARK, {
+      roughness: 0.82,
+    });
+    picket.position.set(px, (picketH - 0.12) * 0.5 + 0.12, 0);
+    g.add(picket);
+  }
+  // Newel-ish end posts
+  for (const px of [0.04, length - 0.04]) {
+    const post = box(0.09, picketH + 0.08, 0.09, WOOD_COL_DARK, { roughness: 0.8 });
+    post.position.set(px, (picketH + 0.08) * 0.5, 0);
+    g.add(post);
+  }
+  return g;
+}
+
+/** Trans pride flag brick (light blue / pink / white / pink / light blue). */
+function buildTransPrideBrick() {
+  const g = new THREE.Group();
+  g.name = "transPrideBrick";
+  const stripes = [0x5bcefa, 0xf5a9b8, 0xffffff, 0xf5a9b8, 0x5bcefa];
+  const bh = 0.1;
+  const bw = 0.42;
+  const bd = 0.2;
+  for (let i = 0; i < 5; i++) {
+    const s = box(bw, bh / 5, bd, stripes[i], {
+      roughness: i === 2 ? 0.55 : 0.7,
+      metalness: 0.05,
+      // white stripe slightly brighter
+      emissive: stripes[i],
+      emissiveIntensity: i === 2 ? 0.08 : 0.04,
+    });
+    s.position.y = (i - 2) * (bh / 5);
+    g.add(s);
+  }
+  // Mortar lip
+  const lip = box(bw + 0.02, 0.02, bd + 0.02, 0x8a8078, { roughness: 0.9 });
+  lip.position.y = -bh * 0.5 - 0.01;
+  g.add(lip);
   return g;
 }
 
@@ -787,24 +852,17 @@ function buildBackBar(nightMats, lit, add, nightLights) {
     add(led);
   }
 
-  // Top neon “Stacy's” strip
-  const topNeon = neonBox(0.08, 0.3, 2.4, 0x40a0ff, 1.0);
-  topNeon.position.set(x - 0.18, 2.85, 0.15);
-  lit(topNeon, 1.35, 0.9, { glimmerSpeed: 2.5 });
-  add(topNeon);
-  const topLabel = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.7, 0.24),
-    new THREE.MeshStandardMaterial({
-      map: labelTex("Stacy's", { w: 320, h: 64, bg: "#0a2040", fg: "#80d0ff", size: 40 }),
-      emissive: 0x3060ff,
-      emissiveIntensity: 0.6,
-      roughness: 0.4,
-      flatShading: true,
-    })
-  );
-  topLabel.position.set(x - 0.28, 2.85, 0.15);
-  topLabel.rotation.y = -Math.PI / 2;
-  add(topLabel);
+  // Diamond Stacy's neon above the bar — same mark as the pole sign / foliage wall
+  const barDiamond = buildDiamondNeon(nightMats);
+  // Face into the room (−X from the south wall)
+  barDiamond.rotation.y = -Math.PI / 2;
+  barDiamond.position.set(x - 0.32, 2.75, 0.15);
+  barDiamond.scale.setScalar(1.15);
+  add(barDiamond);
+  const barNeonWash = new THREE.PointLight(0xff4fa8, 1.1, 5, 2);
+  barNeonWash.position.set(x - 1.0, 2.6, 0.15);
+  add(barNeonWash);
+  nightLights.push({ light: barNeonWash, day: 0.65, night: 1.25 });
 
   // Speed rail / well
   const well = box(0.55, 0.35, 2.6, 0x2a2a30, { metalness: 0.3, roughness: 0.4 });
@@ -1063,15 +1121,15 @@ export function createInterior() {
     }
   }
 
-  // Twisted columns — full height to the vault underside at each column's z
+  // Twisted dark-wood columns — full height to the vault.
+  // The pair at z≈2.2 sits ON the north railing line so the rail runs through them.
   for (const [x, z] of [
-    [-2.4, 2.15],
+    [-2.4, 2.2], // railing post (north bay)
+    [-0.35, 2.2], // railing post (further south on same rail)
     [-2.4, 0.55],
-    [-0.35, 2.35],
     [1.5, 1.6],
     [1.5, -1.3],
   ]) {
-    // Capital sits just under the pitched roof plane
     const topY = roofYAt(z) - 0.12;
     const col = buildTwistedColumn(topY);
     col.position.set(x, 0, z);
@@ -1146,58 +1204,119 @@ export function createInterior() {
     atm.position.set(1.45, 0, z - 0.28);
     add(atm);
 
-    // Wood front door
-    const doorFrame = box(1.15, 2.35, 0.16, WOOD_DARK);
-    doorFrame.position.set(3.4, 1.2, z - 0.04);
+    // Double front doors (matches exterior carved pair). From inside only the
+    // LEFT leaf is used for entry; the right leaf is the companion panel.
+    // Looking at the west wall from inside: left = −X (north), right = +X (south).
+    const doorCx = 3.35;
+    const leafW = 0.52;
+    const leafH = 2.15;
+    const doorFrame = box(leafW * 2 + 0.28, 2.4, 0.16, WOOD_DARK);
+    doorFrame.position.set(doorCx, 1.22, z - 0.04);
     add(doorFrame);
-    const doorLeaf = box(0.98, 2.15, 0.09, WOOD);
-    doorLeaf.position.set(3.4, 1.15, z - 0.14);
-    doorLeaf.name = "interiorFrontDoor";
-    add(doorLeaf);
-    for (const dir of [-1, 1]) {
-      const arm = box(0.09, 1.0, 0.04, WOOD_DARK);
-      arm.rotation.z = dir * 0.55;
-      arm.position.set(3.4, 1.25, z - 0.2);
-      add(arm);
+    // Header
+    const header = box(leafW * 2 + 0.32, 0.14, 0.18, WOOD_COL, { roughness: 0.8 });
+    header.position.set(doorCx, 2.35, z - 0.08);
+    add(header);
+    // Left leaf (active entry — north leaf)
+    const leftLeaf = box(leafW, leafH, 0.09, WOOD);
+    leftLeaf.position.set(doorCx - leafW * 0.52, 1.15, z - 0.14);
+    leftLeaf.name = "interiorFrontDoor";
+    add(leftLeaf);
+    // Right leaf (companion — not used for entry)
+    const rightLeaf = box(leafW, leafH, 0.09, WOOD_DARK);
+    rightLeaf.position.set(doorCx + leafW * 0.52, 1.15, z - 0.14);
+    rightLeaf.name = "interiorFrontDoorRight";
+    add(rightLeaf);
+    // Carved X relief on each leaf
+    for (const lx of [doorCx - leafW * 0.52, doorCx + leafW * 0.52]) {
+      for (const dir of [-1, 1]) {
+        const arm = box(0.07, 0.85, 0.035, WOOD_COL_DARK);
+        arm.rotation.z = dir * 0.55;
+        arm.position.set(lx, 1.25, z - 0.2);
+        add(arm);
+      }
     }
-    const pull = cyl(0.045, 0.045, 0.09, 0xc8a040, { metalness: 0.5, roughness: 0.4 }, 8);
+    // Center mullion between leaves
+    const mullion = box(0.08, leafH + 0.05, 0.1, WOOD_COL, { roughness: 0.75 });
+    mullion.position.set(doorCx, 1.15, z - 0.12);
+    add(mullion);
+    // Pull only on the left (working) leaf
+    const pull = cyl(0.04, 0.04, 0.08, 0xc8a040, { metalness: 0.5, roughness: 0.4 }, 8);
     pull.rotation.z = Math.PI / 2;
-    pull.position.set(3.75, 1.15, z - 0.22);
+    pull.position.set(doorCx - leafW * 0.15, 1.15, z - 0.22);
     add(pull);
   }
 
   // ══════════════════════════════════════════════════════════════════
-  // NORTH (−X) — glass exit · rail · cathedral window · DJ · jukebox · booths
+  // NORTH (−X) — glass lot exit · wood rail through columns · cathedral · DJ
   // ══════════════════════════════════════════════════════════════════
   {
     const x = -halfW + 0.1;
+    // Glass door sits on the west end of the north wall (NW corner → parking)
+    const doorZ = 3.15;
 
-    // Glass parking exit
-    const gFrame = box(0.1, 2.3, 1.15, METAL);
-    gFrame.position.set(x, 1.15, 3.0);
-    add(gFrame);
-    const glassDoor = box(0.08, 2.15, 1.0, 0x6ab0d0, {
-      transparent: true,
-      opacity: 0.32,
-      roughness: 0.15,
-      metalness: 0.2,
-      emissive: 0x204060,
-      emissiveIntensity: 0.2,
-    });
-    glassDoor.position.set(x + 0.06, 1.15, 3.0);
-    add(glassDoor);
-
-    // Railing
-    for (let i = 0; i < 8; i++) {
-      const picket = box(0.04, 0.75, 0.04, 0x2a2a30);
-      picket.position.set(x + 0.25, 0.5, 2.2 - i * 0.22);
-      add(picket);
+    // Full glass door to the parking lot — aluminum frame + clear panes
+    {
+      const dw = 1.15;
+      const dh = 2.25;
+      const frame = box(0.12, dh + 0.12, dw + 0.12, 0x4a5058, {
+        metalness: 0.45,
+        roughness: 0.35,
+      });
+      frame.position.set(x, dh * 0.5 + 0.06, doorZ);
+      add(frame);
+      // Two vertical panes (double glass door)
+      for (const side of [-1, 1]) {
+        const pane = box(0.05, dh - 0.15, dw * 0.42, 0x8ec8e8, {
+          transparent: true,
+          opacity: 0.28,
+          roughness: 0.12,
+          metalness: 0.25,
+          emissive: 0x306080,
+          emissiveIntensity: 0.18,
+        });
+        pane.position.set(x + 0.06, dh * 0.5 + 0.02, doorZ + side * dw * 0.24);
+        add(pane);
+      }
+      // Mid stile + push bar
+      const stile = box(0.06, dh - 0.1, 0.08, 0x3a4048, { metalness: 0.4, roughness: 0.4 });
+      stile.position.set(x + 0.05, dh * 0.5, doorZ);
+      add(stile);
+      const push = box(0.05, 0.05, dw * 0.7, 0xc8ccd0, { metalness: 0.55, roughness: 0.35 });
+      push.position.set(x + 0.12, 1.05, doorZ);
+      add(push);
+      // EXIT glow above
+      const exitLite = neonBox(0.08, 0.12, 0.45, 0x3dd68c, 0.85);
+      exitLite.position.set(x + 0.1, dh + 0.18, doorZ);
+      lit(exitLite, 1.1, 0.7);
+      add(exitLite);
+      // Night lot glow through glass
+      const lotGlow = new THREE.PointLight(0x80b0d0, 0.4, 4, 2);
+      lotGlow.position.set(x + 0.6, 1.4, doorZ);
+      add(lotGlow);
+      nightLights.push({ light: lotGlow, day: 0.25, night: 0.5 });
     }
-    const rail = box(0.05, 0.05, 1.7, 0x3a3a42);
-    rail.position.set(x + 0.25, 0.88, 1.45);
-    add(rail);
 
-    // Cathedral rainbow window (taller, denser bars, halo glow)
+    // Dark wood railing to the right of the glass door, running SOUTH (+X)
+    // through the two north-side columns at z ≈ 2.2.
+    // Door is at z=3.15; railing sits just into the room at z=2.2 and runs
+    // from the north wall south past columns (−2.4 and −0.35).
+    {
+      const railZ = 2.2;
+      const railStartX = -halfW + 0.35; // at the north wall
+      const railEndX = 0.35; // past second column
+      const railLen = railEndX - railStartX;
+      const railing = buildWoodRailing(railLen, { picketH: 0.95, spacing: 0.13 });
+      railing.position.set(railStartX, 0, railZ);
+      add(railing);
+      // Short return at the north wall tying into the door frame
+      const returnRail = buildWoodRailing(0.55, { picketH: 0.95, spacing: 0.12 });
+      returnRail.rotation.y = Math.PI / 2;
+      returnRail.position.set(railStartX + 0.08, 0, railZ);
+      add(returnRail);
+    }
+
+    // Cathedral rainbow window (east of the railing / door)
     const cathed = buildCathedralWindow(nightMats);
     cathed.position.set(x + 0.08, 0.12, -0.25);
     cathed.rotation.y = Math.PI / 2; // face into room (+X)
@@ -1372,6 +1491,11 @@ export function createInterior() {
     const top = box(1.15, 0.09, 5.7, 0x2a2a30, { roughness: 0.35, metalness: 0.25 });
     top.position.set(x - 0.7, 1.18, 0.15);
     add(top);
+    // Trans pride brick sitting on the bar top
+    const prideBrick = buildTransPrideBrick();
+    prideBrick.position.set(x - 0.85, 1.28, 0.85);
+    prideBrick.rotation.y = 0.15;
+    add(prideBrick);
     // Stools
     for (let i = 0; i < 9; i++) {
       const stool = new THREE.Group();
