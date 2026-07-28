@@ -71,23 +71,16 @@
   <button id="inside" type="button" aria-label="Step inside Stacy's" title="Step inside" aria-pressed="false"></button>
 </div>
 
-<!-- Interior walk HUD — bottom-anchored, mobile-first -->
+<!-- Interior walk HUD — simple: one Move stick + drag screen to look -->
 <div id="inside-hud" hidden aria-hidden="true">
-  <!-- Left: virtual joystick (move) -->
-  <div id="walk-stick" class="hud-stick" aria-label="Move">
+  <!-- Move joystick (bottom-left). Follows thumb origin for easier control. -->
+  <div id="walk-stick" class="hud-stick" aria-label="Move around">
     <div class="hud-stick-ring" aria-hidden="true"></div>
     <div id="walk-stick-knob" class="hud-stick-knob"></div>
     <span class="hud-stick-label">Move</span>
   </div>
 
-  <!-- Right: look pad (drag to look — also works on the whole screen) -->
-  <div id="look-pad" class="hud-stick hud-look" aria-label="Look around">
-    <div class="hud-stick-ring" aria-hidden="true"></div>
-    <div id="look-pad-knob" class="hud-stick-knob"></div>
-    <span class="hud-stick-label">Look</span>
-  </div>
-
-  <!-- Bottom action bar -->
+  <!-- Bottom action bar: Lot / Office -->
   <nav id="inside-bar" aria-label="Interior actions">
     <button id="exit-inside" type="button" aria-label="Back to the lot">
       <span class="ibar-ico" aria-hidden="true">←</span>
@@ -99,10 +92,10 @@
     </button>
   </nav>
 
-  <!-- One-time tip strip -->
+  <!-- Coaching tip (fades out) -->
   <p id="inside-tip" class="inside-tip">
-    <span class="tip-mobile">Left stick moves · Right stick looks</span>
-    <span class="tip-desktop">WASD move · Drag to look · Esc = Lot</span>
+    <span class="tip-mobile">Stick = walk · Drag screen = look</span>
+    <span class="tip-desktop">WASD walk · Drag look · Esc = Lot</span>
   </p>
 </div>
 

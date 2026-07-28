@@ -470,10 +470,10 @@ body { user-select: none; -webkit-user-select: none; }
 }
 
 /* ---------------------------------------------------------------- Interior HUD
-   Mobile-first FPS layout:
-   · Left stick  = move
-   · Right stick = look
-   · Bottom bar  = Lot / Office (no top-center chips)
+   Simple walkthrough controls (mobile best practice):
+   · Bottom-left stick = walk (thumb origin follows touch)
+   · Drag anywhere else on the screen = look
+   · Bottom-center bar = Lot / Office
 */
 #inside-hud {
   position: fixed;
@@ -485,18 +485,19 @@ body { user-select: none; -webkit-user-select: none; }
   display: block;
 }
 
-/* Dual sticks */
+/* Move stick — large, bottom-left, clear of the action bar */
 .hud-stick {
   position: absolute;
-  bottom: max(96px, calc(env(safe-area-inset-bottom) + 84px));
-  width: 120px;
-  height: 120px;
+  left: max(12px, env(safe-area-inset-left));
+  bottom: max(88px, calc(env(safe-area-inset-bottom) + 76px));
+  width: 140px;
+  height: 140px;
   border-radius: 50%;
-  background: rgba(12, 10, 22, 0.5);
-  border: 1.5px solid rgba(255, 255, 255, 0.16);
+  background: rgba(12, 10, 22, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.2);
   box-shadow:
-    0 8px 28px rgba(0, 0, 0, 0.45),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+    0 10px 32px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(14px) saturate(140%);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
   touch-action: none;
@@ -504,83 +505,73 @@ body { user-select: none; -webkit-user-select: none; }
   user-select: none;
   -webkit-user-select: none;
 }
-#walk-stick {
-  left: max(14px, env(safe-area-inset-left));
-}
-#look-pad {
-  right: max(14px, env(safe-area-inset-right));
-}
 .hud-stick-ring {
   position: absolute;
-  inset: 18px;
+  inset: 22px;
   border-radius: 50%;
-  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border: 1.5px dashed rgba(255, 255, 255, 0.18);
   pointer-events: none;
 }
-/* Crosshair guide on stick */
 .hud-stick-ring::before,
 .hud-stick-ring::after {
   content: "";
   position: absolute;
   left: 50%;
   top: 50%;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
   pointer-events: none;
 }
 .hud-stick-ring::before {
-  width: 1px;
-  height: 70%;
+  width: 2px;
+  height: 62%;
   transform: translate(-50%, -50%);
 }
 .hud-stick-ring::after {
-  width: 70%;
-  height: 1px;
+  width: 62%;
+  height: 2px;
   transform: translate(-50%, -50%);
 }
 .hud-stick-knob {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 52px;
-  height: 52px;
-  margin: -26px 0 0 -26px;
+  width: 58px;
+  height: 58px;
+  margin: -29px 0 0 -29px;
   border-radius: 50%;
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.12));
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.14));
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
   will-change: transform;
   pointer-events: none;
-}
-.hud-look .hud-stick-knob {
-  background: linear-gradient(160deg, rgba(128, 200, 255, 0.35), rgba(255, 80, 160, 0.18));
 }
 .hud-stick-label {
   position: absolute;
   left: 50%;
-  bottom: -22px;
+  bottom: -24px;
   transform: translateX(-50%);
-  font: 700 11px/1 "Outfit", "DM Sans", system-ui, sans-serif;
-  letter-spacing: 0.08em;
+  font: 800 12px/1 "Outfit", "DM Sans", system-ui, sans-serif;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.72);
-  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.9);
+  color: rgba(255, 255, 255, 0.8);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.95);
   pointer-events: none;
   white-space: nowrap;
 }
 
-/* Bottom action bar — Lot + Office */
+/* Bottom action bar — Lot + Office (thumb-friendly) */
 #inside-bar {
   position: absolute;
   left: 50%;
-  bottom: max(14px, env(safe-area-inset-bottom));
+  bottom: max(12px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
   display: flex;
   gap: 10px;
   padding: 8px;
   border-radius: 999px;
-  background: rgba(12, 10, 22, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
+  background: rgba(12, 10, 22, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(16px) saturate(150%);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
   pointer-events: auto;
@@ -590,14 +581,15 @@ body { user-select: none; -webkit-user-select: none; }
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-width: 96px;
+  min-width: 104px;
+  min-height: 48px;
   justify-content: center;
-  padding: 12px 18px;
+  padding: 12px 20px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.1);
   color: var(--ink);
-  font: 700 14px/1 "Outfit", "DM Sans", system-ui, sans-serif;
+  font: 700 15px/1 "Outfit", "DM Sans", system-ui, sans-serif;
   letter-spacing: 0.02em;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -605,11 +597,11 @@ body { user-select: none; -webkit-user-select: none; }
 }
 #inside-bar button:active {
   transform: scale(0.96);
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.18);
 }
 #inside-bar button .ibar-ico {
-  font-size: 15px;
-  opacity: 0.9;
+  font-size: 16px;
+  opacity: 0.95;
 }
 #office.on {
   color: #2a1c06;
@@ -617,28 +609,29 @@ body { user-select: none; -webkit-user-select: none; }
   border-color: transparent;
 }
 
-/* Coaching tip — fades after a few seconds */
+/* Coaching tip */
 .inside-tip {
   position: absolute;
-  top: max(14px, env(safe-area-inset-top));
+  top: max(12px, env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
   margin: 0;
-  padding: 8px 14px;
+  padding: 10px 16px;
   border-radius: 999px;
-  background: rgba(12, 10, 22, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.85);
-  font: 600 12px/1.3 "DM Sans", system-ui, sans-serif;
+  background: rgba(12, 10, 22, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.92);
+  font: 700 13px/1.3 "Outfit", "DM Sans", system-ui, sans-serif;
   letter-spacing: 0.02em;
   text-align: center;
   white-space: nowrap;
   pointer-events: none;
   opacity: 1;
-  transition: opacity 0.6s ease;
-  max-width: calc(100vw - 24px);
+  transition: opacity 0.7s ease;
+  max-width: calc(100vw - 20px);
   overflow: hidden;
   text-overflow: ellipsis;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
 }
 .inside-tip.fade {
   opacity: 0;
@@ -650,12 +643,11 @@ body { user-select: none; -webkit-user-select: none; }
   display: inline;
 }
 @media (hover: hover) and (pointer: fine) {
-  /* Desktop / trackpad: hide look stick (drag on canvas instead) */
-  #look-pad {
-    display: none;
-  }
+  /* Desktop: stick is optional; WASD is primary */
   #walk-stick {
-    opacity: 0.85;
+    opacity: 0.55;
+    width: 110px;
+    height: 110px;
   }
   .inside-tip .tip-mobile {
     display: none;
@@ -666,31 +658,35 @@ body { user-select: none; -webkit-user-select: none; }
 }
 @media (max-width: 420px) {
   .hud-stick {
-    width: 104px;
-    height: 104px;
-    bottom: max(90px, calc(env(safe-area-inset-bottom) + 78px));
+    width: 128px;
+    height: 128px;
+    bottom: max(82px, calc(env(safe-area-inset-bottom) + 70px));
   }
   #inside-bar button {
-    min-width: 84px;
-    padding: 11px 14px;
-    font-size: 13px;
+    min-width: 92px;
+    min-height: 46px;
+    padding: 11px 16px;
+    font-size: 14px;
   }
 }
 
-/* Interior mode: hide outdoor toys; keep exit + inside toggle */
+/* Interior mode: hide outdoor toys */
 body.inside-mode #controls button:not(#inside) {
   display: none;
 }
 body.inside-mode #top {
-  opacity: 0.72;
+  opacity: 0.55;
+  pointer-events: none;
 }
 body.inside-mode #card {
-  max-width: 180px;
+  max-width: 160px;
 }
-/* Hide the top footer control strip clutter on very small phones while inside */
 @media (max-width: 520px) {
   body.inside-mode #controls {
-    opacity: 0.55;
+    opacity: 0.4;
+  }
+  body.inside-mode #top {
+    opacity: 0.35;
   }
 }
 

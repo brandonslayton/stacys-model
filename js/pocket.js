@@ -170,12 +170,11 @@ const fp = {
   bounds: { ...INTERIOR_WALK },
 };
 const keysDown = new Set();
-/** Virtual move stick vector −1..1 (left pad). */
+/** Virtual move stick vector −1..1 (bottom-left pad). */
 const stick = { x: 0, y: 0, active: false };
-/** Virtual look stick vector −1..1 (right pad). */
-const lookStick = { x: 0, y: 0, active: false };
-/** deg/sec scale for right-stick look */
-const LOOK_STICK_SPEED = 95;
+/** Look sensitivity (deg per pixel of drag) — tuned for thumbs */
+const LOOK_SENS_X = 0.32;
+const LOOK_SENS_Y = 0.26;
 
 function computeFit() {
   if (insideMode) {
@@ -327,11 +326,6 @@ function toggleOffice() {
 
 function stepFp(dt) {
   if (!insideMode) return;
-  // Right stick look (mobile dual-stick)
-  if (lookStick.active) {
-    fp.yaw -= lookStick.x * LOOK_STICK_SPEED * dt;
-    fp.pitch -= lookStick.y * LOOK_STICK_SPEED * dt;
-  }
   let mx = 0;
   let mz = 0;
   if (keysDown.has("KeyW") || keysDown.has("ArrowUp")) mz += 1;
@@ -339,8 +333,11 @@ function stepFp(dt) {
   if (keysDown.has("KeyA") || keysDown.has("ArrowLeft")) mx -= 1;
   if (keysDown.has("KeyD") || keysDown.has("ArrowRight")) mx += 1;
   if (stick.active) {
-    mx += stick.x;
-    mz += -stick.y; // stick up = forward
+    // Dead-zone so tiny thumb noise doesn't creep
+    const sx = Math.abs(stick.x) < 0.12 ? 0 : stick.x;
+    const sy = Math.abs(stick.y) < 0.12 ? 0 : stick.y;
+    mx += sx;
+    mz += -sy; // stick up = forward
   }
   const len = Math.hypot(mx, mz);
   if (len > 1e-4) {
@@ -352,7 +349,12 @@ function stepFp(dt) {
     const fz = Math.cos(yawR);
     const rx = Math.cos(yawR);
     const rz = -Math.sin(yawR);
-    const sp = fp.speed * (keysDown.has("ShiftLeft") || keysDown.has("ShiftRight") ? 1.65 : 1);
+    // Stick magnitude scales walk speed (full throw = full speed)
+    const mag = stick.active ? Math.min(1, Math.hypot(stick.x, stick.y)) : 1;
+    const sp =
+      fp.speed *
+      (0.55 + 0.45 * mag) *
+      (keysDown.has("ShiftLeft") || keysDown.has("ShiftRight") ? 1.55 : 1);
     fp.x += (fx * mz + rx * mx) * sp * dt;
     fp.z += (fz * mz + rz * mx) * sp * dt;
     clampFp();
@@ -551,9 +553,13 @@ canvas.addEventListener("pointermove", (e) => {
       }
     }
   } else if (insideMode) {
-    // First-person look
-    fp.yaw -= (cur.x - prev.x) * 0.22;
-    fp.pitch -= (cur.y - prev.y) * 0.18;
+    // Drag anywhere on the canvas to look (not when using the move stick)
+    if (stick.active) {
+      pointers.set(e.pointerId, cur);
+      return;
+    }
+    fp.yaw -= (cur.x - prev.x) * LOOK_SENS_X;
+    fp.pitch -= (cur.y - prev.y) * LOOK_SENS_Y;
     clampFp();
     pointers.set(e.pointerId, cur);
     applyFpCamera();
@@ -1271,8 +1277,6 @@ function showInsideHud(on) {
   if (!on) {
     stick.x = stick.y = 0;
     stick.active = false;
-    lookStick.x = lookStick.y = 0;
-    lookStick.active = false;
   }
 }
 
@@ -1284,9 +1288,6 @@ function exitInterior() {
   stick.x = 0;
   stick.y = 0;
   stick.active = false;
-  lookStick.x = 0;
-  lookStick.y = 0;
-  lookStick.active = false;
   if (interior) interior.visible = false;
   setOutsideVisible(true);
   if (exteriorViewSnapshot) {
@@ -1330,8 +1331,7 @@ function wireInsideButton() {
   if (officeBtn) {
     officeBtn.onclick = () => toggleOffice();
   }
-  wireVirtualStick("walk-stick", "walk-stick-knob", stick);
-  wireVirtualStick("look-pad", "look-pad-knob", lookStick);
+  wireMoveStick();
   window.addEventListener("keydown", (e) => {
     if (!insideMode) return;
     if (e.code === "Escape") {
@@ -1343,56 +1343,67 @@ function wireInsideButton() {
 }
 
 /**
- * Shared virtual joystick (move or look).
- * @param {string} elId
- * @param {string} knobId
- * @param {{x:number,y:number,active:boolean}} state
+ * Move joystick — dynamic origin (where your thumb first lands),
+ * with a forgiving radius and dead-zone handled in stepFp.
  */
-function wireVirtualStick(elId, knobId, state) {
-  const el = $(elId);
-  const knob = $(knobId);
+function wireMoveStick() {
+  const el = $("walk-stick");
+  const knob = $("walk-stick-knob");
   if (!el || !knob) return;
-  const R = 46;
   let pid = null;
+  let originX = 0;
+  let originY = 0;
+  let maxR = 52;
+
   const setFrom = (clientX, clientY) => {
-    const rect = el.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    let dx = clientX - cx;
-    let dy = clientY - cy;
+    let dx = clientX - originX;
+    let dy = clientY - originY;
     const len = Math.hypot(dx, dy) || 1;
-    const clamp = Math.min(len, R) / len;
+    const clamp = Math.min(len, maxR) / len;
     dx *= clamp;
     dy *= clamp;
-    state.x = dx / R;
-    state.y = dy / R;
-    state.active = true;
+    stick.x = dx / maxR;
+    stick.y = dy / maxR;
+    stick.active = true;
     knob.style.transform = `translate(${dx}px, ${dy}px)`;
   };
+
   const end = () => {
     pid = null;
-    state.x = 0;
-    state.y = 0;
-    state.active = false;
+    stick.x = 0;
+    stick.y = 0;
+    stick.active = false;
     knob.style.transform = "translate(0,0)";
   };
-  el.addEventListener("pointerdown", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    pid = e.pointerId;
-    el.setPointerCapture(e.pointerId);
-    setFrom(e.clientX, e.clientY);
-  });
-  el.addEventListener("pointermove", (e) => {
-    if (e.pointerId !== pid) return;
-    e.preventDefault();
-    setFrom(e.clientX, e.clientY);
-  });
+
+  el.addEventListener(
+    "pointerdown",
+    (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      pid = e.pointerId;
+      el.setPointerCapture(e.pointerId);
+      // Origin = thumb start (not forced pad center) — much easier on phones
+      originX = e.clientX;
+      originY = e.clientY;
+      const rect = el.getBoundingClientRect();
+      maxR = Math.min(rect.width, rect.height) * 0.38;
+      setFrom(e.clientX, e.clientY);
+    },
+    { passive: false }
+  );
+  el.addEventListener(
+    "pointermove",
+    (e) => {
+      if (e.pointerId !== pid) return;
+      e.preventDefault();
+      setFrom(e.clientX, e.clientY);
+    },
+    { passive: false }
+  );
   el.addEventListener("pointerup", end);
   el.addEventListener("pointercancel", end);
-  el.addEventListener("pointerleave", (e) => {
-    if (e.pointerId === pid) end();
-  });
+  el.addEventListener("lostpointercapture", end);
 }
 
 // ---------------------------------------------------------------- boot
