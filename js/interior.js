@@ -1533,43 +1533,56 @@ function buildGothicChandelier(lit, nightLights, flashLights) {
   }
 
   // Warm fill lights — soft orange/red, gently flicker via flashLights
-  const mainGlow = new THREE.PointLight(0xff5520, 0.9, 5.2, 2);
-  mainGlow.position.set(0, bodyY + 0.12, 0);
+  // Slightly lower intensity + longer range = more diffuse room wash
+  const mainGlow = new THREE.PointLight(0xff6030, 0.62, 6.5, 2);
+  mainGlow.position.set(0, bodyY + 0.1, 0);
   g.add(mainGlow);
-  nightLights.push({ light: mainGlow, day: 0.52, night: 1.0 });
+  nightLights.push({ light: mainGlow, day: 0.38, night: 0.72 });
   if (flashLights) {
     flashLights.push({
       light: mainGlow,
-      night: 1.0,
-      speed: 2.4,
+      night: 0.72,
+      speed: 2.1,
     });
   }
-  const emberGlow = new THREE.PointLight(0xff2030, 0.38, 3.5, 2);
-  emberGlow.position.set(0, bodyY - 0.08, 0.12);
+  const emberGlow = new THREE.PointLight(0xff3040, 0.28, 4.5, 2);
+  emberGlow.position.set(0, bodyY - 0.05, 0);
   g.add(emberGlow);
-  nightLights.push({ light: emberGlow, day: 0.2, night: 0.48 });
+  nightLights.push({ light: emberGlow, day: 0.14, night: 0.34 });
   if (flashLights) {
     flashLights.push({
       light: emberGlow,
-      night: 0.45,
-      speed: 1.7,
+      night: 0.32,
+      speed: 1.5,
     });
   }
 
-  // Soft bloom halo (reads as heat haze)
-  const halo = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.0, 0.78),
-    new THREE.MeshBasicMaterial({
-      color: 0xff4018,
+  // Diffuse volumetric glow — soft spheres (look the same from every angle;
+  // the old plane read as a flat card when you walked under it).
+  const makeGlowOrb = (radius, color, opacity) => {
+    const mat = new THREE.MeshBasicMaterial({
+      color,
       transparent: true,
-      opacity: 0.11,
+      opacity,
       depthWrite: false,
-      side: THREE.DoubleSide,
-    })
-  );
-  halo.position.set(0, bodyY + 0.08, 0);
-  halo.rotation.x = -0.2;
-  g.add(halo);
+      // Additive softens into the scene instead of a hard silhouette
+      blending: THREE.AdditiveBlending,
+    });
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 12, 10), mat);
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    return mesh;
+  };
+  // Nested orbs = soft falloff (no hard edge)
+  const orbCore = makeGlowOrb(0.22, 0xff8040, 0.16);
+  orbCore.position.set(0, bodyY + 0.08, 0);
+  g.add(orbCore);
+  const orbMid = makeGlowOrb(0.42, 0xff5028, 0.09);
+  orbMid.position.set(0, bodyY + 0.06, 0);
+  g.add(orbMid);
+  const orbOuter = makeGlowOrb(0.68, 0xff3018, 0.045);
+  orbOuter.position.set(0, bodyY + 0.04, 0);
+  g.add(orbOuter);
 
   g.userData.glowMats = glowMats;
   g.userData.bodyY = bodyY;
