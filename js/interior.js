@@ -4084,54 +4084,71 @@ export function createInterior() {
     lit(exit, 1.05, 0.7);
     add(exit);
 
-    // ── Walk-in jog: wall comes INTO the room (toward bar / +Z) past patio ──
-    // Real venue loses depth to the walk-in cooler; draft tower sits on that
-    // inset face, ice machine to its right (south / +X).
+    // ── Walk-in jog past patio: wall steps INTO the room (toward +Z) ──
+    // Walk-in door faces NORTH (−X) on the thick jog wall next to the patio.
+    // Draft handles stay on the inset face; ice machine to their right (+X).
     {
-      const jogX = patioX + 0.65; // start of inset just past patio door
-      const insetDepth = 1.25; // how far the wall steps into the room
+      const jogX = patioX + 0.55; // just past patio door
+      const insetDepth = 1.35; // how far the cooler pocket steps in
       const insetZ = z + insetDepth;
-      const insetX1 = halfW - 0.2; // to south-east corner
-      const insetW = insetX1 - jogX;
+      const insetX1 = halfW - 0.2;
+      const jogThick = 0.55; // thick bulk next to patio (door lives on its north face)
       const wallH = EAVE_H;
+      const insetW = insetX1 - (jogX + jogThick);
 
-      // Side wall of the jog (faces west / −X — you see it looking toward patio)
-      const jogSide = box(0.14, wallH, insetDepth + 0.08, 0x3a2a48, { roughness: 0.8 });
-      jogSide.position.set(jogX, wallH * 0.5, z + insetDepth * 0.5);
-      add(jogSide);
-      // Inset wall face (faces into room / +Z? east wall faces +Z from patio side...
-      // East wall is at -Z; room is +Z from it. Inset face is parallel to east wall.
-      const insetFace = box(insetW + 0.1, wallH, 0.14, 0x3a2a48, { roughness: 0.8 });
-      insetFace.position.set(jogX + insetW * 0.5, wallH * 0.5, insetZ);
+      // Thick jog bulk (E–W depth) — north face (−X) holds the walk-in door
+      const jogBulk = box(jogThick, wallH, insetDepth + 0.1, 0x3a2a48, { roughness: 0.8 });
+      jogBulk.position.set(jogX + jogThick * 0.5, wallH * 0.5, z + insetDepth * 0.5);
+      add(jogBulk);
+
+      // Inset wall face (parallel to east wall) — drafts + ice sit here
+      const insetFace = box(Math.max(0.4, insetW) + 0.1, wallH, 0.14, 0x3a2a48, {
+        roughness: 0.8,
+      });
+      insetFace.position.set(jogX + jogThick + insetW * 0.5, wallH * 0.5, insetZ);
       add(insetFace);
-      // Ceiling return over the jog (low bulkhead so the step reads)
-      const bulk = box(insetW + 0.15, 0.12, insetDepth + 0.1, 0x2a1e30, { roughness: 0.85 });
-      bulk.position.set(jogX + insetW * 0.5, wallH - 0.05, z + insetDepth * 0.5);
+
+      // Ceiling bulkhead over the pocket
+      const bulk = box(jogThick + insetW + 0.15, 0.12, insetDepth + 0.12, 0x2a1e30, {
+        roughness: 0.85,
+      });
+      bulk.position.set(jogX + (jogThick + insetW) * 0.5, wallH - 0.05, z + insetDepth * 0.5);
       add(bulk);
 
-      // Walk-in cooler door on the inset face
-      const wiX = jogX + 0.55;
-      const walkIn = box(0.95, 2.05, 0.12, 0x4a5058, { metalness: 0.4, roughness: 0.4 });
-      walkIn.position.set(wiX, 1.08, insetZ + 0.08);
+      // ── Walk-in door on the NORTH face of the jog bulk (faces −X) ──
+      const wiZ = z + insetDepth * 0.52; // centered on the thick side
+      const wiDoorH = 2.05;
+      const wiDoorD = insetDepth * 0.72; // door width along Z (east–west span of face)
+      const wiFaceX = jogX - 0.02; // proud of the bulk toward the room (north)
+      const walkIn = box(0.12, wiDoorH, wiDoorD, 0x4a5058, {
+        metalness: 0.4,
+        roughness: 0.4,
+      });
+      walkIn.position.set(wiFaceX, 1.08, wiZ);
       add(walkIn);
-      // Horizontal ribs (cooler door cartoon detail)
+      // Horizontal ribs on the north face
       for (let i = 0; i < 4; i++) {
-        const rib = box(0.88, 0.04, 0.04, 0x3a4048, { metalness: 0.35, roughness: 0.45 });
-        rib.position.set(wiX, 0.55 + i * 0.4, insetZ + 0.14);
+        const rib = box(0.04, 0.04, wiDoorD * 0.9, 0x3a4048, {
+          metalness: 0.35,
+          roughness: 0.45,
+        });
+        rib.position.set(wiFaceX - 0.06, 0.55 + i * 0.4, wiZ);
         add(rib);
       }
-      const wiHandle = box(0.1, 0.45, 0.08, 0xc8ccd0, { metalness: 0.55, roughness: 0.3 });
-      wiHandle.position.set(wiX + 0.35, 1.15, insetZ + 0.16);
+      // Vertical handle on the north face
+      const wiHandle = box(0.08, 0.45, 0.1, 0xc8ccd0, { metalness: 0.55, roughness: 0.3 });
+      wiHandle.position.set(wiFaceX - 0.1, 1.15, wiZ + wiDoorD * 0.28);
       add(wiHandle);
+      // WALK-IN badge facing north (−X)
       const wiBadge = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.5, 0.12),
+        new THREE.PlaneGeometry(0.55, 0.13),
         new THREE.MeshStandardMaterial({
           map: labelTex("WALK-IN", {
-            w: 200,
-            h: 48,
+            w: 220,
+            h: 52,
             bg: "#2a3040",
             fg: "#80c0ff",
-            size: 22,
+            size: 24,
             weight: 800,
             font: "fun",
           }),
@@ -4141,16 +4158,16 @@ export function createInterior() {
           flatShading: true,
         })
       );
-      wiBadge.position.set(wiX, 2.2, insetZ + 0.15);
+      wiBadge.position.set(wiFaceX - 0.08, 2.2, wiZ);
+      wiBadge.rotation.y = -Math.PI / 2; // face −X (north into the room)
       add(wiBadge);
-      // Cold spill from walk-in
-      const wiGlow = new THREE.PointLight(0xa0d0e8, 0.35, 3.5, 2);
-      wiGlow.position.set(wiX, 1.3, insetZ + 0.5);
+      const wiGlow = new THREE.PointLight(0xa0d0e8, 0.4, 3.8, 2);
+      wiGlow.position.set(wiFaceX - 0.5, 1.3, wiZ);
       add(wiGlow);
-      nightLights.push({ light: wiGlow, day: 0.18, night: 0.4 });
+      nightLights.push({ light: wiGlow, day: 0.2, night: 0.45 });
 
-      // Draft tower + handles on the inset wall (left of ice machine)
-      const draftX = wiX + 0.95;
+      // ── Draft tower + 6 handles on the INSET face (keep beer taps) ──
+      const draftX = jogX + jogThick + 0.55;
       const draft = box(0.55, 0.7, 0.4, METAL, { metalness: 0.45, roughness: 0.38 });
       draft.position.set(draftX, 1.35, insetZ + 0.28);
       add(draft);
@@ -4168,16 +4185,34 @@ export function createInterior() {
         handle.position.set(tx, 1.62, insetZ + 0.42);
         add(handle);
       }
-      // Drip tray / glass rail
       const tray = box(0.55, 0.04, 0.28, 0x1a1a22, { metalness: 0.3, roughness: 0.45 });
       tray.position.set(draftX, 1.0, insetZ + 0.45);
       add(tray);
+      // Small "DRAFT" plate above taps
+      const draftLabel = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.4, 0.1),
+        new THREE.MeshStandardMaterial({
+          map: labelTex("DRAFT", {
+            w: 160,
+            h: 48,
+            bg: "#1a1a22",
+            fg: "#c8ccd0",
+            size: 26,
+            weight: 800,
+            font: "fun",
+          }),
+          emissive: 0x404850,
+          emissiveIntensity: 0.25,
+          roughness: 0.5,
+          flatShading: true,
+        })
+      );
+      draftLabel.position.set(draftX, 1.85, insetZ + 0.36);
+      add(draftLabel);
 
       // Big cartoony ice machine — right of the draft handles (south / +X)
       const ice = buildIceMachine(lit);
-      // Face into the room (+Z from inset wall → local +Z of ice machine)
-      ice.position.set(draftX + 1.05, 0, insetZ + 0.55);
-      // Ice machine front is +Z; inset wall faces into room so front already toward room
+      ice.position.set(draftX + 1.1, 0, insetZ + 0.55);
       add(ice);
     }
   }
