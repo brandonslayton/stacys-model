@@ -725,69 +725,114 @@ function buildBottle(col, h = 0.28, r = 0.04) {
   return g;
 }
 
-/** Better freestanding ATM with screen, keypad, card slot, receipt. */
+/** Freestanding ATM — grey body, lit screen, keypad, card slot, receipt. */
 function buildAtm(nightMats, lit) {
   const g = new THREE.Group();
   g.name = "atm";
-  const body = box(0.58, 1.45, 0.38, 0x2a2a34, { roughness: 0.55, metalness: 0.15 });
-  body.position.y = 0.78;
+  // Pedestal base
+  const base = box(0.72, 0.12, 0.5, 0x1a1a22, { roughness: 0.7 });
+  base.position.y = 0.06;
+  g.add(base);
+  // Main chassis
+  const body = box(0.68, 1.55, 0.42, 0x3a3e48, { roughness: 0.5, metalness: 0.18 });
+  body.position.y = 0.9;
   g.add(body);
-  // Top bezel
-  const bezel = box(0.6, 0.12, 0.4, 0x1a1a22);
-  bezel.position.y = 1.55;
-  g.add(bezel);
-  // Screen
-  const screen = box(0.42, 0.36, 0.04, 0x0a2030, {
-    emissive: 0x1a80c0,
-    emissiveIntensity: 0.7,
-    roughness: 0.25,
+  // Upper hood / sun shield
+  const hood = box(0.72, 0.14, 0.48, 0x1e222a, { roughness: 0.55, metalness: 0.2 });
+  hood.position.set(0, 1.72, 0.02);
+  g.add(hood);
+  // Brand header bar
+  const brand = box(0.66, 0.12, 0.06, 0x2060a8, {
+    emissive: 0x1850a0,
+    emissiveIntensity: 0.55,
+    roughness: 0.4,
   });
-  screen.position.set(0, 1.22, 0.2);
-  lit(screen, 0.95, 0.6);
-  g.add(screen);
-  // Screen UI plane
-  const ui = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.36, 0.28),
+  brand.position.set(0, 1.62, 0.22);
+  lit(brand, 0.8, 0.5);
+  g.add(brand);
+  const brandLabel = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.5, 0.08),
     new THREE.MeshStandardMaterial({
-      map: labelTex("ATM", { w: 256, h: 192, bg: "#0a3048", fg: "#80e0ff", size: 48 }),
-      emissive: 0x2080b0,
-      emissiveIntensity: 0.4,
+      map: labelTex("CASH", { w: 256, h: 64, bg: "#1850a0", fg: "#ffffff", size: 40 }),
+      emissive: 0x40a0ff,
+      emissiveIntensity: 0.35,
+      roughness: 0.45,
+      flatShading: true,
+    })
+  );
+  brandLabel.position.set(0, 1.62, 0.26);
+  g.add(brandLabel);
+  // Screen bezel + glass
+  const bezel = box(0.52, 0.42, 0.05, 0x12151a, { roughness: 0.4 });
+  bezel.position.set(0, 1.28, 0.22);
+  g.add(bezel);
+  const screen = box(0.46, 0.36, 0.04, 0x0a2840, {
+    emissive: 0x1a90d0,
+    emissiveIntensity: 0.85,
+    roughness: 0.22,
+  });
+  screen.position.set(0, 1.28, 0.25);
+  lit(screen, 1.05, 0.65);
+  g.add(screen);
+  const ui = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.4, 0.3),
+    new THREE.MeshStandardMaterial({
+      map: labelTex("INSERT CARD", { w: 320, h: 200, bg: "#0a3860", fg: "#a0e8ff", size: 28 }),
+      emissive: 0x2080c0,
+      emissiveIntensity: 0.45,
       roughness: 0.4,
       flatShading: true,
     })
   );
-  ui.position.set(0, 1.22, 0.23);
+  ui.position.set(0, 1.28, 0.28);
   g.add(ui);
-  // Keypad
+  // Card slot with lip
+  const slotHousing = box(0.36, 0.1, 0.08, 0x1a1a22, { metalness: 0.25, roughness: 0.45 });
+  slotHousing.position.set(0, 0.98, 0.24);
+  g.add(slotHousing);
+  const slot = box(0.3, 0.035, 0.04, 0x050508);
+  slot.position.set(0, 0.98, 0.28);
+  g.add(slot);
+  // Keypad nest
+  const pad = box(0.36, 0.42, 0.06, 0x252830, { roughness: 0.55 });
+  pad.position.set(0, 0.62, 0.23);
+  g.add(pad);
   for (let r = 0; r < 4; r++) {
     for (let c = 0; c < 3; c++) {
-      const key = box(0.07, 0.06, 0.02, 0x3a3a48, { roughness: 0.5 });
-      key.position.set(-0.1 + c * 0.1, 0.72 - r * 0.09, 0.2);
+      const key = box(0.08, 0.07, 0.025, 0x4a5060, {
+        roughness: 0.45,
+        metalness: 0.15,
+        emissive: 0x1a2030,
+        emissiveIntensity: 0.15,
+      });
+      key.position.set(-0.1 + c * 0.1, 0.78 - r * 0.1, 0.27);
       g.add(key);
     }
   }
-  // Card slot
-  const slot = box(0.28, 0.04, 0.03, 0x0a0a10);
-  slot.position.set(0, 0.95, 0.21);
-  g.add(slot);
-  // Receipt mouth
-  const receipt = box(0.22, 0.03, 0.02, 0x1a1a22);
-  receipt.position.set(0, 0.38, 0.2);
+  // Receipt slot + paper
+  const receipt = box(0.26, 0.04, 0.05, 0x1a1a22);
+  receipt.position.set(0, 0.32, 0.24);
   g.add(receipt);
-  const paper = box(0.18, 0.08, 0.01, 0xf0f0e8, { roughness: 0.9, castShadow: false });
-  paper.position.set(0, 0.32, 0.22);
+  const paper = box(0.2, 0.12, 0.012, 0xf4f0e4, { roughness: 0.9, castShadow: false });
+  paper.position.set(0, 0.26, 0.27);
   g.add(paper);
-  // Side stripe branding
-  const stripe = box(0.04, 1.2, 0.02, 0x40a0ff, {
-    emissive: 0x2080d0,
-    emissiveIntensity: 0.45,
-  });
-  stripe.position.set(0.3, 0.8, 0.1);
-  lit(stripe, 0.7, 0.4);
-  g.add(stripe);
+  // Side accent LEDs
+  for (const side of [-1, 1]) {
+    const stripe = box(0.04, 1.35, 0.03, 0x40a0ff, {
+      emissive: 0x2080d0,
+      emissiveIntensity: 0.55,
+    });
+    stripe.position.set(side * 0.35, 0.9, 0.05);
+    lit(stripe, 0.8, 0.45);
+    g.add(stripe);
+  }
+  // Cash door at bottom
+  const cashDoor = box(0.4, 0.18, 0.04, 0x2a2e38, { metalness: 0.2, roughness: 0.5 });
+  cashDoor.position.set(0, 0.22, 0.22);
+  g.add(cashDoor);
   // Soft screen wash
-  const glow = new THREE.PointLight(0x40a0ff, 0.35, 2.5, 2);
-  glow.position.set(0, 1.2, 0.5);
+  const glow = new THREE.PointLight(0x50b0ff, 0.45, 2.8, 2);
+  glow.position.set(0, 1.25, 0.55);
   g.add(glow);
   return g;
 }
@@ -1134,13 +1179,13 @@ export function createInterior() {
   }
 
   // Twisted dark-wood columns — full height to the vault.
-  // Pair at z≈2.2 is on the north railing. No column in front of the cathedral
-  // window (was at −2.4, 0.55 — blocked the neon window).
+  // Pair at z≈2.2 is on the north railing. Free pair that was in front of the
+  // bar is moved north to the railing's end x (0.35) so they line up with it.
   for (const [x, z] of [
     [-2.4, 2.2], // railing post (north bay)
-    [-0.35, 2.2], // railing post (further south on same rail)
-    [1.5, 1.6],
-    [1.5, -1.3],
+    [-0.35, 2.2], // railing post (south end of rail run)
+    [0.35, 1.55], // was bar-front free column — now at railing-end x
+    [0.35, -1.25], // was bar-front free column — now at railing-end x
   ]) {
     const topY = roofYAt(z) - 0.12;
     const col = buildTwistedColumn(topY);
@@ -1149,7 +1194,8 @@ export function createInterior() {
   }
 
   // ══════════════════════════════════════════════════════════════════
-  // WEST (+Z) — darts · foliage · diamond neon · cam · ATM · wood door
+  // WEST (+Z) wall, north → south:
+  //   darts · party cam · foliage+neon · ATM · double wood doors
   // ══════════════════════════════════════════════════════════════════
   {
     const z = halfD - 0.1;
@@ -1173,71 +1219,66 @@ export function createInterior() {
       add(board);
     }
 
-    // Foliage wall (textured + 3D leaf depth)
-    const foliage = buildFoliageWall(2.5, 2.45);
-    foliage.position.set(-1.15, 1.55, z - 0.04);
-    foliage.rotation.y = Math.PI;
-    add(foliage);
-
-    // Thin diamond neon on the green wall — strong pink throw
-    const diamond = buildDiamondNeon(nightMats);
-    diamond.position.set(-1.15, 1.85, z - 0.22);
-    diamond.rotation.y = Math.PI;
-    add(diamond);
-    g.userData.diamondNeon = diamond;
-    const neonWash = new THREE.PointLight(0xff4fa8, 1.85, 7.5, 2);
-    neonWash.position.set(-1.15, 1.85, z - 1.15);
-    add(neonWash);
-    nightLights.push({ light: neonWash, day: 1.1, night: 2.0 });
-    g.userData.diamondLight = neonWash;
-    // Extra floor/wall bounce
-    const neonBounce = new THREE.PointLight(0xff80c0, 0.7, 5, 2);
-    neonBounce.position.set(-1.15, 0.9, z - 0.9);
-    add(neonBounce);
-    nightLights.push({ light: neonBounce, day: 0.4, night: 0.85 });
-    g.userData.diamondBounce = neonBounce;
-
-    // Ring light camera
+    // Party camera (between darts and foliage nook)
     const camStand = box(0.12, 1.2, 0.12, METAL);
-    camStand.position.set(0.55, 0.6, z - 0.3);
+    camStand.position.set(-1.6, 0.6, z - 0.3);
     add(camStand);
-    const ring = cyl(0.26, 0.26, 0.05, 0xf0f0f0, {
+    const camRing = cyl(0.26, 0.26, 0.05, 0xf0f0f0, {
       emissive: 0xffffff,
       emissiveIntensity: 0.7,
       roughness: 0.3,
     }, 16);
-    ring.rotation.x = Math.PI / 2;
-    ring.position.set(0.55, 1.4, z - 0.42);
-    lit(ring, 1.0, 0.65);
-    add(ring);
+    camRing.rotation.x = Math.PI / 2;
+    camRing.position.set(-1.6, 1.4, z - 0.42);
+    lit(camRing, 1.0, 0.65);
+    add(camRing);
 
-    // ATM
+    // Foliage + diamond neon — where the doors used to sit (south of mid-wall)
+    const foliageX = 1.85;
+    const foliage = buildFoliageWall(2.35, 2.45);
+    foliage.position.set(foliageX, 1.55, z - 0.04);
+    foliage.rotation.y = Math.PI;
+    add(foliage);
+
+    const diamond = buildDiamondNeon(nightMats);
+    diamond.position.set(foliageX, 1.85, z - 0.22);
+    diamond.rotation.y = Math.PI;
+    add(diamond);
+    g.userData.diamondNeon = diamond;
+    const neonWash = new THREE.PointLight(0xff4fa8, 1.85, 7.5, 2);
+    neonWash.position.set(foliageX, 1.85, z - 1.15);
+    add(neonWash);
+    nightLights.push({ light: neonWash, day: 1.1, night: 2.0 });
+    g.userData.diamondLight = neonWash;
+    const neonBounce = new THREE.PointLight(0xff80c0, 0.7, 5, 2);
+    neonBounce.position.set(foliageX, 0.9, z - 0.9);
+    add(neonBounce);
+    nightLights.push({ light: neonBounce, day: 0.4, night: 0.85 });
+    g.userData.diamondBounce = neonBounce;
+
+    // ATM between foliage and the double doors
     const atm = buildAtm(nightMats, lit);
-    atm.position.set(1.45, 0, z - 0.28);
+    atm.position.set(3.25, 0, z - 0.28);
     add(atm);
 
-    // Double front doors — full-width leaves like the exterior porch pair
-    // (exterior totalW ≈ 1.34; interior goes wider so they read as real doors
-    // in the larger room). Left leaf = entry; right = companion.
+    // Double front doors — south end of the west wall (after ATM)
     // Looking at the west wall from inside: left = −X (north), right = +X (south).
-    const doorCx = 3.2;
-    const leafW = 0.95; // each leaf is a full door, not a skinny panel
+    const doorCx = 4.55;
+    const leafW = 0.95;
     const leafH = 2.25;
     const totalW = leafW * 2 + 0.12;
     const doorFrame = box(totalW + 0.22, 2.55, 0.18, WOOD_DARK);
     doorFrame.position.set(doorCx, 1.3, z - 0.04);
     add(doorFrame);
-    // Header beam
     const header = box(totalW + 0.28, 0.16, 0.2, WOOD_COL, { roughness: 0.8 });
     header.position.set(doorCx, 2.48, z - 0.08);
     add(header);
-    // Side jambs (proud)
     for (const side of [-1, 1]) {
       const jamb = box(0.12, leafH + 0.15, 0.14, WOOD_COL, { roughness: 0.82 });
       jamb.position.set(doorCx + side * (totalW * 0.5 + 0.02), 1.2, z - 0.1);
       add(jamb);
     }
-    // Left leaf (active entry — north leaf)
+    // Left leaf (active entry)
     const leftLeaf = box(leafW, leafH, 0.1, WOOD);
     leftLeaf.position.set(doorCx - leafW * 0.5 - 0.03, 1.18, z - 0.15);
     leftLeaf.name = "interiorFrontDoor";
@@ -1247,7 +1288,6 @@ export function createInterior() {
     rightLeaf.position.set(doorCx + leafW * 0.5 + 0.03, 1.18, z - 0.15);
     rightLeaf.name = "interiorFrontDoorRight";
     add(rightLeaf);
-    // Carved X relief + lower panel on each leaf
     for (const lx of [doorCx - leafW * 0.5 - 0.03, doorCx + leafW * 0.5 + 0.03]) {
       for (const dir of [-1, 1]) {
         const arm = box(0.08, 1.05, 0.04, WOOD_COL_DARK);
@@ -1255,7 +1295,6 @@ export function createInterior() {
         arm.position.set(lx, 1.45, z - 0.22);
         add(arm);
       }
-      // Bottom panel rail
       const rail = box(leafW * 0.85, 0.08, 0.04, WOOD_COL_DARK);
       rail.position.set(lx, 0.55, z - 0.2);
       add(rail);
@@ -1263,16 +1302,13 @@ export function createInterior() {
       rail2.position.set(lx, 1.0, z - 0.2);
       add(rail2);
     }
-    // Center mullion / barley-twist read
     const mullion = box(0.1, leafH + 0.08, 0.12, WOOD_COL, { roughness: 0.75 });
     mullion.position.set(doorCx, 1.18, z - 0.13);
     add(mullion);
-    // Pull only on the left (working) leaf
     const pull = cyl(0.045, 0.045, 0.1, 0xc8a040, { metalness: 0.5, roughness: 0.4 }, 8);
     pull.rotation.z = Math.PI / 2;
     pull.position.set(doorCx - 0.12, 1.2, z - 0.24);
     add(pull);
-    // Iron ring pull accent
     const doorRing = cyl(0.07, 0.07, 0.03, 0x2a2a30, { metalness: 0.4, roughness: 0.5 }, 10);
     doorRing.rotation.x = Math.PI / 2;
     doorRing.position.set(doorCx - 0.12, 1.2, z - 0.26);
