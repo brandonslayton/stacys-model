@@ -1194,8 +1194,10 @@ export function createInterior() {
   }
 
   // ══════════════════════════════════════════════════════════════════
-  // WEST (+Z) wall, north → south:
-  //   darts · party cam · foliage+neon · ATM · double wood doors
+  // WEST (+Z) wall — when looking at the wall from inside:
+  //   LEFT (−X / north) → RIGHT (+X / south)
+  //   darts · party cam · ATM · foliage+neon (activation) · double wood doors
+  // Doors sit immediately to the RIGHT of the green activation wall.
   // ══════════════════════════════════════════════════════════════════
   {
     const z = halfD - 0.1;
@@ -1219,9 +1221,9 @@ export function createInterior() {
       add(board);
     }
 
-    // Party camera (between darts and foliage nook)
+    // Party camera (north of activation wall)
     const camStand = box(0.12, 1.2, 0.12, METAL);
-    camStand.position.set(-1.6, 0.6, z - 0.3);
+    camStand.position.set(-1.5, 0.6, z - 0.3);
     add(camStand);
     const camRing = cyl(0.26, 0.26, 0.05, 0xf0f0f0, {
       emissive: 0xffffff,
@@ -1229,13 +1231,19 @@ export function createInterior() {
       roughness: 0.3,
     }, 16);
     camRing.rotation.x = Math.PI / 2;
-    camRing.position.set(-1.6, 1.4, z - 0.42);
+    camRing.position.set(-1.5, 1.4, z - 0.42);
     lit(camRing, 1.0, 0.65);
     add(camRing);
 
-    // Foliage + diamond neon — where the doors used to sit (south of mid-wall)
-    const foliageX = 1.85;
-    const foliage = buildFoliageWall(2.35, 2.45);
+    // ATM — left of the green activation wall
+    const atm = buildAtm(nightMats, lit);
+    atm.position.set(0.15, 0, z - 0.28);
+    add(atm);
+
+    // Green foliage + diamond neon (activation wall) — LEFT of the double doors
+    const foliageW = 2.2;
+    const foliageX = 1.9; // center of activation wall
+    const foliage = buildFoliageWall(foliageW, 2.45);
     foliage.position.set(foliageX, 1.55, z - 0.04);
     foliage.rotation.y = Math.PI;
     add(foliage);
@@ -1256,17 +1264,12 @@ export function createInterior() {
     nightLights.push({ light: neonBounce, day: 0.4, night: 0.85 });
     g.userData.diamondBounce = neonBounce;
 
-    // ATM between foliage and the double doors
-    const atm = buildAtm(nightMats, lit);
-    atm.position.set(3.25, 0, z - 0.28);
-    add(atm);
-
-    // Double front doors — south end of the west wall (after ATM)
-    // Looking at the west wall from inside: left = −X (north), right = +X (south).
-    const doorCx = 4.55;
+    // Double wood doors — immediately to the RIGHT of the green wall
+    // (activation right edge ≈ foliageX + foliageW/2 ≈ 3.0 → doors start just past that)
     const leafW = 0.95;
     const leafH = 2.25;
     const totalW = leafW * 2 + 0.12;
+    const doorCx = foliageX + foliageW * 0.5 + 0.2 + totalW * 0.5; // abut right of foliage
     const doorFrame = box(totalW + 0.22, 2.55, 0.18, WOOD_DARK);
     doorFrame.position.set(doorCx, 1.3, z - 0.04);
     add(doorFrame);
@@ -1278,7 +1281,7 @@ export function createInterior() {
       jamb.position.set(doorCx + side * (totalW * 0.5 + 0.02), 1.2, z - 0.1);
       add(jamb);
     }
-    // Left leaf (active entry)
+    // Left leaf (active entry) — closer to the green wall
     const leftLeaf = box(leafW, leafH, 0.1, WOOD);
     leftLeaf.position.set(doorCx - leafW * 0.5 - 0.03, 1.18, z - 0.15);
     leftLeaf.name = "interiorFrontDoor";
