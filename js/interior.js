@@ -99,6 +99,82 @@ function calendarTex() {
 }
 
 /**
+ * Low-poly bartender — black club kit, white apron, shaker in hand.
+ * Local +Z = face direction (point toward customers).
+ */
+function buildBartender() {
+  const g = new THREE.Group();
+  g.name = "bartender";
+
+  // Legs
+  const legs = box(0.24, 0.38, 0.16, 0x1a1a22, { roughness: 0.75 });
+  legs.position.y = 0.2;
+  g.add(legs);
+  // Shoes
+  for (const s of [-1, 1]) {
+    const shoe = box(0.1, 0.06, 0.16, 0x0a0a0c, { roughness: 0.6 });
+    shoe.position.set(s * 0.07, 0.03, 0.02);
+    g.add(shoe);
+  }
+
+  // Torso group (for lean / work anim)
+  const torso = new THREE.Group();
+  torso.name = "torso";
+  torso.position.y = 0.4;
+  g.add(torso);
+
+  const body = cyl(0.14, 0.17, 0.52, 0x12141a, { roughness: 0.7 }, 8);
+  body.position.y = 0.28;
+  torso.add(body);
+  // White apron
+  const apron = box(0.28, 0.36, 0.06, 0xf2eee6, { roughness: 0.85 });
+  apron.position.set(0, 0.22, 0.12);
+  torso.add(apron);
+  // Apron strings
+  const strap = box(0.04, 0.28, 0.02, 0xe8e4dc, { roughness: 0.8 });
+  strap.position.set(0, 0.42, 0.08);
+  torso.add(strap);
+
+  // Arms — right holds shaker (local +X side when facing +Z is right...)
+  // Facing +Z: +X is left from character view... For bartender facing customers
+  // with +Z forward, +X is left. Put shaker in right hand = -X.
+  const armL = box(0.08, 0.32, 0.08, 0x12141a, { roughness: 0.7 });
+  armL.position.set(0.16, 0.28, 0.02);
+  torso.add(armL);
+  const armR = new THREE.Group();
+  armR.name = "armR";
+  armR.position.set(-0.16, 0.4, 0.02);
+  torso.add(armR);
+  const armRMesh = box(0.08, 0.32, 0.08, 0x12141a, { roughness: 0.7 });
+  armRMesh.position.y = -0.12;
+  armR.add(armRMesh);
+  // Cocktail shaker
+  const shaker = cyl(0.04, 0.045, 0.14, 0xc8ccd0, { metalness: 0.55, roughness: 0.3 }, 8);
+  shaker.position.set(0, -0.32, 0.06);
+  armR.add(shaker);
+  const shakerCap = cyl(0.035, 0.035, 0.04, 0xa8acb0, { metalness: 0.5, roughness: 0.35 }, 6);
+  shakerCap.position.set(0, -0.22, 0.06);
+  armR.add(shakerCap);
+
+  // Head
+  const head = cyl(0.12, 0.12, 0.2, 0xe8c4a8, { roughness: 0.65 }, 8);
+  head.position.y = 0.68;
+  torso.add(head);
+  // Short dark hair cap
+  const hair = cyl(0.125, 0.12, 0.08, 0x1a1210, { roughness: 0.8 }, 8);
+  hair.position.y = 0.78;
+  torso.add(hair);
+  // Simple smile / face mark
+  const face = box(0.08, 0.02, 0.01, 0xc09080, { roughness: 0.7 });
+  face.position.set(0, 0.64, 0.12);
+  torso.add(face);
+
+  g.userData.torso = torso;
+  g.userData.armR = armR;
+  return g;
+}
+
+/**
  * Owner / manager office — sits BEHIND the south wall (outside the vaulted
  * room) so the club ceiling stays open. Enter via UI button, not a stair.
  * Local origin: floor center; +Z length; window faces −X into the club.
@@ -3403,6 +3479,25 @@ export function createInterior() {
 
     buildBackBar(nightMats, lit, add, nightLights, wallX);
 
+    // Bartender working the well (venue is open)
+    {
+      const bt = buildBartender();
+      // Service aisle between bar rear and speed rail; face customers (−X)
+      const btX = barX + barDepth * 0.5 + 0.38;
+      const btZ0 = 0.15; // home at mid-bar
+      bt.position.set(btX, 0, btZ0);
+      // Local +Z = face → aim −X at the room
+      bt.rotation.y = Math.PI / 2;
+      add(bt);
+      g.userData.bartender = {
+        mesh: bt,
+        homeX: btX,
+        homeZ: btZ0,
+        zMin: -1.2,
+        zMax: 1.4,
+      };
+    }
+
     // Vape (on back-bar wall, end of run)
     const vape = box(0.55, 1.6, 0.35, 0x1a1a22);
     vape.position.set(wallX - 0.35, 0.85, -3.2);
@@ -3632,6 +3727,29 @@ export function createInterior() {
     // Disco ball spin
     const disco = g.userData.discoBall;
     if (disco) disco.rotation.y = nowSec * 0.7;
+
+    // Bartender: pace the well, shake, lean into pours
+    const bt = g.userData.bartender;
+    if (bt?.mesh) {
+      const m = bt.mesh;
+      const z =
+        bt.homeZ +
+        Math.sin(nowSec * 0.55) * ((bt.zMax - bt.zMin) * 0.35);
+      m.position.z = THREE.MathUtils.clamp(z, bt.zMin, bt.zMax);
+      // Face mostly into the room, slight turn toward motion
+      m.rotation.y = Math.PI / 2 + Math.sin(nowSec * 0.55) * 0.12;
+      const torso = m.userData.torso;
+      if (torso) {
+        torso.rotation.x = -0.06 + Math.sin(nowSec * 2.4) * 0.05;
+        torso.rotation.z = Math.sin(nowSec * 0.55) * 0.04;
+      }
+      const arm = m.userData.armR;
+      if (arm) {
+        // Shake the shaker
+        arm.rotation.x = -0.4 + Math.sin(nowSec * 7.5) * 0.55;
+        arm.rotation.z = 0.2 + Math.sin(nowSec * 6.2) * 0.15;
+      }
+    }
 
     // Orbiting dance-floor color lights
     const dls = g.userData.danceLights;
