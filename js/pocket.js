@@ -224,25 +224,7 @@ function applyFpCamera() {
 /** Surface height offset under the player (0 = main floor). */
 function sampleInteriorSurfaceY(x, z) {
   if (!interior?.userData) return 0;
-  const loft = interior.userData.loft;
-  if (
-    loft &&
-    x >= loft.xMin &&
-    x <= loft.xMax &&
-    z >= loft.zMin &&
-    z <= loft.zMax
-  ) {
-    return loft.floorY;
-  }
-  const stair = interior.userData.stair;
-  if (stair?.steps?.length) {
-    let best = 0;
-    for (const s of stair.steps) {
-      const d = Math.hypot(x - s.x, z - s.z);
-      if (d < s.r) best = Math.max(best, s.y);
-    }
-    if (best > 0.05) return best;
-  }
+  // Manager office is ground-level (behind south wall); only The Pit drops height.
   const pit = interior.userData.thePit;
   if (pit && x >= pit.xMin && x <= pit.xMax && z >= pit.zMin && z <= pit.zMax) {
     return -(pit.depth || 0.34);
@@ -250,35 +232,92 @@ function sampleInteriorSurfaceY(x, z) {
   return 0;
 }
 
+/** True while teleported into the manager office. */
+let officeMode = false;
+let officeReturn = null;
+
 function clampFp() {
   const b = fp.bounds;
-  const loft = interior?.userData?.loft;
-  const stair = interior?.userData?.stair;
-  const surf = sampleInteriorSurfaceY(fp.x, fp.z);
-  const elevated = surf > 0.4;
+  const office = interior?.userData?.office;
 
-  // On the loft (or climbing the spiral) open the south walk bounds so
-  // management space + stair are reachable; main floor keeps the bar aisle blocked.
   let xMin = b.xMin;
   let xMax = b.xMax;
   let zMin = b.zMin;
   let zMax = b.zMax;
-  if (elevated && loft) {
-    xMin = loft.xMin + 0.2;
-    xMax = loft.xMax - 0.15;
-    zMin = loft.zMin + 0.15;
-    zMax = loft.zMax - 0.15;
-  } else if (stair && Math.hypot(fp.x - stair.cx, fp.z - stair.cz) < (stair.outerR || 1) + 0.55) {
-    xMax = Math.max(xMax, stair.cx + (stair.outerR || 1) + 0.35);
-    zMin = Math.min(zMin, stair.cz - (stair.outerR || 1) - 0.35);
-  }
+  let eye = b.eyeY;
 
-  fp.x = THREE.MathUtils.clamp(fp.x, xMin, xMax);
-  fp.z = THREE.MathUtils.clamp(fp.z, zMin, zMax);
-  // Re-sample after clamp (edge of loft / stair)
-  const surfaceY = sampleInteriorSurfaceY(fp.x, fp.z);
-  fp.y = b.eyeY + surfaceY;
+  if (officeMode && office) {
+    xMin = office.xMin;
+    xMax = office.xMax;
+    zMin = office.zMin;
+    zMax = office.zMax;
+    eye = office.eyeY ?? b.eyeY;
+    fp.x = THREE.MathUtils.clamp(fp.x, xMin, xMax);
+    fp.z = THREE.MathUtils.clamp(fp.z, zMin, zMax);
+    fp.y = eye + (office.floorY || 0);
+  } else {
+    fp.x = THREE.MathUtils.clamp(fp.x, xMin, xMax);
+    fp.z = THREE.MathUtils.clamp(fp.z, zMin, zMax);
+    fp.y = eye + sampleInteriorSurfaceY(fp.x, fp.z);
+  }
   fp.pitch = THREE.MathUtils.clamp(fp.pitch, -72, 68);
+}
+
+function enterOffice() {
+  if (!insideMode || !interior?.userData?.office || officeMode) return;
+  const office = interior.userData.office;
+  officeReturn = {
+    x: fp.x,
+    y: fp.y,
+    z: fp.z,
+    yaw: fp.yaw,
+    pitch: fp.pitch,
+  };
+  const sp = office.spawn || office.returnSpawn;
+  fp.x = sp.x;
+  fp.z = sp.z;
+  fp.yaw = sp.yaw ?? 270;
+  fp.pitch = sp.pitch ?? -4;
+  officeMode = true;
+  clampFp();
+  applyFpCamera();
+  document.body.classList.add("office-mode");
+  const btn = $("office");
+  if (btn) {
+    btn.classList.add("on");
+    btn.setAttribute("aria-pressed", "true");
+    btn.title = "Back to the bar";
+    btn.textContent = "↓ Bar";
+  }
+}
+
+function exitOffice() {
+  if (!officeMode) return;
+  officeMode = false;
+  const office = interior?.userData?.office;
+  const sp = officeReturn || office?.returnSpawn;
+  officeReturn = null;
+  if (sp) {
+    fp.x = sp.x;
+    fp.z = sp.z;
+    fp.yaw = sp.yaw ?? 90;
+    fp.pitch = sp.pitch ?? -4;
+  }
+  clampFp();
+  applyFpCamera();
+  document.body.classList.remove("office-mode");
+  const btn = $("office");
+  if (btn) {
+    btn.classList.remove("on");
+    btn.setAttribute("aria-pressed", "false");
+    btn.title = "Manager office";
+    btn.textContent = "Office";
+  }
+}
+
+function toggleOffice() {
+  if (officeMode) exitOffice();
+  else enterOffice();
 }
 
 function stepFp(dt) {
@@ -1200,6 +1239,16 @@ function enterInterior() {
   $("inside")?.setAttribute("aria-pressed", "true");
   const exitBtn = $("exit-inside");
   if (exitBtn) exitBtn.hidden = false;
+  const officeBtn = $("office");
+  if (officeBtn) {
+    officeBtn.hidden = false;
+    officeBtn.classList.remove("on");
+    officeBtn.setAttribute("aria-pressed", "false");
+    officeBtn.textContent = "Office";
+    officeBtn.title = "Manager office";
+  }
+  officeMode = false;
+  officeReturn = null;
   const stickEl = $("walk-stick");
   if (stickEl) stickEl.hidden = false;
   if (outdoor?.life) outdoor.life.setCrowd?.(0);
@@ -1210,6 +1259,7 @@ function enterInterior() {
 
 function exitInterior() {
   if (!insideMode) return;
+  if (officeMode) exitOffice();
   insideMode = false;
   keysDown.clear();
   stick.x = 0;
@@ -1230,10 +1280,17 @@ function exitInterior() {
   spin = true;
   $("spin")?.classList.add("on");
   document.body.classList.remove("inside-mode");
+  document.body.classList.remove("office-mode");
   $("inside")?.classList.remove("on");
   $("inside")?.setAttribute("aria-pressed", "false");
   const exitBtn = $("exit-inside");
   if (exitBtn) exitBtn.hidden = true;
+  const officeBtn = $("office");
+  if (officeBtn) {
+    officeBtn.hidden = true;
+    officeBtn.classList.remove("on");
+    officeBtn.textContent = "Office";
+  }
   const stickEl = $("walk-stick");
   if (stickEl) stickEl.hidden = true;
   computeFit();
@@ -1251,7 +1308,14 @@ function wireInsideButton() {
   };
   const exitBtn = $("exit-inside");
   if (exitBtn) {
-    exitBtn.onclick = () => exitInterior();
+    exitBtn.onclick = () => {
+      if (officeMode) exitOffice();
+      exitInterior();
+    };
+  }
+  const officeBtn = $("office");
+  if (officeBtn) {
+    officeBtn.onclick = () => toggleOffice();
   }
   wireWalkStick();
 }

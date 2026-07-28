@@ -48,8 +48,8 @@ const RAFTER_WOOD = 0x2a1e16;
 const RAFTER_DARK = 0x1a120e;
 
 // Walk bounds (inset from walls so the camera never clips furniture hard).
-// xMax stops short of the bartender aisle on the main floor; loft/stair
-// expand this in pocket.js via userData.loft / userData.stair.
+// xMax stops short of the bartender aisle + back bar.
+// Manager office is button-teleport only (see userData.office).
 export const WALK = {
   xMin: -halfW + 0.55,
   xMax: halfW - 2.9,
@@ -58,310 +58,311 @@ export const WALK = {
   eyeY: 1.55,
 };
 
-/**
- * Circular staircase — wedge treads climbing around a center pole.
- * Returns group + step samples for walk height (local/world same if unrotated).
- */
-function buildSpiralStair(totalH, opts = {}) {
-  const {
-    turns = 1.65,
-    steps = 16,
-    radius = 0.72,
-    treadW = 0.42,
-    treadD = 0.28,
-    startAngle = Math.PI * 0.15, // open toward the room
-  } = opts;
-  const g = new THREE.Group();
-  g.name = "spiralStair";
-  // Center pole
-  const pole = cyl(0.07, 0.08, totalH + 0.15, 0x2a2a32, {
-    metalness: 0.45,
-    roughness: 0.4,
-  }, 10);
-  pole.position.y = totalH * 0.5;
-  g.add(pole);
-  // Finial
-  const finial = cyl(0.09, 0.05, 0.08, 0x3a3a42, { metalness: 0.5, roughness: 0.35 }, 8);
-  finial.position.y = totalH + 0.1;
-  g.add(finial);
-
-  const stepSamples = [];
-  for (let i = 0; i < steps; i++) {
-    const t = i / (steps - 1);
-    const a = startAngle + t * turns * Math.PI * 2;
-    const y = 0.04 + t * totalH;
-    const px = Math.cos(a) * radius;
-    const pz = Math.sin(a) * radius;
-    const tread = box(treadW, 0.045, treadD, i % 2 ? WOOD_COL : WOOD_COL_DARK, {
-      roughness: 0.75,
-    });
-    tread.position.set(px, y, pz);
-    tread.rotation.y = -a;
-    g.add(tread);
-    // Riser lip
-    const lip = box(treadW * 0.95, 0.03, 0.04, WOOD_COL_DARK, { roughness: 0.8 });
-    lip.position.set(px, y - 0.03, pz);
-    lip.rotation.y = -a;
-    g.add(lip);
-    // Outer handrail post
-    if (i % 2 === 0) {
-      const post = cyl(0.02, 0.02, 0.55, METAL, { metalness: 0.5, roughness: 0.4 }, 6);
-      const ox = Math.cos(a) * (radius + treadW * 0.35);
-      const oz = Math.sin(a) * (radius + treadW * 0.35);
-      post.position.set(ox, y + 0.28, oz);
-      g.add(post);
+/** Calendar page texture for the office wall. */
+function calendarTex() {
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 288;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#f4f0e8";
+  ctx.fillRect(0, 0, 256, 288);
+  ctx.fillStyle = "#c41e3a";
+  ctx.fillRect(0, 0, 256, 48);
+  ctx.fillStyle = "#fff";
+  ctx.font = `800 28px ${FUN_FONT}`;
+  ctx.textAlign = "center";
+  ctx.fillText("JULY 2026", 128, 34);
+  ctx.fillStyle = "#1a1020";
+  ctx.font = `700 14px ${FUN_FONT}`;
+  const days = ["S", "M", "T", "W", "T", "F", "S"];
+  for (let i = 0; i < 7; i++) ctx.fillText(days[i], 28 + i * 32, 72);
+  ctx.font = `600 13px ${FUN_FONT}`;
+  let d = 1;
+  for (let row = 0; row < 5; row++) {
+    for (let col = 0; col < 7; col++) {
+      if (row === 0 && col < 3) continue;
+      if (d > 31) break;
+      const x = 28 + col * 32;
+      const y = 100 + row * 32;
+      if (d === 27) {
+        ctx.fillStyle = "#ff4fa8";
+        ctx.beginPath();
+        ctx.arc(x, y - 4, 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#fff";
+      } else ctx.fillStyle = "#2a2018";
+      ctx.fillText(String(d), x, y);
+      d++;
     }
-    stepSamples.push({
-      x: px,
-      z: pz,
-      y,
-      r: treadW * 0.55,
-    });
   }
-  // Continuous outer rail ribbon (short horizontal segments around the spiral)
-  for (let i = 0; i < steps - 1; i++) {
-    const t0 = i / (steps - 1);
-    const t1 = (i + 1) / (steps - 1);
-    const a0 = startAngle + t0 * turns * Math.PI * 2;
-    const a1 = startAngle + t1 * turns * Math.PI * 2;
-    const rRail = radius + treadW * 0.35;
-    const x0 = Math.cos(a0) * rRail;
-    const z0 = Math.sin(a0) * rRail;
-    const x1 = Math.cos(a1) * rRail;
-    const z1 = Math.sin(a1) * rRail;
-    const y0 = 0.04 + t0 * totalH + 0.55;
-    const y1 = 0.04 + t1 * totalH + 0.55;
-    const mx = (x0 + x1) * 0.5;
-    const mz = (z0 + z1) * 0.5;
-    const my = (y0 + y1) * 0.5;
-    const len = Math.hypot(x1 - x0, z1 - z0) + 0.02;
-    const rail = box(len, 0.04, 0.04, 0xc8a040, { metalness: 0.45, roughness: 0.35 });
-    rail.position.set(mx, my, mz);
-    rail.rotation.y = -Math.atan2(z1 - z0, x1 - x0);
-    g.add(rail);
-  }
-
-  g.userData.stepSamples = stepSamples;
-  g.userData.totalH = totalH;
-  g.userData.radius = radius;
-  g.userData.outerR = radius + treadW * 0.5;
-  return g;
+  return canvasTexture(c, 2);
 }
 
 /**
- * Management loft / catwalk above the bar — lookout over the dance floor.
- * Historic DJ perch; now gear + a small work desk. Floor at `floorY`.
+ * Owner / manager office — sits BEHIND the south wall (outside the vaulted
+ * room) so the club ceiling stays open. Enter via UI button, not a stair.
+ * Local origin: floor center; +Z length; window faces −X into the club.
  */
-function buildBarLoft(nightMats, lit, floorY, dims) {
-  const { xMin, xMax, zMin, zMax } = dims;
+function buildManagerOffice(lit) {
   const g = new THREE.Group();
-  g.name = "barLoft";
-  const lenZ = zMax - zMin;
-  const lenX = xMax - xMin;
-  const cx = (xMin + xMax) * 0.5;
-  const cz = (zMin + zMax) * 0.5;
+  g.name = "managerOffice";
+  const W = 3.2;
+  const D = 2.6;
+  const H = 2.55;
 
-  // Deck / floor
-  const deck = box(lenX, 0.08, lenZ, 0x2a2018, { roughness: 0.82 });
-  deck.position.set(cx, floorY - 0.04, cz);
-  g.add(deck);
-  // Plank lines on top
-  const nPlank = Math.max(4, Math.floor(lenZ / 0.35));
-  for (let i = 0; i < nPlank; i++) {
-    const pz = zMin + 0.15 + (i + 0.5) * ((lenZ - 0.3) / nPlank);
-    const plank = box(lenX * 0.96, 0.015, 0.28, i % 2 ? 0x3a2a1e : 0x2e2218, {
-      roughness: 0.88,
-      castShadow: false,
-    });
-    plank.position.set(cx, floorY + 0.01, pz);
-    g.add(plank);
+  // Room shell
+  const floor = box(W, 0.08, D, 0x3a3228, { roughness: 0.88 });
+  floor.position.y = 0.04;
+  g.add(floor);
+  const ceil = box(W, 0.06, D, 0x1a1814, { roughness: 0.9 });
+  ceil.position.y = H;
+  g.add(ceil);
+  // Walls: +X back, ±Z sides. −X is mostly open to the club window.
+  const back = box(0.1, H, D, 0x2a241c, { roughness: 0.82 });
+  back.position.set(W * 0.5 - 0.05, H * 0.5, 0);
+  g.add(back);
+  for (const side of [-1, 1]) {
+    const wall = box(W, H, 0.1, 0x2e261e, { roughness: 0.82 });
+    wall.position.set(0, H * 0.5, side * (D * 0.5 - 0.05));
+    g.add(wall);
   }
+  // Front wall with window opening (−X toward club)
+  const winW = 1.5;
+  const winH = 0.95;
+  const winY = 1.55;
+  const fw = 0.1;
+  const sideSpan = (D - winW) * 0.5;
+  const frontL = box(fw, H, sideSpan, 0x2a241c, { roughness: 0.82 });
+  frontL.position.set(-W * 0.5 + fw * 0.5, H * 0.5, -winW * 0.5 - sideSpan * 0.5);
+  g.add(frontL);
+  const frontR = box(fw, H, sideSpan, 0x2a241c, { roughness: 0.82 });
+  frontR.position.set(-W * 0.5 + fw * 0.5, H * 0.5, winW * 0.5 + sideSpan * 0.5);
+  g.add(frontR);
+  const botH = winY - winH * 0.5;
+  const frontBot = box(fw, botH, winW, 0x2a241c, { roughness: 0.82 });
+  frontBot.position.set(-W * 0.5 + fw * 0.5, botH * 0.5, 0);
+  g.add(frontBot);
+  const topH = H - (winY + winH * 0.5);
+  const frontTop = box(fw, topH, winW, 0x2a241c, { roughness: 0.82 });
+  frontTop.position.set(-W * 0.5 + fw * 0.5, winY + winH * 0.5 + topH * 0.5, 0);
+  g.add(frontTop);
 
-  // Soffit underside (visible from the dance floor)
-  const soffit = box(lenX + 0.08, 0.06, lenZ + 0.08, 0x1a120e, { roughness: 0.9 });
-  soffit.position.set(cx, floorY - 0.12, cz);
-  g.add(soffit);
-  // Support beams under the loft (along Z)
-  for (const u of [-0.35, 0.35]) {
-    const beam = box(0.12, 0.14, lenZ * 0.95, RAFTER_WOOD, { roughness: 0.85 });
-    beam.position.set(cx + u * lenX * 0.4, floorY - 0.22, cz);
-    g.add(beam);
-  }
-  // Cross joists
-  for (let i = 0; i < 5; i++) {
-    const jz = zMin + 0.3 + i * ((lenZ - 0.6) / 4);
-    const joist = box(lenX * 0.92, 0.1, 0.1, RAFTER_DARK, { roughness: 0.88 });
-    joist.position.set(cx, floorY - 0.22, jz);
-    g.add(joist);
-  }
+  // Window glass + frame (looks into the club)
+  const frame = box(0.06, winH + 0.1, winW + 0.1, 0x1a1a22, { metalness: 0.35, roughness: 0.4 });
+  frame.position.set(-W * 0.5 + 0.04, winY, 0);
+  g.add(frame);
+  const glass = box(0.03, winH, winW, 0x80c0e8, {
+    transparent: true,
+    opacity: 0.35,
+    roughness: 0.1,
+    metalness: 0.15,
+    emissive: 0x406080,
+    emissiveIntensity: 0.25,
+  });
+  glass.position.set(-W * 0.5 + 0.02, winY, 0);
+  g.add(glass);
 
-  // Posts down to bar area (hold the loft up)
-  for (const [px, pz] of [
-    [xMin + 0.2, zMin + 0.35],
-    [xMin + 0.2, zMax - 0.35],
-    [xMax - 0.15, zMin + 0.5],
-    [xMax - 0.15, zMax - 0.5],
-  ]) {
-    const post = box(0.14, floorY - 0.15, 0.14, WOOD_COL_DARK, { roughness: 0.8 });
-    post.position.set(px, (floorY - 0.15) * 0.5, pz);
-    g.add(post);
+  // Desk against the back wall
+  const desk = box(0.7, 0.08, 1.6, 0x3a2a1e, { roughness: 0.55 });
+  desk.position.set(0.55, 0.78, 0);
+  g.add(desk);
+  for (const dz of [-0.7, 0.7]) {
+    const leg = box(0.08, 0.74, 0.08, 0x2a1e16, { roughness: 0.7 });
+    leg.position.set(0.55, 0.37, dz);
+    g.add(leg);
   }
+  // Laptop on desk (screen faces into room / −X a bit)
+  const lapBase = box(0.32, 0.015, 0.22, 0x1a1a22, { metalness: 0.5, roughness: 0.3 });
+  lapBase.position.set(0.4, 0.84, -0.25);
+  g.add(lapBase);
+  const lapScr = box(0.3, 0.2, 0.012, 0x0a2848, {
+    emissive: 0x2080c0,
+    emissiveIntensity: 0.7,
+    roughness: 0.25,
+  });
+  lapScr.position.set(0.4, 0.96, -0.35);
+  lapScr.rotation.x = -0.35;
+  lit(lapScr, 0.95, 0.55);
+  g.add(lapScr);
+  const lapUi = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.26, 0.16),
+    new THREE.MeshStandardMaterial({
+      map: labelTex("EMAILS", {
+        w: 200,
+        h: 120,
+        bg: "#0a2848",
+        fg: "#80e8ff",
+        size: 28,
+        weight: 800,
+        font: "fun",
+      }),
+      emissive: 0x186080,
+      emissiveIntensity: 0.45,
+      roughness: 0.4,
+      flatShading: true,
+    })
+  );
+  lapUi.position.set(0.4, 0.96, -0.36);
+  lapUi.rotation.x = -0.35;
+  g.add(lapUi);
 
-  // Lookout railing on the dance-floor side (−X / north face of loft)
-  const railH = 0.95;
-  const railTopY = floorY + railH;
-  const lookX = xMin + 0.06;
-  const topRail = box(0.07, 0.06, lenZ * 0.98, WOOD_COL, { roughness: 0.75 });
-  topRail.position.set(lookX, railTopY, cz);
-  g.add(topRail);
-  const botRail = box(0.06, 0.05, lenZ * 0.98, WOOD_COL_DARK, { roughness: 0.8 });
-  botRail.position.set(lookX, floorY + 0.28, cz);
-  g.add(botRail);
-  const picketN = Math.floor(lenZ / 0.22);
-  for (let i = 0; i < picketN; i++) {
-    const pz = zMin + 0.12 + (i + 0.5) * ((lenZ - 0.24) / picketN);
-    const picket = box(0.04, railH - 0.12, 0.04, i % 2 ? WOOD_COL : WOOD_COL_DARK, {
-      roughness: 0.8,
-    });
-    picket.position.set(lookX, floorY + railH * 0.5, pz);
-    g.add(picket);
-  }
-  // Side rails (east/west ends open toward stair on east)
-  for (const zEdge of [zMin + 0.05, zMax - 0.05]) {
-    const side = box(lenX * 0.9, 0.06, 0.06, WOOD_COL, { roughness: 0.75 });
-    side.position.set(cx, railTopY, zEdge);
-    g.add(side);
-  }
-  // Back wall low curb against south wall
-  const curb = box(0.12, 0.45, lenZ * 0.98, 0x1a1420, { roughness: 0.75 });
-  curb.position.set(xMax - 0.08, floorY + 0.22, cz);
-  g.add(curb);
-
-  // LED strip under lookout lip (reads the loft edge from the floor)
-  const underLed = box(0.05, 0.03, lenZ * 0.9, 0xff4fa8, {
-    emissive: 0xff2a80,
+  // Money counter
+  const counter = box(0.28, 0.12, 0.35, 0x2a2a32, { metalness: 0.4, roughness: 0.4 });
+  counter.position.set(0.45, 0.9, 0.35);
+  g.add(counter);
+  const counterScr = box(0.2, 0.06, 0.02, 0x0a2010, {
+    emissive: 0x20a040,
     emissiveIntensity: 0.7,
   });
-  underLed.position.set(lookX - 0.02, floorY - 0.08, cz);
-  lit(underLed, 0.95, 0.55, { glimmerSpeed: 2.4 });
-  g.add(underLed);
-
-  // ── Management desk + monitors (old DJ perch gear) ──
-  const deskZ = cz + lenZ * 0.12;
-  const desk = box(0.55, 0.08, 1.4, 0x1a1a22, { roughness: 0.45, metalness: 0.25 });
-  desk.position.set(cx + 0.15, floorY + 0.78, deskZ);
-  g.add(desk);
-  const deskLegL = box(0.08, 0.75, 1.35, 0x12141a, { roughness: 0.6 });
-  deskLegL.position.set(cx + 0.15, floorY + 0.38, deskZ);
-  g.add(deskLegL);
-
-  // Dual monitors facing the lookout / dance floor (−X)
-  for (const [dz, label] of [
-    [-0.35, "LIGHTS"],
-    [0.35, "AUDIO"],
-  ]) {
-    const mon = box(0.06, 0.32, 0.42, 0x0a0c10, { metalness: 0.4, roughness: 0.35 });
-    mon.position.set(cx - 0.05, floorY + 1.05, deskZ + dz);
-    g.add(mon);
-    const scr = box(0.04, 0.28, 0.38, 0x0a2840, {
-      emissive: 0x186080,
-      emissiveIntensity: 0.75,
-      roughness: 0.25,
-    });
-    scr.position.set(cx - 0.09, floorY + 1.05, deskZ + dz);
-    lit(scr, 1.05, 0.6);
-    g.add(scr);
-    const ui = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.34, 0.24),
-      new THREE.MeshStandardMaterial({
-        map: labelTex(label, {
-          w: 220,
-          h: 140,
-          bg: "#0a2040",
-          fg: "#80e8ff",
-          size: 32,
-          weight: 800,
-          font: "fun",
-        }),
-        emissive: 0x2080c0,
-        emissiveIntensity: 0.5,
-        roughness: 0.4,
-        flatShading: true,
-      })
-    );
-    ui.position.set(cx - 0.12, floorY + 1.05, deskZ + dz);
-    ui.rotation.y = Math.PI / 2; // face the dance floor (−X)
-    g.add(ui);
-  }
-
-  // Small mixer leftover on the desk
-  const mix = box(0.28, 0.06, 0.45, 0x12141a, { metalness: 0.35, roughness: 0.4 });
-  mix.position.set(cx + 0.05, floorY + 0.86, deskZ);
-  g.add(mix);
-  for (let i = 0; i < 6; i++) {
-    const k = cyl(0.015, 0.015, 0.02, [0xff4fa8, 0x40e0ff, 0x9b6dff][i % 3], {
-      emissive: [0xff4fa8, 0x40e0ff, 0x9b6dff][i % 3],
-      emissiveIntensity: 0.5,
-    }, 6);
-    k.position.set(cx + 0.02, floorY + 0.92, deskZ - 0.15 + i * 0.06);
-    lit(k, 0.65, 0.35, { glimmerSpeed: 2.5 + i * 0.2 });
-    g.add(k);
-  }
-
-  // Rolling stool
-  const stool = cyl(0.16, 0.16, 0.06, 0x1a1a22, { roughness: 0.6 }, 10);
-  stool.position.set(cx + 0.45, floorY + 0.55, deskZ + 0.55);
-  g.add(stool);
-  const stoolPost = cyl(0.04, 0.05, 0.5, METAL, { metalness: 0.5, roughness: 0.4 }, 6);
-  stoolPost.position.set(cx + 0.45, floorY + 0.28, deskZ + 0.55);
-  g.add(stoolPost);
-
-  // Road cases / gear along the back wall
-  for (const [dz, col] of [
-    [-lenZ * 0.28, 0x1a1a22],
-    [lenZ * 0.32, 0x221818],
-  ]) {
-    const case_ = box(0.45, 0.55, 0.7, col, { roughness: 0.7 });
-    case_.position.set(xMax - 0.35, floorY + 0.3, cz + dz);
-    g.add(case_);
-    const latch = box(0.08, 0.06, 0.12, 0xc8a040, { metalness: 0.5, roughness: 0.4 });
-    latch.position.set(xMax - 0.58, floorY + 0.35, cz + dz);
-    g.add(latch);
-  }
-
-  // Moving-head lights on the loft edge (point at dance floor)
-  for (const dz of [-lenZ * 0.3, 0, lenZ * 0.3]) {
-    const base = box(0.16, 0.1, 0.16, 0x1a1a22, { metalness: 0.4, roughness: 0.4 });
-    base.position.set(lookX + 0.12, floorY + 0.08, cz + dz);
-    g.add(base);
-    const head = cyl(0.07, 0.09, 0.14, 0x2a2a32, { metalness: 0.45, roughness: 0.35 }, 8);
-    head.rotation.z = Math.PI / 2;
-    head.position.set(lookX - 0.05, floorY + 0.12, cz + dz);
-    g.add(head);
-    const lens = cyl(0.05, 0.05, 0.04, 0x80c0ff, {
-      emissive: 0x4080ff,
-      emissiveIntensity: 0.65,
-    }, 8);
-    lens.rotation.z = Math.PI / 2;
-    lens.position.set(lookX - 0.14, floorY + 0.12, cz + dz);
-    lit(lens, 0.85, 0.5, { glimmerSpeed: 3.0 });
-    g.add(lens);
-  }
-
-  // Loft work lights
-  const loftKey = new THREE.PointLight(0xffd0a0, 0.7, 5, 2);
-  loftKey.position.set(cx, floorY + 1.4, cz);
-  g.add(loftKey);
-  const loftCool = new THREE.PointLight(0x80c0ff, 0.35, 4, 2);
-  loftCool.position.set(lookX + 0.3, floorY + 1.1, cz);
-  g.add(loftCool);
-
-  // Small "MGR" plate on the rail
-  const plate = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.35, 0.1),
+  counterScr.position.set(0.45, 0.98, 0.5);
+  lit(counterScr, 0.85, 0.5);
+  g.add(counterScr);
+  const counterTxt = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.18, 0.05),
     new THREE.MeshStandardMaterial({
-      map: labelTex("LOOKOUT", {
-        w: 200,
+      map: labelTex("$2,480", {
+        w: 160,
+        h: 48,
+        bg: "#0a2010",
+        fg: "#3dd68c",
+        size: 26,
+        weight: 800,
+        font: "fun",
+      }),
+      emissive: 0x20a040,
+      emissiveIntensity: 0.5,
+      roughness: 0.4,
+      flatShading: true,
+    })
+  );
+  counterTxt.position.set(0.45, 0.98, 0.52);
+  g.add(counterTxt);
+  // Feed slot
+  const feed = box(0.18, 0.02, 0.08, 0x1a1a22);
+  feed.position.set(0.45, 0.86, 0.52);
+  g.add(feed);
+
+  // Safe (open) with cash bundles
+  const safe = box(0.55, 0.7, 0.45, 0x3a3e46, { metalness: 0.45, roughness: 0.4 });
+  safe.position.set(0.7, 0.4, -0.85);
+  g.add(safe);
+  const safeDoor = box(0.08, 0.65, 0.4, 0x2a2e38, { metalness: 0.5, roughness: 0.35 });
+  safeDoor.position.set(0.35, 0.4, -0.85);
+  safeDoor.rotation.y = 0.9;
+  g.add(safeDoor);
+  const dial = cyl(0.06, 0.06, 0.04, 0xc8a040, { metalness: 0.6, roughness: 0.3 }, 10);
+  dial.rotation.z = Math.PI / 2;
+  dial.position.set(0.32, 0.45, -0.85);
+  g.add(dial);
+  // Cash bundles
+  for (let i = 0; i < 6; i++) {
+    const bundle = box(0.14, 0.04, 0.07, 0x2a6a3a, { roughness: 0.7 });
+    bundle.position.set(
+      0.65 + (i % 2) * 0.12,
+      0.2 + Math.floor(i / 2) * 0.08,
+      -0.75 + (i % 3) * 0.02
+    );
+    g.add(bundle);
+    const band = box(0.15, 0.015, 0.03, 0xc8a040, { roughness: 0.5 });
+    band.position.copy(bundle.position);
+    band.position.y += 0.005;
+    g.add(band);
+  }
+
+  // Paperwork stacks
+  for (const [dz, h] of [
+    [0.55, 0.06],
+    [0.7, 0.1],
+    [-0.05, 0.04],
+  ]) {
+    const papers = box(0.2, h, 0.16, 0xf0e8d8, { roughness: 0.9 });
+    papers.position.set(0.25, 0.82 + h * 0.5, dz);
+    g.add(papers);
+  }
+  // Loose invoice
+  const invoice = box(0.18, 0.005, 0.24, 0xfff8f0, { roughness: 0.92, castShadow: false });
+  invoice.position.set(0.35, 0.83, 0.1);
+  invoice.rotation.y = 0.2;
+  g.add(invoice);
+  const invTxt = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.16, 0.06),
+    new THREE.MeshStandardMaterial({
+      map: labelTex("PAYROLL", {
+        w: 160,
+        h: 48,
+        bg: "#fff8f0",
+        fg: "#401028",
+        size: 22,
+        weight: 800,
+        font: "fun",
+      }),
+      roughness: 0.95,
+      flatShading: true,
+    })
+  );
+  invTxt.position.set(0.35, 0.835, 0.1);
+  invTxt.rotation.x = -Math.PI / 2;
+  invTxt.rotation.z = 0.2;
+  g.add(invTxt);
+
+  // Calendar on side wall
+  const cal = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.45, 0.5),
+    new THREE.MeshStandardMaterial({
+      map: calendarTex(),
+      roughness: 0.75,
+      flatShading: true,
+    })
+  );
+  cal.position.set(0.2, 1.7, -D * 0.5 + 0.06);
+  g.add(cal);
+
+  // Office chair
+  const seat = cyl(0.18, 0.18, 0.06, 0x1a1a22, { roughness: 0.6 }, 10);
+  seat.position.set(-0.15, 0.55, 0.15);
+  g.add(seat);
+  const backrest = box(0.08, 0.4, 0.32, 0x1a1a22, { roughness: 0.6 });
+  backrest.position.set(-0.28, 0.8, 0.15);
+  g.add(backrest);
+  const chairPost = cyl(0.04, 0.05, 0.5, METAL, { metalness: 0.5, roughness: 0.4 }, 6);
+  chairPost.position.set(-0.15, 0.28, 0.15);
+  g.add(chairPost);
+
+  // Filing cabinet
+  const file = box(0.45, 1.1, 0.5, 0x4a5060, { metalness: 0.25, roughness: 0.5 });
+  file.position.set(0.9, 0.55, 0.9);
+  g.add(file);
+  for (let i = 0; i < 3; i++) {
+    const handle = box(0.12, 0.03, 0.04, 0xc8a040, { metalness: 0.5, roughness: 0.35 });
+    handle.position.set(0.68, 0.3 + i * 0.3, 0.9);
+    g.add(handle);
+  }
+
+  // Warm office light
+  const lamp = new THREE.PointLight(0xffe0b0, 0.9, 5, 2);
+  lamp.position.set(0, 2.1, 0);
+  g.add(lamp);
+  const lamp2 = new THREE.PointLight(0x80c0ff, 0.25, 4, 2);
+  lamp2.position.set(-0.8, 1.5, 0);
+  g.add(lamp2);
+  // Desk lamp
+  const deskLamp = box(0.06, 0.25, 0.06, 0x2a2a32, { metalness: 0.4, roughness: 0.4 });
+  deskLamp.position.set(0.7, 0.95, -0.4);
+  g.add(deskLamp);
+  const bulb = cyl(0.05, 0.06, 0.04, 0xffe8a0, {
+    emissive: 0xffd060,
+    emissiveIntensity: 0.8,
+  }, 8);
+  bulb.position.set(0.7, 1.1, -0.4);
+  lit(bulb, 0.9, 0.5);
+  g.add(bulb);
+
+  // "MANAGER" door plate vibe
+  const plate = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.5, 0.12),
+    new THREE.MeshStandardMaterial({
+      map: labelTex("MANAGER", {
+        w: 240,
         h: 64,
         bg: "#1a1020",
         fg: "#ff80c0",
@@ -370,30 +371,24 @@ function buildBarLoft(nightMats, lit, floorY, dims) {
         font: "fun",
       }),
       emissive: 0xff4fa8,
-      emissiveIntensity: 0.4,
+      emissiveIntensity: 0.35,
       roughness: 0.45,
       flatShading: true,
     })
   );
-  plate.position.set(lookX - 0.04, floorY + 0.7, cz);
-  plate.rotation.y = -Math.PI / 2;
+  plate.position.set(-W * 0.5 + 0.12, 2.2, 0.7);
+  plate.rotation.y = Math.PI / 2;
   g.add(plate);
 
-  // TVs on the loft face (as in the refs — hanging toward the room)
-  for (const dz of [-0.85, 0.85]) {
-    const tv = box(0.08, 0.4, 0.55, 0x0a0c10, { metalness: 0.35, roughness: 0.4 });
-    tv.position.set(lookX - 0.08, floorY - 0.35, cz + dz);
-    g.add(tv);
-    const tvScr = box(0.04, 0.34, 0.48, 0x102030, {
-      emissive: 0x204060,
-      emissiveIntensity: 0.55,
-      roughness: 0.3,
-    });
-    tvScr.position.set(lookX - 0.13, floorY - 0.35, cz + dz);
-    lit(tvScr, 0.8, 0.45);
-    g.add(tvScr);
-  }
-
+  g.userData.bounds = {
+    xMin: -W * 0.5 + 0.35,
+    xMax: W * 0.5 - 0.35,
+    zMin: -D * 0.5 + 0.35,
+    zMax: D * 0.5 - 0.35,
+    eyeY: 1.55,
+    floorY: 0,
+  };
+  g.userData.size = { w: W, d: D, h: H };
   return g;
 }
 
@@ -2454,16 +2449,16 @@ function buildBackBar(nightMats, lit, add, nightLights, wallX) {
     }
   }
 
-  // Diamond Stacy's neon on the back bar wall (under the loft soffit)
+  // Diamond Stacy's neon on the back bar wall (clear of shelves, full vault)
   const barDiamond = buildDiamondNeon(nightMats);
   barDiamond.rotation.y = -Math.PI / 2;
-  barDiamond.position.set(wallX - 0.2, 2.35, 0.15);
-  barDiamond.scale.setScalar(1.0);
+  barDiamond.position.set(wallX - 0.2, 2.7, 0.15);
+  barDiamond.scale.setScalar(1.15);
   add(barDiamond);
-  const barNeonWash = new THREE.PointLight(0xff4fa8, 1.0, 5, 2);
-  barNeonWash.position.set(railX, 2.25, 0.15);
+  const barNeonWash = new THREE.PointLight(0xff4fa8, 1.1, 5, 2);
+  barNeonWash.position.set(railX, 2.55, 0.15);
   add(barNeonWash);
-  nightLights.push({ light: barNeonWash, day: 0.6, night: 1.15 });
+  nightLights.push({ light: barNeonWash, day: 0.65, night: 1.25 });
 
   // Speed rail / well — bartender side of the aisle
   const well = box(0.5, 0.35, 2.6, 0x2a2a30, { metalness: 0.3, roughness: 0.4 });
@@ -3452,81 +3447,84 @@ export function createInterior() {
     add(photosNeon);
 
     // ══════════════════════════════════════════════════════════════
-    // BAR LOFT / CATWALK + SPIRAL STAIR (management lookout)
-    // Refs: loft railing + TVs above the rainbow bar; spiral by baths.
-    // Historic DJ perch — now a walkable management space.
+    // FULL-HEIGHT back-bar wall + upper window (vault stays open).
+    // Manager office lives BEHIND the south wall — enter via UI button.
     // ══════════════════════════════════════════════════════════════
     {
-      const loftFloorY = 2.72;
-      // Loft sits above the bar run, open lookout toward the dance floor (−X)
-      const loftXMin = barX - barDepth * 0.15; // slight overhang past bar front
-      const loftXMax = wallX - 0.12;
-      const loftZMin = -2.35;
-      const loftZMax = 2.65;
+      // Tall wood panel from eave up toward the ridge (vault still open above)
+      const tallH = PEAK_H - 0.15;
+      const tallWall = wallMesh(WALL, tallH, 5.4, "wood");
+      tallWall.position.set(wallX + 0.02, tallH * 0.5, 0.1);
+      add(tallWall);
 
-      const loft = buildBarLoft(nightMats, lit, loftFloorY, {
-        xMin: loftXMin,
-        xMax: loftXMax,
-        zMin: loftZMin,
-        zMax: loftZMax,
+      // High window looking into the manager office (warm glass glow)
+      // Offset on Z so it doesn't sit on the Stacy's diamond neon.
+      const winW = 1.45;
+      const winH = 0.9;
+      const winY = 2.55;
+      const winZ = 1.15;
+      const winFrame = box(0.08, winH + 0.12, winW + 0.12, 0x1a1a22, {
+        metalness: 0.35,
+        roughness: 0.4,
       });
-      add(loft);
-
-      // Spiral stair near bathrooms (SE of bar, by bath entry)
-      const stairCx = wallX - 1.45;
-      const stairCz = -2.95; // snug to loft east end so the top treads meet the landing
-      const stair = buildSpiralStair(loftFloorY, {
-        turns: 1.6,
-        steps: 16,
-        radius: 0.7,
-        treadW: 0.42,
-        startAngle: Math.PI * 0.55, // bottom opens into the room aisle
+      winFrame.position.set(wallX - 0.02, winY, winZ);
+      add(winFrame);
+      // Mullion cross
+      const mullV = box(0.04, winH, 0.04, 0x2a2a32, { metalness: 0.3, roughness: 0.45 });
+      mullV.position.set(wallX - 0.04, winY, winZ);
+      add(mullV);
+      const mullH = box(0.04, 0.04, winW, 0x2a2a32, { metalness: 0.3, roughness: 0.45 });
+      mullH.position.set(wallX - 0.04, winY, winZ);
+      add(mullH);
+      const winGlass = box(0.03, winH, winW, 0x60a0c8, {
+        transparent: true,
+        opacity: 0.4,
+        roughness: 0.12,
+        metalness: 0.15,
+        emissive: 0xffc090,
+        emissiveIntensity: 0.35,
       });
-      stair.position.set(stairCx, 0, stairCz);
-      add(stair);
+      winGlass.position.set(wallX - 0.05, winY, winZ);
+      lit(winGlass, 0.7, 0.4);
+      add(winGlass);
+      // Soft office light bleeding into the club through the window
+      const winGlow = new THREE.PointLight(0xffd0a0, 0.55, 5, 2);
+      winGlow.position.set(wallX - 0.6, winY, winZ);
+      add(winGlow);
+      nightLights.push({ light: winGlow, day: 0.3, night: 0.7 });
 
-      // Landing bridge: loft east end → spiral top
-      const landZ = loftZMin - 0.28;
-      const landing = box(loftXMax - loftXMin, 0.07, 0.7, 0x2a2018, { roughness: 0.8 });
-      landing.position.set((loftXMin + loftXMax) * 0.5, loftFloorY - 0.03, landZ);
-      add(landing);
-      const landRail = box(0.06, 0.9, 0.65, WOOD_COL, { roughness: 0.75 });
-      landRail.position.set(loftXMin + 0.05, loftFloorY + 0.45, landZ);
-      add(landRail);
+      // Manager office — behind the south wall (does not cover the vault)
+      const office = buildManagerOffice(lit);
+      const officeW = office.userData.size.w;
+      // Place so the office window aligns with the club window
+      office.position.set(wallX + officeW * 0.5 + 0.08, 0, winZ);
+      add(office);
 
-      // Stair halo light
-      const stairLight = new THREE.PointLight(0xffc090, 0.55, 4, 2);
-      stairLight.position.set(stairCx, loftFloorY * 0.55, stairCz);
-      add(stairLight);
-      nightLights.push({ light: stairLight, day: 0.3, night: 0.65 });
-
-      // World-space step samples for walk height
-      const stepWorld = (stair.userData.stepSamples || []).map((s) => ({
-        x: s.x + stairCx,
-        z: s.z + stairCz,
-        y: s.y,
-        r: s.r,
-      }));
-      // Landing as a high step
-      stepWorld.push({
-        x: (loftXMin + loftXMax) * 0.5,
-        z: landZ,
-        y: loftFloorY,
-        r: 0.55,
-      });
-
-      g.userData.loft = {
-        floorY: loftFloorY,
-        xMin: loftXMin,
-        xMax: loftXMax,
-        zMin: loftZMin - 0.4, // include landing
-        zMax: loftZMax,
-      };
-      g.userData.stair = {
-        cx: stairCx,
-        cz: stairCz,
-        outerR: stair.userData.outerR || 1.0,
-        steps: stepWorld,
+      const ob = office.userData.bounds;
+      g.userData.office = {
+        // World-space walk bounds inside the office
+        xMin: office.position.x + ob.xMin,
+        xMax: office.position.x + ob.xMax,
+        zMin: office.position.z + ob.zMin,
+        zMax: office.position.z + ob.zMax,
+        eyeY: ob.eyeY,
+        floorY: 0,
+        // Teleport spawn facing the club window (−X)
+        spawn: {
+          x: office.position.x - 0.3,
+          y: ob.eyeY,
+          z: office.position.z,
+          yaw: 270, // look −X toward club
+          pitch: -4,
+        },
+        // Return spot on the club floor near the bar
+        returnSpawn: {
+          x: barX - barDepth * 0.5 - 0.9,
+          y: WALK.eyeY,
+          z: 0.2,
+          yaw: 90, // look toward bar / south
+          pitch: -4,
+        },
       };
     }
   }
