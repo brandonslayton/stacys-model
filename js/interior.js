@@ -1613,109 +1613,232 @@ function buildFlatScreen(lit, opts = {}) {
 }
 
 /**
- * Tall Gothic / cathedral arched window — photo: pointed arch, dense vertical
- * bars, deep reveal, strong glow that cycles rainbow at runtime.
+ * Iconic Stacy's cathedral window — Gothic pointed arch that rainbow-cycles.
+ * Body + peak (pyramid tip) + neon silhouette all light up as one epic unit.
+ * Local +Z faces into the room.
  */
 function buildCathedralWindow(nightMats) {
   const g = new THREE.Group();
   g.name = "cathedralWindow";
 
-  const W = 1.55;
-  const H = 2.7;
-  const D = 0.28;
-  const frameCol = 0x1e1e26;
-  const frameLite = 0x2e2e38;
+  const W = 1.65;
+  const H = 2.75;
+  const D = 0.32;
+  const peakH = 1.15; // pointed crown height above spring line
+  const frameCol = 0x16161e;
+  const frameLite = 0x282832;
+  const totalH = H + peakH;
 
-  // Deep outer reveal (sits proud of brick)
-  const reveal = box(W + 0.35, H + 0.55, 0.12, frameCol);
-  reveal.position.set(0, H * 0.48, -0.08);
+  // Materials that rainbow-cycle in tickInterior
+  const makeGlowMat = (intensity = 1.4) => {
+    const m = new THREE.MeshStandardMaterial({
+      color: 0x40d0ff,
+      emissive: 0x40d0ff,
+      emissiveIntensity: intensity,
+      roughness: 0.18,
+      metalness: 0.08,
+      flatShading: true,
+    });
+    trackNightMat(nightMats, m, intensity, intensity * 0.7, {
+      glimmer: true,
+      glimmerSpeed: 1.5,
+    });
+    return m;
+  };
+  const paneMat = makeGlowMat(1.5);
+  const peakMat = makeGlowMat(1.65); // peak a touch brighter
+  const neonMat = makeGlowMat(1.85); // outline tubes
+  const glowMats = [paneMat, peakMat, neonMat];
+
+  // Deep brick reveal behind the window
+  const reveal = box(W + 0.42, totalH + 0.25, 0.14, frameCol);
+  reveal.position.set(0, totalH * 0.48, -0.12);
   g.add(reveal);
 
-  // Sill
-  const sill = box(W + 0.28, 0.14, D + 0.1, frameLite);
-  sill.position.set(0, 0.08, 0.02);
+  // Stone sill
+  const sill = box(W + 0.32, 0.16, D + 0.14, frameLite, { roughness: 0.7 });
+  sill.position.set(0, 0.09, 0.04);
   g.add(sill);
   // Jambs
-  g.add(box(0.12, H, D, frameCol)).position.set(-W * 0.52, H * 0.5, 0);
-  g.add(box(0.12, H, D, frameCol)).position.set(W * 0.52, H * 0.5, 0);
-  // Spring line under arch
-  g.add(box(W + 0.28, 0.1, D, frameLite)).position.set(0, H - 0.02, 0);
+  const jambL = box(0.14, H, D, frameCol);
+  jambL.position.set(-W * 0.52, H * 0.5, 0);
+  g.add(jambL);
+  const jambR = box(0.14, H, D, frameCol);
+  jambR.position.set(W * 0.52, H * 0.5, 0);
+  g.add(jambR);
+  // Spring line under the pointed crown
+  const spring = box(W + 0.3, 0.12, D + 0.04, frameLite);
+  spring.position.set(0, H - 0.02, 0.02);
+  g.add(spring);
 
-  // Pointed arch crown — finer steps for a smoother Gothic silhouette
-  for (let i = 0; i < 9; i++) {
-    const t = i / 8;
-    // Pointed: linear taper to tip (not circular)
-    const ww = W * (1 - t * 0.95);
-    const arch = box(Math.max(0.14, ww + 0.14), 0.1, D, frameCol);
-    arch.position.set(0, H + 0.06 + i * 0.095, 0);
+  // ── Pointed arch frame (dark stone steps) + glowing glass fill ──
+  const peakSteps = 12;
+  for (let i = 0; i < peakSteps; i++) {
+    const t = i / (peakSteps - 1);
+    // Pointed Gothic: linear taper to tip
+    const ww = W * (1 - t * 0.97);
+    const y = H + 0.04 + t * (peakH - 0.2);
+    // Frame step
+    const arch = box(Math.max(0.12, ww + 0.16), 0.1, D, frameCol);
+    arch.position.set(0, y, 0);
     g.add(arch);
-  }
-  // Finial
-  const tip = box(0.16, 0.28, D * 0.9, frameLite);
-  tip.position.set(0, H + 0.95, 0);
-  g.add(tip);
-  const tipBall = cyl(0.06, 0.06, 0.08, frameLite, {}, 8);
-  tipBall.position.set(0, H + 1.12, 0);
-  g.add(tipBall);
-
-  // Glowing panes — main body + pointed arch fill
-  const paneMat = new THREE.MeshStandardMaterial({
-    color: 0x40d0ff,
-    emissive: 0x40d0ff,
-    emissiveIntensity: 1.35,
-    roughness: 0.2,
-    metalness: 0.05,
-    flatShading: true,
-  });
-  trackNightMat(nightMats, paneMat, 1.55, 1.05, { glimmer: true, glimmerSpeed: 1.4 });
-  const glass = new THREE.Mesh(new THREE.BoxGeometry(W * 0.86, H * 0.9, 0.07), paneMat);
-  glass.position.set(0, H * 0.48, -0.04);
-  g.add(glass);
-  // Arch glass wedges
-  for (let i = 0; i < 8; i++) {
-    const t = i / 7;
-    const ww = W * 0.86 * (1 - t * 0.92);
-    const pg = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.08, ww), 0.095, 0.06), paneMat);
-    pg.position.set(0, H + 0.08 + i * 0.095, -0.04);
+    // Glowing glass fill in the peak (THIS lights up with the body)
+    const gw = Math.max(0.07, ww * 0.88);
+    const pg = new THREE.Mesh(new THREE.BoxGeometry(gw, 0.1, 0.08), peakMat);
+    pg.position.set(0, y, 0.02);
     g.add(pg);
   }
-  // Soft outer halo plane (reads as glow bloom)
-  const halo = new THREE.Mesh(
-    new THREE.PlaneGeometry(W * 1.15, H * 1.15),
-    new THREE.MeshBasicMaterial({
-      color: 0x40c8ff,
-      transparent: true,
-      opacity: 0.18,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    })
+  // Glowing finial / tip of the pyramid — pure neon
+  const tipY = H + peakH - 0.05;
+  const tip = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.22, 0.14), neonMat);
+  tip.position.set(0, tipY, 0.02);
+  g.add(tip);
+  const tipBall = new THREE.Mesh(
+    new THREE.SphereGeometry(0.09, 10, 10),
+    neonMat.clone()
   );
-  halo.position.set(0, H * 0.5, 0.12);
-  g.add(halo);
-  g.userData.haloMat = halo.material;
+  tipBall.material.emissiveIntensity = 2.0;
+  trackNightMat(nightMats, tipBall.material, 2.0, 1.3, {
+    glimmer: true,
+    glimmerSpeed: 2.8,
+  });
+  tipBall.position.set(0, tipY + 0.18, 0.02);
+  g.add(tipBall);
+  glowMats.push(tipBall.material);
 
-  // Dense vertical mullions (photo has many thin bars)
+  // ── Main glowing pane body ──
+  const glass = new THREE.Mesh(new THREE.BoxGeometry(W * 0.88, H * 0.9, 0.09), paneMat);
+  glass.position.set(0, H * 0.48, 0.0);
+  g.add(glass);
+
+  // Stained-glass vertical strips (subtle rainbow phase offsets in tick)
+  const stripMats = [];
+  const nStrips = 7;
+  for (let i = 0; i < nStrips; i++) {
+    const u = (i / (nStrips - 1)) * 2 - 1;
+    const sm = makeGlowMat(0.55);
+    stripMats.push(sm);
+    glowMats.push(sm);
+    const strip = new THREE.Mesh(
+      new THREE.BoxGeometry(W * 0.1, H * 0.86, 0.04),
+      sm
+    );
+    strip.position.set(u * W * 0.36, H * 0.48, 0.06);
+    g.add(strip);
+  }
+
+  // Dense vertical mullions (iconic bars)
   const nBars = 9;
   for (let i = 0; i < nBars; i++) {
     const u = (i / (nBars - 1)) * 2 - 1;
-    const bar = box(0.035, H * 0.88, 0.06, 0x121218);
-    bar.position.set(u * W * 0.38, H * 0.48, 0.05);
+    const bar = box(0.04, H * 0.88, 0.07, 0x0c0c12, { roughness: 0.55, metalness: 0.2 });
+    bar.position.set(u * W * 0.38, H * 0.48, 0.08);
     g.add(bar);
-    // Extend bars into lower arch
-    if (Math.abs(u) < 0.7) {
-      const bar2 = box(0.035, 0.55, 0.06, 0x121218);
-      bar2.position.set(u * W * 0.28, H + 0.28, 0.05);
+    // Rise into the peak
+    if (Math.abs(u) < 0.75) {
+      const rise = peakH * (1 - Math.abs(u) * 0.85) * 0.75;
+      const bar2 = box(0.035, rise, 0.06, 0x0c0c12, { roughness: 0.55 });
+      bar2.position.set(u * W * 0.28 * (1 - 0.15), H + rise * 0.45, 0.08);
       g.add(bar2);
     }
   }
   // Horizontal rails
-  for (const y of [0.55, 1.2, 1.85, 2.4]) {
-    const rail = box(W * 0.86, 0.04, 0.06, 0x121218);
-    rail.position.set(0, y, 0.05);
+  for (const y of [0.5, 1.15, 1.8, 2.45]) {
+    const rail = box(W * 0.88, 0.045, 0.07, 0x0c0c12, { roughness: 0.55, metalness: 0.2 });
+    rail.position.set(0, y, 0.08);
     g.add(rail);
   }
 
+  // ── Neon outline tracing the full silhouette (body + peak) ──
+  // Sides of body
+  for (const side of [-1, 1]) {
+    const tube = new THREE.Mesh(
+      new THREE.BoxGeometry(0.06, H * 0.95, 0.06),
+      neonMat
+    );
+    tube.position.set(side * W * 0.5, H * 0.48, 0.14);
+    g.add(tube);
+  }
+  // Sill neon
+  const sillNeon = new THREE.Mesh(
+    new THREE.BoxGeometry(W + 0.12, 0.05, 0.06),
+    neonMat
+  );
+  sillNeon.position.set(0, 0.18, 0.14);
+  g.add(sillNeon);
+  // Spring-line neon under peak
+  const springNeon = new THREE.Mesh(
+    new THREE.BoxGeometry(W + 0.1, 0.05, 0.06),
+    neonMat
+  );
+  springNeon.position.set(0, H - 0.02, 0.14);
+  g.add(springNeon);
+  // Pointed peak neon edges (stepped to follow the pyramid)
+  for (let i = 0; i < peakSteps; i++) {
+    const t = i / (peakSteps - 1);
+    const ww = W * (1 - t * 0.97);
+    const y = H + 0.04 + t * (peakH - 0.2);
+    for (const side of [-1, 1]) {
+      const edge = new THREE.Mesh(
+        new THREE.BoxGeometry(0.055, 0.1, 0.055),
+        neonMat
+      );
+      edge.position.set(side * Math.max(0.04, ww * 0.5), y, 0.14);
+      g.add(edge);
+    }
+  }
+  // Tip neon ring
+  const tipRing = new THREE.Mesh(
+    new THREE.TorusGeometry(0.11, 0.028, 8, 16),
+    neonMat
+  );
+  tipRing.position.set(0, tipY + 0.18, 0.14);
+  g.add(tipRing);
+
+  // Soft bloom halos — body + tall peak
+  const halo = new THREE.Mesh(
+    new THREE.PlaneGeometry(W * 1.35, H * 1.2),
+    new THREE.MeshBasicMaterial({
+      color: 0x40c8ff,
+      transparent: true,
+      opacity: 0.22,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    })
+  );
+  halo.position.set(0, H * 0.5, 0.2);
+  g.add(halo);
+  const peakHalo = new THREE.Mesh(
+    new THREE.PlaneGeometry(W * 0.95, peakH * 1.35),
+    new THREE.MeshBasicMaterial({
+      color: 0x80e0ff,
+      transparent: true,
+      opacity: 0.2,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    })
+  );
+  peakHalo.position.set(0, H + peakH * 0.45, 0.2);
+  g.add(peakHalo);
+
+  // Local fill lights — body + peak tip throw
+  const bodyLite = new THREE.PointLight(0x40d0ff, 1.4, 8, 2);
+  bodyLite.position.set(0, H * 0.55, 0.9);
+  g.add(bodyLite);
+  const peakLite = new THREE.PointLight(0x80e8ff, 1.1, 6, 2);
+  peakLite.position.set(0, H + peakH * 0.6, 0.7);
+  g.add(peakLite);
+
   g.userData.paneMat = paneMat;
+  g.userData.peakMat = peakMat;
+  g.userData.neonMat = neonMat;
+  g.userData.glowMats = glowMats;
+  g.userData.stripMats = stripMats;
+  g.userData.haloMat = halo.material;
+  g.userData.peakHaloMat = peakHalo.material;
+  g.userData.bodyLite = bodyLite;
+  g.userData.peakLite = peakLite;
+  g.userData.totalH = totalH;
   return g;
 }
 
@@ -3866,26 +3989,44 @@ export function createInterior() {
       add(returnRail);
     }
 
-    // Cathedral rainbow window (east of the railing / door)
+    // Cathedral rainbow window (east of the railing / door) — full peak lights up
     const cathed = buildCathedralWindow(nightMats);
-    cathed.position.set(x + 0.08, 0.12, -0.25);
+    cathed.position.set(x + 0.08, 0.1, -0.25);
     cathed.rotation.y = Math.PI / 2; // face into room (+X)
     add(cathed);
+    g.userData.cathedral = cathed;
     g.userData.cathedralPaneMat = cathed.userData.paneMat;
     g.userData.cathedralHalo = cathed.userData.haloMat;
-    const winLight = new THREE.PointLight(0x40e0ff, 2.2, 12, 2);
-    winLight.position.set(x + 1.6, 1.9, -0.25);
-    winLight.name = "cathedralLight";
-    add(winLight);
-    nightLights.push({ light: winLight, day: 1.3, night: 2.4 });
-    g.userData.cathedralLight = winLight;
-    const winSpot = new THREE.SpotLight(0x40e0ff, 1.8, 14, 0.6, 0.45, 1.4);
-    winSpot.position.set(x + 0.35, 2.5, -0.25);
-    winSpot.target.position.set(x + 3.0, 0.1, -0.25);
+    g.userData.cathedralPeakHalo = cathed.userData.peakHaloMat;
+    g.userData.cathedralGlowMats = cathed.userData.glowMats;
+    g.userData.cathedralStripMats = cathed.userData.stripMats;
+    // Room throw from body + peak
+    const winLight = cathed.userData.bodyLite;
+    if (winLight) {
+      winLight.name = "cathedralLight";
+      nightLights.push({ light: winLight, day: 1.2, night: 2.5 });
+      g.userData.cathedralLight = winLight;
+    }
+    const peakLite = cathed.userData.peakLite;
+    if (peakLite) {
+      nightLights.push({ light: peakLite, day: 0.9, night: 2.0 });
+      g.userData.cathedralPeakLight = peakLite;
+    }
+    const winSpot = new THREE.SpotLight(0x40e0ff, 2.2, 16, 0.65, 0.4, 1.3);
+    winSpot.position.set(x + 0.4, 2.6, -0.25);
+    winSpot.target.position.set(x + 3.2, 0.2, -0.25);
     add(winSpot);
     add(winSpot.target);
-    nightLights.push({ light: winSpot, day: 1.0, night: 1.9 });
+    nightLights.push({ light: winSpot, day: 1.1, night: 2.2 });
     g.userData.cathedralSpot = winSpot;
+    // Extra peak spot aiming down into the dance floor
+    const peakSpot = new THREE.SpotLight(0x80e8ff, 1.4, 12, 0.55, 0.45, 1.4);
+    peakSpot.position.set(x + 0.5, 3.6, -0.25);
+    peakSpot.target.position.set(x + 2.5, 0.1, -0.5);
+    add(peakSpot);
+    add(peakSpot.target);
+    nightLights.push({ light: peakSpot, day: 0.7, night: 1.6 });
+    g.userData.cathedralPeakSpot = peakSpot;
 
     // Sleek modern DJ booth — NE corner on solid floor east of The Pit.
     // Local +Z = audience → rot Y π/2 so +Z faces into the room (+X).
@@ -4561,25 +4702,67 @@ export function createInterior() {
   });
   g.userData.setNight?.(1);
 
-  // Rainbow cathedral, diamond pulse, disco spin, dance lights, TV flicker
+  // Rainbow cathedral (body + peak + neon), diamond, disco, TVs
   g.userData.tickInterior = (nowSec) => {
     g.userData.tickNight?.(nowSec * 1000);
-    const hue = (nowSec * 0.1) % 1;
-    const col = new THREE.Color().setHSL(hue, 0.88, 0.55);
-    const pane = g.userData.cathedralPaneMat;
-    if (pane) {
-      pane.emissive.copy(col);
-      pane.color.copy(col);
+    const hue = (nowSec * 0.12) % 1;
+    const col = new THREE.Color().setHSL(hue, 0.92, 0.58);
+    const colHot = new THREE.Color().setHSL((hue + 0.08) % 1, 0.95, 0.62);
+    const catPulse = 0.88 + 0.12 * Math.sin(nowSec * 2.2);
+
+    // All cathedral glow mats (pane, peak glass, neon outline, tip)
+    const glowMats = g.userData.cathedralGlowMats;
+    if (glowMats) {
+      for (let i = 0; i < glowMats.length; i++) {
+        const m = glowMats[i];
+        if (!m) continue;
+        const c = new THREE.Color().setHSL((hue + i * 0.025) % 1, 0.92, 0.58);
+        m.emissive.copy(c);
+        m.color.copy(c);
+      }
+    } else {
+      const pane = g.userData.cathedralPaneMat;
+      if (pane) {
+        pane.emissive.copy(col);
+        pane.color.copy(col);
+      }
+    }
+    // Stained-glass strip cascade
+    const strips = g.userData.cathedralStripMats;
+    if (strips) {
+      for (let i = 0; i < strips.length; i++) {
+        const m = strips[i];
+        if (!m) continue;
+        const c = new THREE.Color().setHSL((hue + i * 0.07) % 1, 0.9, 0.55);
+        m.emissive.copy(c);
+        m.color.copy(c);
+        m.emissiveIntensity = 0.5 + 0.4 * Math.sin(nowSec * 2.5 + i * 0.6);
+      }
     }
     const halo = g.userData.cathedralHalo;
     if (halo) {
       halo.color.copy(col);
-      halo.opacity = 0.14 + 0.08 * Math.sin(nowSec * 1.8);
+      halo.opacity = 0.18 + 0.1 * Math.sin(nowSec * 1.8);
+    }
+    const peakHalo = g.userData.cathedralPeakHalo;
+    if (peakHalo) {
+      peakHalo.color.copy(colHot);
+      peakHalo.opacity = 0.16 + 0.12 * Math.sin(nowSec * 2.4 + 1);
     }
     const pl = g.userData.cathedralLight;
-    if (pl) pl.color.copy(col);
+    if (pl) {
+      pl.color.copy(col);
+      pl.intensity = 1.6 + 0.55 * Math.sin(nowSec * 1.6);
+    }
+    const peakL = g.userData.cathedralPeakLight;
+    if (peakL) {
+      peakL.color.copy(colHot);
+      peakL.intensity = 1.15 + 0.55 * Math.sin(nowSec * 2.1 + 0.5);
+    }
     const sp = g.userData.cathedralSpot;
     if (sp) sp.color.copy(col);
+    const psp = g.userData.cathedralPeakSpot;
+    if (psp) psp.color.copy(colHot);
 
     // Diamond neon pulse + throw light
     const pulse = 0.75 + 0.35 * Math.sin(nowSec * 3.2) + 0.12 * Math.sin(nowSec * 7.1);
