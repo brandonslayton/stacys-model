@@ -1187,8 +1187,9 @@ function buildDiscoBall(radius = 0.22) {
 }
 
 /**
- * Gothic wrought-iron chandelier — chain, crown ring, candle arms.
- * Local origin = ceiling mount; hangs down −Y. Orange/red candle glow with soft flicker.
+ * Gothic wrought-iron chandelier — chain, crown, candle arms.
+ * Slimmer silhouette; local origin = ceiling mount (hangs −Y).
+ * Orange/red candle glow with soft flicker.
  */
 function buildGothicChandelier(lit, nightLights, flashLights) {
   const g = new THREE.Group();
@@ -1199,122 +1200,125 @@ function buildGothicChandelier(lit, nightLights, flashLights) {
   const bronze = 0x6a4830;
   const amber = 0xff6a28;
   const ember = 0xff3020;
+  // Horizontal slim factor (arms / cups / hub)
+  const S = 0.78;
 
   // Ceiling rose / mount plate
-  const rose = cyl(0.14, 0.16, 0.05, ironHi, { metalness: 0.55, roughness: 0.4 }, 10);
+  const rose = cyl(0.1, 0.12, 0.04, ironHi, { metalness: 0.55, roughness: 0.4 }, 10);
   rose.position.y = 0;
   g.add(rose);
-  const roseRing = cyl(0.18, 0.18, 0.03, iron, { metalness: 0.5, roughness: 0.45 }, 12);
-  roseRing.position.y = -0.03;
+  const roseRing = cyl(0.14, 0.14, 0.025, iron, { metalness: 0.5, roughness: 0.45 }, 12);
+  roseRing.position.y = -0.025;
   g.add(roseRing);
 
-  // Drop chain (linked rings)
-  const chainLen = 0.95;
-  const linkN = 7;
+  // Longer drop chain so the body hangs lower
+  const chainLen = 1.28;
+  const linkN = 9;
   for (let i = 0; i < linkN; i++) {
-    const link = cyl(0.045, 0.045, 0.04, ironHi, { metalness: 0.6, roughness: 0.35 }, 8);
+    const link = cyl(0.035, 0.035, 0.032, ironHi, { metalness: 0.6, roughness: 0.35 }, 8);
     link.scale.set(1, 1, 0.55);
     link.rotation.x = (i % 2) * (Math.PI / 2);
-    link.position.y = -0.08 - (i + 0.5) * (chainLen / linkN);
+    link.position.y = -0.06 - (i + 0.5) * (chainLen / linkN);
     g.add(link);
   }
   // Center rod through chain for silhouette
-  const rod = cyl(0.012, 0.012, chainLen + 0.15, iron, { metalness: 0.55, roughness: 0.4 }, 6);
-  rod.position.y = -chainLen * 0.5 - 0.05;
+  const rod = cyl(0.01, 0.01, chainLen + 0.12, iron, { metalness: 0.55, roughness: 0.4 }, 6);
+  rod.position.y = -chainLen * 0.5 - 0.04;
   g.add(rod);
 
-  // Body hangs at end of chain — halfway down the room
-  const bodyY = -chainLen - 0.12;
+  // Body at end of chain
+  const bodyY = -chainLen - 0.1;
 
   // Gothic crown / finial on top of body
-  const finial = box(0.08, 0.16, 0.08, bronze, { metalness: 0.55, roughness: 0.35 });
-  finial.position.set(0, bodyY + 0.22, 0);
+  const finial = box(0.06 * S, 0.14, 0.06 * S, bronze, { metalness: 0.55, roughness: 0.35 });
+  finial.position.set(0, bodyY + 0.18, 0);
   finial.rotation.y = Math.PI / 4;
   g.add(finial);
-  const tip = cyl(0.02, 0.04, 0.1, bronze, { metalness: 0.6, roughness: 0.3 }, 6);
-  tip.position.set(0, bodyY + 0.34, 0);
+  const tip = cyl(0.016, 0.032, 0.08, bronze, { metalness: 0.6, roughness: 0.3 }, 6);
+  tip.position.set(0, bodyY + 0.28, 0);
   g.add(tip);
 
-  // Central hub
-  const hub = cyl(0.11, 0.14, 0.18, ironHi, { metalness: 0.5, roughness: 0.38 }, 10);
+  // Central hub (slimmer)
+  const hub = cyl(0.08 * S, 0.1 * S, 0.15, ironHi, { metalness: 0.5, roughness: 0.38 }, 10);
   hub.position.y = bodyY;
   g.add(hub);
-  const hubBand = cyl(0.15, 0.15, 0.04, bronze, { metalness: 0.55, roughness: 0.32 }, 10);
+  const hubBand = cyl(0.11 * S, 0.11 * S, 0.035, bronze, { metalness: 0.55, roughness: 0.32 }, 10);
   hubBand.position.y = bodyY;
   g.add(hubBand);
 
   // Lower gothic drop / pointed boss
-  const boss = cyl(0.06, 0.02, 0.22, iron, { metalness: 0.5, roughness: 0.4 }, 8);
-  boss.position.y = bodyY - 0.2;
+  const boss = cyl(0.045 * S, 0.016 * S, 0.18, iron, { metalness: 0.5, roughness: 0.4 }, 8);
+  boss.position.y = bodyY - 0.16;
   g.add(boss);
-  const bossTip = box(0.05, 0.08, 0.05, bronze, { metalness: 0.55, roughness: 0.35 });
-  bossTip.position.set(0, bodyY - 0.34, 0);
+  const bossTip = box(0.04 * S, 0.07, 0.04 * S, bronze, { metalness: 0.55, roughness: 0.35 });
+  bossTip.position.set(0, bodyY - 0.28, 0);
   bossTip.rotation.y = Math.PI / 4;
   g.add(bossTip);
 
-  // Six gothic arms + candles
+  // Six slim gothic arms + candles
   const arms = 6;
+  const armReach = 0.33; // was ~0.42
   const glowMats = [];
   for (let i = 0; i < arms; i++) {
     const a = (i / arms) * Math.PI * 2;
     const arm = new THREE.Group();
 
     // Curved arm from hub to candle (two segments)
-    const arm1 = box(0.04, 0.05, 0.22, iron, { metalness: 0.5, roughness: 0.4 });
-    arm1.position.set(0, 0.02, 0.14);
+    const arm1 = box(0.028, 0.036, 0.17, iron, { metalness: 0.5, roughness: 0.4 });
+    arm1.position.set(0, 0.015, armReach * 0.32);
     arm1.rotation.x = -0.55;
     arm.add(arm1);
-    const arm2 = box(0.035, 0.04, 0.2, ironHi, { metalness: 0.5, roughness: 0.38 });
-    arm2.position.set(0, -0.06, 0.3);
+    const arm2 = box(0.024, 0.03, 0.15, ironHi, { metalness: 0.5, roughness: 0.38 });
+    arm2.position.set(0, -0.05, armReach * 0.7);
     arm2.rotation.x = 0.35;
     arm.add(arm2);
 
     // Scroll / leaf flourish at elbow
-    const scroll = box(0.06, 0.08, 0.04, bronze, { metalness: 0.45, roughness: 0.4 });
-    scroll.position.set(0, 0.0, 0.22);
+    const scroll = box(0.045, 0.06, 0.03, bronze, { metalness: 0.45, roughness: 0.4 });
+    scroll.position.set(0, 0.0, armReach * 0.5);
     scroll.rotation.x = -0.4;
     arm.add(scroll);
 
     // Candle cup
-    const cup = cyl(0.055, 0.04, 0.07, bronze, { metalness: 0.5, roughness: 0.35 }, 8);
-    cup.position.set(0, -0.02, 0.42);
+    const cup = cyl(0.04, 0.03, 0.055, bronze, { metalness: 0.5, roughness: 0.35 }, 8);
+    cup.position.set(0, -0.015, armReach);
     arm.add(cup);
     // Drip pan
-    const pan = cyl(0.07, 0.07, 0.02, ironHi, { metalness: 0.45, roughness: 0.4 }, 8);
-    pan.position.set(0, -0.06, 0.42);
+    const pan = cyl(0.052, 0.052, 0.016, ironHi, { metalness: 0.45, roughness: 0.4 }, 8);
+    pan.position.set(0, -0.05, armReach);
     arm.add(pan);
 
     // Candle
-    const candle = cyl(0.028, 0.03, 0.14, 0xf0e8d0, { roughness: 0.75 }, 8);
-    candle.position.set(0, 0.08, 0.42);
+    const candle = cyl(0.022, 0.024, 0.12, 0xf0e8d0, { roughness: 0.75 }, 8);
+    candle.position.set(0, 0.06, armReach);
     arm.add(candle);
 
     // Flame (soft orange/red emissive)
     const flameCol = i % 2 === 0 ? amber : ember;
-    const flame = cyl(0.018, 0.006, 0.08, flameCol, {
+    const flame = cyl(0.014, 0.005, 0.07, flameCol, {
       emissive: flameCol,
       emissiveIntensity: 1.1,
       roughness: 0.35,
       metalness: 0.05,
     }, 6);
-    flame.position.set(0, 0.18, 0.42);
+    flame.position.set(0, 0.15, armReach);
     lit(flame, 1.35, 0.85, { glimmer: true, glimmerSpeed: 2.2 + i * 0.15, phase: i * 1.3 });
     arm.add(flame);
     glowMats.push(flame.material);
 
     // Tiny flame tip
-    const tipF = cyl(0.01, 0.003, 0.04, 0xffe080, {
+    const tipF = cyl(0.008, 0.0025, 0.035, 0xffe080, {
       emissive: 0xffc040,
       emissiveIntensity: 1.2,
       roughness: 0.3,
     }, 5);
-    tipF.position.set(0, 0.24, 0.42);
+    tipF.position.set(0, 0.2, armReach);
     lit(tipF, 1.2, 0.75, { glimmer: true, glimmerSpeed: 3.1 + i * 0.2, phase: i * 0.7 });
     arm.add(tipF);
     glowMats.push(tipF.material);
 
     // Crystal drop under cup
-    const drop = box(0.03, 0.1, 0.03, 0xc8a060, {
+    const drop = box(0.022, 0.08, 0.022, 0xc8a060, {
       metalness: 0.35,
       roughness: 0.25,
       emissive: 0x402010,
@@ -1322,7 +1326,7 @@ function buildGothicChandelier(lit, nightLights, flashLights) {
       transparent: true,
       opacity: 0.85,
     });
-    drop.position.set(0, -0.14, 0.42);
+    drop.position.set(0, -0.12, armReach);
     drop.rotation.y = Math.PI / 4;
     arm.add(drop);
 
@@ -1334,68 +1338,67 @@ function buildGothicChandelier(lit, nightLights, flashLights) {
   // Inner ring of smaller candles for density
   for (let i = 0; i < 3; i++) {
     const a = (i / 3) * Math.PI * 2 + 0.4;
-    const ix = Math.cos(a) * 0.22;
-    const iz = Math.sin(a) * 0.22;
-    const cup = cyl(0.04, 0.032, 0.05, bronze, { metalness: 0.5, roughness: 0.35 }, 7);
-    cup.position.set(ix, bodyY + 0.08, iz);
+    const ix = Math.cos(a) * 0.16;
+    const iz = Math.sin(a) * 0.16;
+    const cup = cyl(0.03, 0.024, 0.04, bronze, { metalness: 0.5, roughness: 0.35 }, 7);
+    cup.position.set(ix, bodyY + 0.06, iz);
     g.add(cup);
-    const candle = cyl(0.022, 0.024, 0.1, 0xf0e8d0, { roughness: 0.75 }, 6);
-    candle.position.set(ix, bodyY + 0.16, iz);
+    const candle = cyl(0.016, 0.018, 0.08, 0xf0e8d0, { roughness: 0.75 }, 6);
+    candle.position.set(ix, bodyY + 0.12, iz);
     g.add(candle);
-    const flame = cyl(0.014, 0.005, 0.06, amber, {
+    const flame = cyl(0.01, 0.004, 0.05, amber, {
       emissive: amber,
       emissiveIntensity: 1.0,
       roughness: 0.35,
     }, 5);
-    flame.position.set(ix, bodyY + 0.24, iz);
+    flame.position.set(ix, bodyY + 0.18, iz);
     lit(flame, 1.2, 0.75, { glimmer: true, glimmerSpeed: 2.6 + i * 0.3, phase: i * 2.1 });
     g.add(flame);
     glowMats.push(flame.material);
   }
 
   // Warm fill lights — soft orange/red, gently flicker via flashLights
-  const mainGlow = new THREE.PointLight(0xff5520, 0.95, 5.5, 2);
-  mainGlow.position.set(0, bodyY + 0.15, 0);
+  const mainGlow = new THREE.PointLight(0xff5520, 0.9, 5.2, 2);
+  mainGlow.position.set(0, bodyY + 0.12, 0);
   g.add(mainGlow);
-  nightLights.push({ light: mainGlow, day: 0.55, night: 1.05 });
+  nightLights.push({ light: mainGlow, day: 0.52, night: 1.0 });
   if (flashLights) {
     flashLights.push({
       light: mainGlow,
-      night: 1.05,
+      night: 1.0,
       speed: 2.4,
     });
   }
-  const emberGlow = new THREE.PointLight(0xff2030, 0.4, 3.8, 2);
-  emberGlow.position.set(0, bodyY - 0.1, 0.15);
+  const emberGlow = new THREE.PointLight(0xff2030, 0.38, 3.5, 2);
+  emberGlow.position.set(0, bodyY - 0.08, 0.12);
   g.add(emberGlow);
-  nightLights.push({ light: emberGlow, day: 0.22, night: 0.5 });
+  nightLights.push({ light: emberGlow, day: 0.2, night: 0.48 });
   if (flashLights) {
     flashLights.push({
       light: emberGlow,
-      night: 0.48,
+      night: 0.45,
       speed: 1.7,
     });
   }
 
   // Soft bloom halo (reads as heat haze)
   const halo = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.35, 1.0),
+    new THREE.PlaneGeometry(1.0, 0.78),
     new THREE.MeshBasicMaterial({
       color: 0xff4018,
       transparent: true,
-      opacity: 0.12,
+      opacity: 0.11,
       depthWrite: false,
       side: THREE.DoubleSide,
     })
   );
-  halo.position.set(0, bodyY + 0.1, 0);
+  halo.position.set(0, bodyY + 0.08, 0);
   halo.rotation.x = -0.2;
   g.add(halo);
 
   g.userData.glowMats = glowMats;
   g.userData.bodyY = bodyY;
-  // Total hang length for placement (~ chain + body)
-  g.userData.hangLen = chainLen + 0.55;
+  g.userData.hangLen = chainLen + 0.5;
   return g;
 }
 
@@ -4982,15 +4985,15 @@ export function createInterior() {
     prideBrick.rotation.y = 0.15;
     add(prideBrick);
 
-    // Gothic chandelier — RIGHT side when facing the bar (east / −Z),
-    // hanging from the vault about halfway down over the customer stools.
+    // Gothic chandelier — LEFT side when facing the bar (west / +Z),
+    // slim silhouette, hangs a bit lower over the customer stools.
     {
       const chand = buildGothicChandelier(lit, nightLights, flashLights);
       // Ceiling height near bar (south of ridge) sits around eave
-      const ceilY = roofYAt(-1.8) - 0.08;
-      // Over customer edge of bar, east/right end
+      const ceilY = roofYAt(1.8) - 0.08;
+      // Over customer edge of bar, west/left end (opposite party-cam corner a bit)
       const chX = barX - barDepth * 0.5 - 0.55;
-      const chZ = 0.15 - 1.85; // right when facing +X at the bar
+      const chZ = 0.15 + 1.75; // left when facing +X at the bar
       chand.position.set(chX, ceilY, chZ);
       add(chand);
       g.userData.barChandelier = chand;
