@@ -460,7 +460,7 @@ function woodPanelTex() {
 }
 
 function wallMesh(w, h, d, kind) {
-  // kind: "brick" | "wood" | "purple"
+  // kind: "brick" | "wood" | "purple" | "purpleDark"
   // Built with MeshStandardMaterial directly so map/emissive aren't dropped
   // by kit.mat() (which only forwards a fixed set of fields).
   let color = BRICK;
@@ -482,6 +482,12 @@ function wallMesh(w, h, d, kind) {
     matOpts.roughness = 0.78;
     matOpts.emissive = new THREE.Color(PURPLE_DARK);
     matOpts.emissiveIntensity = 0.08;
+  } else if (kind === "purpleDark") {
+    // Deep club purple for the full back-bar wall
+    color = 0x2a1840;
+    matOpts.roughness = 0.82;
+    matOpts.emissive = new THREE.Color(0x1a0c28);
+    matOpts.emissiveIntensity = 0.12;
   }
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(w, h, d),
@@ -2449,14 +2455,14 @@ function buildBackBar(nightMats, lit, add, nightLights, wallX) {
     }
   }
 
-  // Diamond Stacy's neon on the back bar wall (clear of shelves, full vault)
+  // Diamond Stacy's neon on the dark-purple back bar wall (window sits above)
   const barDiamond = buildDiamondNeon(nightMats);
   barDiamond.rotation.y = -Math.PI / 2;
-  barDiamond.position.set(wallX - 0.2, 2.7, 0.15);
-  barDiamond.scale.setScalar(1.15);
+  barDiamond.position.set(wallX - 0.2, 2.55, 0.15);
+  barDiamond.scale.setScalar(1.1);
   add(barDiamond);
-  const barNeonWash = new THREE.PointLight(0xff4fa8, 1.1, 5, 2);
-  barNeonWash.position.set(railX, 2.55, 0.15);
+  const barNeonWash = new THREE.PointLight(0xff4fa8, 1.15, 5, 2);
+  barNeonWash.position.set(railX, 2.4, 0.15);
   add(barNeonWash);
   nightLights.push({ light: barNeonWash, day: 0.65, night: 1.25 });
 
@@ -2638,7 +2644,7 @@ export function createInterior() {
   //   WEST  (+Z, front)  — exposed brick
   //   EAST  (−Z, patio)  — purple paint
   //   NORTH (−X, lot)    — exposed brick
-  //   SOUTH (+X, bar)    — wood paneling
+  //   SOUTH (+X, bar)    — dark purple (full wall behind bar shelves)
   {
     const west = wallMesh(RW + WALL * 2, EAVE_H, WALL, "brick");
     west.position.set(0, EAVE_H * 0.5, halfD);
@@ -2655,9 +2661,14 @@ export function createInterior() {
     const north = wallMesh(WALL, EAVE_H, RD, "brick");
     north.position.set(-halfW, EAVE_H * 0.5, 0);
     add(north);
-    const south = wallMesh(WALL, EAVE_H, RD, "wood");
+    // Full dark-purple wall behind the bar / liquor shelves
+    const south = wallMesh(WALL, EAVE_H, RD, "purpleDark");
     south.position.set(halfW, EAVE_H * 0.5, 0);
     add(south);
+    const barWallWash = new THREE.PointLight(0x7040a0, 0.4, 9, 2);
+    barWallWash.position.set(halfW - 1.5, 2.3, 0.15);
+    add(barWallWash);
+    nightLights.push({ light: barWallWash, day: 0.25, night: 0.5 });
   }
 
   // ── Church vault: pitched roof + exposed rafters ─────────────────
@@ -2690,7 +2701,8 @@ export function createInterior() {
     ridgeCap.position.set(0, PEAK_H + 0.02, 0);
     add(ridgeCap);
 
-    // Exposed common rafters — pairs from ridge down each slope
+    // Exposed common rafters — pairs from ridge down each slope (vault only;
+    // no east–west collar ties / horizontal cross-beams)
     const rafterCount = 14;
     for (let i = 0; i < rafterCount; i++) {
       const x = -halfW + 0.45 + (i / (rafterCount - 1)) * (RW - 0.9);
@@ -2706,30 +2718,11 @@ export function createInterior() {
         grp.add(rafter);
         add(grp);
       }
-      // Collar tie (horizontal cross-beam under the ridge — church truss read)
-      if (i % 2 === 0) {
-        const collar = box(0.1, 0.1, halfD * 0.9, RAFTER_DARK, { roughness: 0.88 });
-        collar.position.set(x, EAVE_H + rise * 0.42, 0);
-        add(collar);
-      }
     }
 
-    // Purlins — long members running along each slope (across the rafters)
-    for (const side of [-1, 1]) {
-      for (const t of [0.28, 0.55, 0.78]) {
-        const y = PEAK_H - rise * t;
-        const z = side * run * t;
-        const purlin = box(RW * 0.96, 0.09, 0.11, RAFTER_WOOD, { roughness: 0.86 });
-        purlin.position.set(0, y - 0.14, z);
-        // Align purlin face to the roof pitch a bit
-        purlin.rotation.x = side > 0 ? pitch * 0.35 : -pitch * 0.35;
-        add(purlin);
-      }
-    }
-
-    // Gable triangles — same finishes as the walls below (brick N, wood S)
+    // Gable triangles — brick N, dark purple S (matches bar wall)
     for (const x of [-halfW, halfW]) {
-      const gableKind = x < 0 ? "brick" : "wood";
+      const gableKind = x < 0 ? "brick" : "purpleDark";
       const steps = 10;
       for (let i = 0; i < steps; i++) {
         const t0 = i / steps;
@@ -3447,56 +3440,62 @@ export function createInterior() {
     add(photosNeon);
 
     // ══════════════════════════════════════════════════════════════
-    // FULL-HEIGHT back-bar wall + upper window (vault stays open).
-    // Manager office lives BEHIND the south wall — enter via UI button.
+    // FULL-HEIGHT dark-purple back-bar wall + lookout window ABOVE
+    // the Stacy's diamond. Vault stays open (no loft / cross beams).
+    // Manager office sits BEHIND the wall — enter via UI button.
     // ══════════════════════════════════════════════════════════════
     {
-      // Tall wood panel from eave up toward the ridge (vault still open above)
+      // Tall purple panel from eave up toward the ridge
       const tallH = PEAK_H - 0.15;
-      const tallWall = wallMesh(WALL, tallH, 5.4, "wood");
+      const tallWall = wallMesh(WALL, tallH, 5.6, "purpleDark");
       tallWall.position.set(wallX + 0.02, tallH * 0.5, 0.1);
       add(tallWall);
 
-      // High window looking into the manager office (warm glass glow)
-      // Offset on Z so it doesn't sit on the Stacy's diamond neon.
-      const winW = 1.45;
-      const winH = 0.9;
-      const winY = 2.55;
-      const winZ = 1.15;
-      const winFrame = box(0.08, winH + 0.12, winW + 0.12, 0x1a1a22, {
-        metalness: 0.35,
-        roughness: 0.4,
+      // Lookout window directly above the Stacy's diamond neon
+      // Diamond sits ~y 2.7 at z 0.15 — window centered above it.
+      const winW = 1.35;
+      const winH = 0.85;
+      const winY = 3.45;
+      const winZ = 0.15;
+      const winFrame = box(0.1, winH + 0.14, winW + 0.14, 0x1a1420, {
+        metalness: 0.3,
+        roughness: 0.45,
       });
       winFrame.position.set(wallX - 0.02, winY, winZ);
       add(winFrame);
-      // Mullion cross
-      const mullV = box(0.04, winH, 0.04, 0x2a2a32, { metalness: 0.3, roughness: 0.45 });
+      // Simple mullions
+      const mullV = box(0.04, winH, 0.04, 0x2a2030, { metalness: 0.25, roughness: 0.5 });
       mullV.position.set(wallX - 0.04, winY, winZ);
       add(mullV);
-      const mullH = box(0.04, 0.04, winW, 0x2a2a32, { metalness: 0.3, roughness: 0.45 });
+      const mullH = box(0.04, 0.04, winW, 0x2a2030, { metalness: 0.25, roughness: 0.5 });
       mullH.position.set(wallX - 0.04, winY, winZ);
       add(mullH);
-      const winGlass = box(0.03, winH, winW, 0x60a0c8, {
+      // Clear-ish glass so you can imagine looking out of / into the office
+      const winGlass = box(0.03, winH, winW, 0x70b0d8, {
         transparent: true,
-        opacity: 0.4,
-        roughness: 0.12,
-        metalness: 0.15,
-        emissive: 0xffc090,
-        emissiveIntensity: 0.35,
+        opacity: 0.38,
+        roughness: 0.1,
+        metalness: 0.12,
+        emissive: 0xffd0a8,
+        emissiveIntensity: 0.4,
       });
       winGlass.position.set(wallX - 0.05, winY, winZ);
-      lit(winGlass, 0.7, 0.4);
+      lit(winGlass, 0.75, 0.45);
       add(winGlass);
-      // Soft office light bleeding into the club through the window
-      const winGlow = new THREE.PointLight(0xffd0a0, 0.55, 5, 2);
-      winGlow.position.set(wallX - 0.6, winY, winZ);
+      // Soft light through the window (office glow + lookout feel)
+      const winGlow = new THREE.PointLight(0xffd0a0, 0.65, 6, 2);
+      winGlow.position.set(wallX - 0.7, winY, winZ);
       add(winGlow);
-      nightLights.push({ light: winGlow, day: 0.3, night: 0.7 });
+      nightLights.push({ light: winGlow, day: 0.35, night: 0.8 });
+      // Thin sill under the glass
+      const sill = box(0.12, 0.05, winW + 0.08, 0x2a1e28, { roughness: 0.65 });
+      sill.position.set(wallX - 0.08, winY - winH * 0.5 - 0.04, winZ);
+      add(sill);
 
       // Manager office — behind the south wall (does not cover the vault)
       const office = buildManagerOffice(lit);
       const officeW = office.userData.size.w;
-      // Place so the office window aligns with the club window
+      // Align office with the lookout window above the diamond
       office.position.set(wallX + officeW * 0.5 + 0.08, 0, winZ);
       add(office);
 
