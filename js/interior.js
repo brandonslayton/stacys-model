@@ -1179,13 +1179,19 @@ export function createInterior() {
   }
 
   // Twisted dark-wood columns — full height to the vault.
-  // Pair at z≈2.2 is on the north railing. Free pair that was in front of the
-  // bar is moved north to the railing's end x (0.35) so they line up with it.
+  // Three in a row on the railing line (z≈2.2), so the rail touches all three:
+  //   1) ~1 ft in from the north wall
+  //   2) mid bay
+  //   3) south end of the rail run
+  // Plus two free columns further into the room (aligned with railing end x).
+  const railZ = 2.2;
+  const railNearWallX = -halfW + 0.35 + 0.3; // ~1 ft (0.3 units) off the north wall
   for (const [x, z] of [
-    [-2.4, 2.2], // railing post (north bay)
-    [-0.35, 2.2], // railing post (south end of rail run)
-    [0.35, 1.55], // was bar-front free column — now at railing-end x
-    [0.35, -1.25], // was bar-front free column — now at railing-end x
+    [railNearWallX, railZ], // new: closest to north wall on the rail
+    [-2.4, railZ], // mid railing post
+    [-0.35, railZ], // south end of rail run
+    [0.35, 1.55],
+    [0.35, -1.25],
   ]) {
     const topY = roofYAt(z) - 0.12;
     const col = buildTwistedColumn(topY);
@@ -1369,13 +1375,11 @@ export function createInterior() {
     }
 
     // Dark wood railing to the right of the glass door, running SOUTH (+X)
-    // through the two north-side columns at z ≈ 2.2.
-    // Door is at z=3.15; railing sits just into the room at z=2.2 and runs
-    // from the north wall south past columns (−2.4 and −0.35).
+    // through all three railing-line columns (near wall, mid, end).
     {
       const railZ = 2.2;
       const railStartX = -halfW + 0.35; // at the north wall
-      const railEndX = 0.35; // past second column
+      const railEndX = 0.35; // past the third column
       const railLen = railEndX - railStartX;
       const railing = buildWoodRailing(railLen, { picketH: 0.95, spacing: 0.13 });
       railing.position.set(railStartX, 0, railZ);
