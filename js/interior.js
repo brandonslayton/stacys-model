@@ -40,10 +40,11 @@ const halfD = RD * 0.5;
 const RAFTER_WOOD = 0x2a1e16;
 const RAFTER_DARK = 0x1a120e;
 
-// Walk bounds (inset from walls so the camera never clips furniture hard)
+// Walk bounds (inset from walls so the camera never clips furniture hard).
+// xMax stops short of the bartender aisle + back bar.
 export const WALK = {
   xMin: -halfW + 0.55,
-  xMax: halfW - 1.35, // leave room for bar depth
+  xMax: halfW - 2.9,
   zMin: -halfD + 0.55,
   zMax: halfD - 0.55,
   eyeY: 1.55,
@@ -793,10 +794,17 @@ function buildAtm(nightMats, lit) {
 
 /**
  * Back bar: multi-tier liquor shelves, mirror, well, POS — bartender workspace.
- * Brighter + denser bottles so the wall of liquor actually reads.
+ *
+ * Layout (south wall at +X):
+ *   wall → shelves/mirror → speed rail → **service aisle** → customer bar
+ * `wallX` is the south wall face; the rail sits far enough off the wall that a
+ * bartender can work the well without clipping the customer bar.
  */
-function buildBackBar(nightMats, lit, add, nightLights) {
-  const x = halfW - 0.12; // along south wall
+function buildBackBar(nightMats, lit, add, nightLights, wallX) {
+  // Shelves hug the wall; rail is the bartender's working edge
+  const shelfX = wallX - 0.2;
+  const railX = wallX - 0.95;
+
   // Brighter mirror backsplash
   const mirror = box(0.04, 1.85, 5.4, 0x3a5060, {
     metalness: 0.65,
@@ -804,18 +812,18 @@ function buildBackBar(nightMats, lit, add, nightLights) {
     emissive: 0x183040,
     emissiveIntensity: 0.35,
   });
-  mirror.position.set(x - 0.08, 2.05, 0.1);
+  mirror.position.set(wallX - 0.06, 2.05, 0.1);
   add(mirror);
 
-  // Warm wash lights along back bar (brighter behind the bar)
+  // Warm wash lights along back bar
   for (const z of [-1.8, -0.4, 1.0, 2.2]) {
     const wash = new THREE.PointLight(0xffc090, 0.85, 4.5, 2);
-    wash.position.set(x - 0.5, 2.5, z);
+    wash.position.set(shelfX - 0.25, 2.5, z);
     add(wash);
     nightLights.push({ light: wash, day: 0.55, night: 1.0 });
   }
   const backKey = new THREE.PointLight(0xffe0c0, 1.15, 7, 2);
-  backKey.position.set(x - 1.0, 2.2, 0.1);
+  backKey.position.set(railX, 2.2, 0.1);
   add(backKey);
   nightLights.push({ light: backKey, day: 0.7, night: 1.3 });
 
@@ -828,9 +836,8 @@ function buildBackBar(nightMats, lit, add, nightLights) {
   for (let tier = 0; tier < 4; tier++) {
     const sy = 1.22 + tier * 0.38;
     const shelf = box(0.32, 0.055, 5.2, WOOD_DARK, { roughness: 0.65 });
-    shelf.position.set(x - 0.22, sy, 0.1);
+    shelf.position.set(shelfX, sy, 0.1);
     add(shelf);
-    // Double row of bottles
     for (let row = 0; row < 2; row++) {
       const count = 22;
       for (let i = 0; i < count; i++) {
@@ -838,39 +845,37 @@ function buildBackBar(nightMats, lit, add, nightLights) {
         const r = 0.028 + ((i + row) % 3) * 0.006;
         const b = buildBottle(shelfCols[(i + tier * 5 + row * 3) % shelfCols.length], h, r);
         b.position.set(
-          x - 0.18 - row * 0.1,
+          shelfX + 0.04 - row * 0.1,
           sy + 0.02,
           -2.25 + i * (5.0 / (count - 1))
         );
         add(b);
       }
     }
-    // Under-shelf LED
     const led = neonBox(0.035, 0.028, 5.0, [0xff4fa8, 0x40e0ff, 0x9b6dff, 0x3dd68c][tier], 0.85);
-    led.position.set(x - 0.38, sy - 0.04, 0.1);
+    led.position.set(shelfX - 0.18, sy - 0.04, 0.1);
     lit(led, 1.2, 0.8, { glimmerSpeed: 2.0 + tier * 0.25 });
     add(led);
   }
 
-  // Diamond Stacy's neon above the bar — same mark as the pole sign / foliage wall
+  // Diamond Stacy's neon on the back bar wall
   const barDiamond = buildDiamondNeon(nightMats);
-  // Face into the room (−X from the south wall)
   barDiamond.rotation.y = -Math.PI / 2;
-  barDiamond.position.set(x - 0.32, 2.75, 0.15);
+  barDiamond.position.set(wallX - 0.2, 2.75, 0.15);
   barDiamond.scale.setScalar(1.15);
   add(barDiamond);
   const barNeonWash = new THREE.PointLight(0xff4fa8, 1.1, 5, 2);
-  barNeonWash.position.set(x - 1.0, 2.6, 0.15);
+  barNeonWash.position.set(railX, 2.6, 0.15);
   add(barNeonWash);
   nightLights.push({ light: barNeonWash, day: 0.65, night: 1.25 });
 
-  // Speed rail / well
-  const well = box(0.55, 0.35, 2.6, 0x2a2a30, { metalness: 0.3, roughness: 0.4 });
-  well.position.set(x - 0.85, 1.0, 0.2);
+  // Speed rail / well — bartender side of the aisle
+  const well = box(0.5, 0.35, 2.6, 0x2a2a30, { metalness: 0.3, roughness: 0.4 });
+  well.position.set(railX, 1.0, 0.2);
   add(well);
   for (let i = 0; i < 12; i++) {
     const b = buildBottle(shelfCols[i % shelfCols.length], 0.18 + (i % 3) * 0.03, 0.032);
-    b.position.set(x - 0.85, 1.18, -0.9 + i * 0.2);
+    b.position.set(railX, 1.18, -0.9 + i * 0.2);
     add(b);
   }
 
@@ -881,32 +886,32 @@ function buildBackBar(nightMats, lit, add, nightLights) {
     emissive: 0x90b0c0,
     emissiveIntensity: 0.18,
   });
-  ice.position.set(x - 0.85, 1.0, 1.55);
+  ice.position.set(railX, 1.0, 1.55);
   add(ice);
 
   // POS
   const pos = box(0.28, 0.35, 0.22, BLACK);
-  pos.position.set(x - 0.7, 1.35, -1.5);
+  pos.position.set(railX + 0.12, 1.35, -1.5);
   add(pos);
   const posScreen = box(0.24, 0.18, 0.03, 0x1a3048, {
     emissive: 0x3080c0,
     emissiveIntensity: 0.65,
   });
-  posScreen.position.set(x - 0.85, 1.45, -1.5);
+  posScreen.position.set(railX - 0.05, 1.45, -1.5);
   lit(posScreen, 0.9, 0.55);
   add(posScreen);
 
   // Draft tower
   const draft = box(0.4, 0.6, 0.4, METAL, { metalness: 0.45, roughness: 0.4 });
-  draft.position.set(x - 0.7, 1.45, 2.0);
+  draft.position.set(railX + 0.12, 1.45, 2.0);
   add(draft);
   for (const dz of [-0.1, 0, 0.1]) {
     const spout = cyl(0.025, 0.02, 0.22, 0xc8ccd0, { metalness: 0.5 }, 6);
     spout.rotation.x = Math.PI / 2;
-    spout.position.set(x - 0.9, 1.5, 2.0 + dz);
+    spout.position.set(railX - 0.1, 1.5, 2.0 + dz);
     add(spout);
     const handle = box(0.04, 0.14, 0.04, [0xc41e3a, 0xf0c14d, 0x2a5a3a][Math.round((dz + 0.1) * 10)] || 0xc41e3a);
-    handle.position.set(x - 0.7, 1.75, 2.0 + dz);
+    handle.position.set(railX + 0.12, 1.75, 2.0 + dz);
     add(handle);
   }
 
@@ -918,9 +923,16 @@ function buildBackBar(nightMats, lit, add, nightLights) {
       roughness: 0.15,
       metalness: 0.2,
     }, 6);
-    glass.position.set(x - 0.55, 2.65, -1.8 + i * 0.2);
+    glass.position.set(shelfX - 0.2, 2.65, -1.8 + i * 0.2);
     add(glass);
   }
+
+  // Rubber floor mat strip in the service aisle (bartender work zone)
+  // Bar rear is at wallX - 2.55 + 0.525 ≈ wallX - 2.02; rail at wallX - 0.95
+  // Aisle center ≈ wallX - 1.5
+  const mat = box(1.0, 0.02, 4.8, 0x1a1a1e, { roughness: 0.95 });
+  mat.position.set(wallX - 1.5, 0.09, 0.1);
+  add(mat);
 }
 
 /**
@@ -1122,11 +1134,11 @@ export function createInterior() {
   }
 
   // Twisted dark-wood columns — full height to the vault.
-  // The pair at z≈2.2 sits ON the north railing line so the rail runs through them.
+  // Pair at z≈2.2 is on the north railing. No column in front of the cathedral
+  // window (was at −2.4, 0.55 — blocked the neon window).
   for (const [x, z] of [
     [-2.4, 2.2], // railing post (north bay)
     [-0.35, 2.2], // railing post (further south on same rail)
-    [-2.4, 0.55],
     [1.5, 1.6],
     [1.5, -1.3],
   ]) {
@@ -1204,47 +1216,67 @@ export function createInterior() {
     atm.position.set(1.45, 0, z - 0.28);
     add(atm);
 
-    // Double front doors (matches exterior carved pair). From inside only the
-    // LEFT leaf is used for entry; the right leaf is the companion panel.
+    // Double front doors — full-width leaves like the exterior porch pair
+    // (exterior totalW ≈ 1.34; interior goes wider so they read as real doors
+    // in the larger room). Left leaf = entry; right = companion.
     // Looking at the west wall from inside: left = −X (north), right = +X (south).
-    const doorCx = 3.35;
-    const leafW = 0.52;
-    const leafH = 2.15;
-    const doorFrame = box(leafW * 2 + 0.28, 2.4, 0.16, WOOD_DARK);
-    doorFrame.position.set(doorCx, 1.22, z - 0.04);
+    const doorCx = 3.2;
+    const leafW = 0.95; // each leaf is a full door, not a skinny panel
+    const leafH = 2.25;
+    const totalW = leafW * 2 + 0.12;
+    const doorFrame = box(totalW + 0.22, 2.55, 0.18, WOOD_DARK);
+    doorFrame.position.set(doorCx, 1.3, z - 0.04);
     add(doorFrame);
-    // Header
-    const header = box(leafW * 2 + 0.32, 0.14, 0.18, WOOD_COL, { roughness: 0.8 });
-    header.position.set(doorCx, 2.35, z - 0.08);
+    // Header beam
+    const header = box(totalW + 0.28, 0.16, 0.2, WOOD_COL, { roughness: 0.8 });
+    header.position.set(doorCx, 2.48, z - 0.08);
     add(header);
+    // Side jambs (proud)
+    for (const side of [-1, 1]) {
+      const jamb = box(0.12, leafH + 0.15, 0.14, WOOD_COL, { roughness: 0.82 });
+      jamb.position.set(doorCx + side * (totalW * 0.5 + 0.02), 1.2, z - 0.1);
+      add(jamb);
+    }
     // Left leaf (active entry — north leaf)
-    const leftLeaf = box(leafW, leafH, 0.09, WOOD);
-    leftLeaf.position.set(doorCx - leafW * 0.52, 1.15, z - 0.14);
+    const leftLeaf = box(leafW, leafH, 0.1, WOOD);
+    leftLeaf.position.set(doorCx - leafW * 0.5 - 0.03, 1.18, z - 0.15);
     leftLeaf.name = "interiorFrontDoor";
     add(leftLeaf);
-    // Right leaf (companion — not used for entry)
-    const rightLeaf = box(leafW, leafH, 0.09, WOOD_DARK);
-    rightLeaf.position.set(doorCx + leafW * 0.52, 1.15, z - 0.14);
+    // Right leaf (companion)
+    const rightLeaf = box(leafW, leafH, 0.1, WOOD_DARK);
+    rightLeaf.position.set(doorCx + leafW * 0.5 + 0.03, 1.18, z - 0.15);
     rightLeaf.name = "interiorFrontDoorRight";
     add(rightLeaf);
-    // Carved X relief on each leaf
-    for (const lx of [doorCx - leafW * 0.52, doorCx + leafW * 0.52]) {
+    // Carved X relief + lower panel on each leaf
+    for (const lx of [doorCx - leafW * 0.5 - 0.03, doorCx + leafW * 0.5 + 0.03]) {
       for (const dir of [-1, 1]) {
-        const arm = box(0.07, 0.85, 0.035, WOOD_COL_DARK);
+        const arm = box(0.08, 1.05, 0.04, WOOD_COL_DARK);
         arm.rotation.z = dir * 0.55;
-        arm.position.set(lx, 1.25, z - 0.2);
+        arm.position.set(lx, 1.45, z - 0.22);
         add(arm);
       }
+      // Bottom panel rail
+      const rail = box(leafW * 0.85, 0.08, 0.04, WOOD_COL_DARK);
+      rail.position.set(lx, 0.55, z - 0.2);
+      add(rail);
+      const rail2 = box(leafW * 0.85, 0.08, 0.04, WOOD_COL_DARK);
+      rail2.position.set(lx, 1.0, z - 0.2);
+      add(rail2);
     }
-    // Center mullion between leaves
-    const mullion = box(0.08, leafH + 0.05, 0.1, WOOD_COL, { roughness: 0.75 });
-    mullion.position.set(doorCx, 1.15, z - 0.12);
+    // Center mullion / barley-twist read
+    const mullion = box(0.1, leafH + 0.08, 0.12, WOOD_COL, { roughness: 0.75 });
+    mullion.position.set(doorCx, 1.18, z - 0.13);
     add(mullion);
     // Pull only on the left (working) leaf
-    const pull = cyl(0.04, 0.04, 0.08, 0xc8a040, { metalness: 0.5, roughness: 0.4 }, 8);
+    const pull = cyl(0.045, 0.045, 0.1, 0xc8a040, { metalness: 0.5, roughness: 0.4 }, 8);
     pull.rotation.z = Math.PI / 2;
-    pull.position.set(doorCx - leafW * 0.15, 1.15, z - 0.22);
+    pull.position.set(doorCx - 0.12, 1.2, z - 0.24);
     add(pull);
+    // Iron ring pull accent
+    const ring = cyl(0.07, 0.07, 0.03, 0x2a2a30, { metalness: 0.4, roughness: 0.5 }, 10);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(doorCx - 0.12, 1.2, z - 0.26);
+    add(ring);
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -1463,16 +1495,21 @@ export function createInterior() {
   }
 
   // ══════════════════════════════════════════════════════════════════
-  // SOUTH (+X) — bar front + back bar + vape + bathroom + photobooth
+  // SOUTH (+X) — bar front + service aisle + back bar + vape + bathroom
   // ══════════════════════════════════════════════════════════════════
   {
-    const x = halfW - 0.1;
+    const wallX = halfW - 0.08;
+    // Customer bar sits well into the room so a bartender aisle (~1.1 units)
+    // fits between bar rear and the back-bar rail.
+    //   wall ≈ 5.67 → rail ≈ 4.72 → aisle → bar rear ≈ 3.65 → bar front ≈ 2.6
+    const barX = wallX - 2.55;
+    const barDepth = 1.05;
 
     // Bar body (customer side)
-    const barLong = box(1.05, 1.1, 5.6, BLACK);
-    barLong.position.set(x - 0.7, 0.58, 0.15);
+    const barLong = box(barDepth, 1.1, 5.6, BLACK);
+    barLong.position.set(barX, 0.58, 0.15);
     add(barLong);
-    // Rainbow LED front
+    // Rainbow LED front (toward the room, −X face)
     const bands = [0xff3b3b, 0xff9a1a, 0xffe14a, 0x3dd68c, 0x3ca0ff, 0x9b6dff];
     const panelW = 5.2;
     const segW = panelW / bands.length;
@@ -1482,21 +1519,21 @@ export function createInterior() {
         emissiveIntensity: 0.8,
         roughness: 0.35,
       });
-      seg.position.set(x - 1.2, 0.48, -2.2 + segW * 0.5 + i * segW);
+      seg.position.set(barX - barDepth * 0.5 - 0.02, 0.48, -2.2 + segW * 0.5 + i * segW);
       lit(seg, 1.2, 0.75, { glimmerSpeed: 2.0 + i * 0.15, phase: i });
       add(seg);
       flashMats.push({ mat: seg.material, day: 0.5, night: 1.25 });
     }
     // Bar top
-    const top = box(1.15, 0.09, 5.7, 0x2a2a30, { roughness: 0.35, metalness: 0.25 });
-    top.position.set(x - 0.7, 1.18, 0.15);
+    const top = box(barDepth + 0.12, 0.09, 5.7, 0x2a2a30, { roughness: 0.35, metalness: 0.25 });
+    top.position.set(barX, 1.18, 0.15);
     add(top);
     // Trans pride brick sitting on the bar top
     const prideBrick = buildTransPrideBrick();
-    prideBrick.position.set(x - 0.85, 1.28, 0.85);
+    prideBrick.position.set(barX - 0.1, 1.28, 0.85);
     prideBrick.rotation.y = 0.15;
     add(prideBrick);
-    // Stools
+    // Stools on the customer side
     for (let i = 0; i < 9; i++) {
       const stool = new THREE.Group();
       const seat = cyl(0.15, 0.15, 0.06, BLACK, {}, 8);
@@ -1505,45 +1542,45 @@ export function createInterior() {
       const leg = cyl(0.035, 0.045, 0.75, METAL, { metalness: 0.4, roughness: 0.5 }, 6);
       leg.position.y = 0.38;
       stool.add(leg);
-      stool.position.set(x - 1.65, 0, -2.0 + i * 0.55);
+      stool.position.set(barX - barDepth * 0.5 - 0.55, 0, -2.0 + i * 0.55);
       add(stool);
     }
 
-    buildBackBar(nightMats, lit, add, nightLights);
+    buildBackBar(nightMats, lit, add, nightLights, wallX);
 
-    // Vape
+    // Vape (on back-bar wall, end of run)
     const vape = box(0.55, 1.6, 0.35, 0x1a1a22);
-    vape.position.set(x - 0.4, 0.85, -3.2);
+    vape.position.set(wallX - 0.35, 0.85, -3.2);
     add(vape);
     const vapeScreen = box(0.42, 0.6, 0.05, 0x102018, {
       emissive: 0x20a040,
       emissiveIntensity: 0.55,
     });
-    vapeScreen.position.set(x - 0.58, 1.25, -3.2);
+    vapeScreen.position.set(wallX - 0.52, 1.25, -3.2);
     lit(vapeScreen, 0.8, 0.5);
     add(vapeScreen);
 
     // Bathroom
     const bathDoor = box(0.85, 2.15, 0.12, WOOD_DARK);
-    bathDoor.position.set(x - 0.25, 1.15, -3.9);
+    bathDoor.position.set(wallX - 0.2, 1.15, -3.9);
     add(bathDoor);
     const bathSign = neonBox(0.22, 0.22, 0.05, 0x9b6dff, 0.65);
-    bathSign.position.set(x - 0.3, 2.35, -3.9);
+    bathSign.position.set(wallX - 0.25, 2.35, -3.9);
     lit(bathSign, 0.95, 0.6);
     add(bathSign);
 
-    // Photobooth
+    // Photobooth (near west end of bar run)
     const booth = box(1.0, 2.25, 1.0, BLACK);
-    booth.position.set(x - 0.65, 1.15, 3.4);
+    booth.position.set(wallX - 0.55, 1.15, 3.4);
     add(booth);
     const curtain = box(0.8, 1.6, 0.1, 0x5a1a40, {
       emissive: 0x401028,
       emissiveIntensity: 0.22,
     });
-    curtain.position.set(x - 1.15, 1.05, 3.4);
+    curtain.position.set(wallX - 1.0, 1.05, 3.4);
     add(curtain);
     const photosNeon = neonBox(0.55, 0.16, 0.06, 0x80d0ff, 0.85);
-    photosNeon.position.set(x - 1.15, 2.35, 3.4);
+    photosNeon.position.set(wallX - 1.0, 2.35, 3.4);
     lit(photosNeon, 1.15, 0.75);
     add(photosNeon);
   }
