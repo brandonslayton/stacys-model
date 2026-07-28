@@ -1274,21 +1274,55 @@ export function createInterior() {
   }
 
   // Stage curtain rod just EAST (−Z) of the three railing columns — black
-  // drape pair like a proscenium / stage opening onto the dance floor.
+  // drape pair like a proscenium. Performance stage sits east of the curtains.
   {
     const curtainZ = railZ - 0.38; // ~1 ft east of the column line
     const rodX0 = railColXs[0] - 0.1;
     const rodX1 = railColXs[2] + 0.15;
     const rodLen = rodX1 - rodX0;
-    // Hang just under the vault at this z
     const rodY = roofYAt(curtainZ) - 0.22;
-    const curtainH = rodY - 0.15; // nearly to the floor
+    const curtainH = rodY - 0.15;
     const curtains = buildStageCurtains(rodLen, curtainH, {
       openGap: 0.32,
       folds: 8,
     });
     curtains.position.set(rodX0, rodY, curtainZ);
     add(curtains);
+
+    // Performance platform (drag / karaoke) — ~1 ft high, as long as the
+    // curtains, not too deep (narrow apron east of the drape line).
+    const stageH = 0.3; // ~1 foot
+    const stageDepth = 1.05; // not too wide
+    const stageLen = rodLen; // match curtain span
+    const stageZ = curtainZ - 0.22 - stageDepth * 0.5; // just east of curtains
+    const stageX = rodX0 + rodLen * 0.5;
+    // Skirt / riser body
+    const riser = box(stageLen, stageH, stageDepth, 0x1a1218, { roughness: 0.75 });
+    riser.position.set(stageX, stageH * 0.5, stageZ);
+    add(riser);
+    // Deck surface (slightly proud)
+    const deck = box(stageLen + 0.04, 0.04, stageDepth + 0.04, 0x2a1e28, {
+      roughness: 0.55,
+      metalness: 0.08,
+    });
+    deck.position.set(stageX, stageH + 0.02, stageZ);
+    add(deck);
+    // Front edge lip (toward the room / curtains)
+    const lip = box(stageLen + 0.06, 0.06, 0.06, 0x3a2a38, { roughness: 0.6 });
+    lip.position.set(stageX, stageH + 0.03, stageZ + stageDepth * 0.5 + 0.02);
+    add(lip);
+    // Subtle stage wash lights under the lip
+    const stageWash = new THREE.PointLight(0xff80c0, 0.55, 5, 2);
+    stageWash.position.set(stageX, stageH + 0.8, stageZ);
+    add(stageWash);
+    nightLights.push({ light: stageWash, day: 0.35, night: 0.7 });
+    g.userData.performanceStage = {
+      x: stageX,
+      y: stageH,
+      z: stageZ,
+      len: stageLen,
+      depth: stageDepth,
+    };
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -1532,22 +1566,13 @@ export function createInterior() {
     lit(ledBar, 1.25, 0.8, { glimmerSpeed: 3.5 });
     add(ledBar);
 
-    // Jukebox
-    const juke = box(0.65, 1.5, 0.45, 0x1a1020);
-    juke.position.set(x + 0.55, 0.8, 0.9);
-    add(juke);
-    const jukeGlow = box(0.48, 0.65, 0.1, 0xff4fa8, {
-      emissive: 0xff2a80,
-      emissiveIntensity: 0.75,
-    });
-    jukeGlow.position.set(x + 0.78, 1.05, 0.9);
-    lit(jukeGlow, 1.05, 0.65, { glimmerSpeed: 2.2 });
-    add(jukeGlow);
+    // (Jukebox / pink-glow unit between curtains and cathedral removed —
+    //  that slot is open toward the performance stage.)
 
-    // Booths
-    for (const z of [-3.5, -2.85]) {
+    // Booths further east by the DJ (not in front of the curtains)
+    for (const zb of [-3.5, -2.85]) {
       const booth = box(1.1, 0.6, 0.55, 0x3a2030);
-      booth.position.set(x + 1.4, 0.38, z);
+      booth.position.set(x + 1.4, 0.38, zb);
       add(booth);
     }
   }
@@ -1788,13 +1813,12 @@ export function createInterior() {
     nightLights.push({ light: danceKey, day: 0.55, night: 1.15 });
   }
 
-  // High-tops
+  // High-tops (away from the curtain / performance stage — the two that
+  // sat in front of the drapes at z≈1.8 / 1.2 were removed)
   for (const [x, z] of [
-    [-0.4, 1.8],
-    [0.6, 1.2],
     [-0.5, -2.8],
     [0.8, -2.2],
-    [-3.5, 1.0],
+    [-3.5, -1.2],
   ]) {
     const t = new THREE.Group();
     const top = cyl(0.28, 0.28, 0.06, WOOD_DARK, {}, 8);
