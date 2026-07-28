@@ -782,103 +782,117 @@ function foliageTex() {
   const c = document.createElement("canvas");
   c.width = c.height = S;
   const ctx = c.getContext("2d");
-  // Deep green base
+  // Fun jungle green base (no muddy black)
   const bg = ctx.createLinearGradient(0, 0, S, S);
-  bg.addColorStop(0, "#0a1e10");
-  bg.addColorStop(0.5, "#123018");
-  bg.addColorStop(1, "#0c2414");
+  bg.addColorStop(0, "#145028");
+  bg.addColorStop(0.45, "#1a6830");
+  bg.addColorStop(1, "#0e4820");
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, S, S);
-  // Layered leaf blobs
   let rs = 42;
   const rnd = () => ((rs = (rs * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
-  const greens = ["#1a4a22", "#246030", "#2e7840", "#185028", "#3a8a48", "#0e3818", "#1e5a28"];
-  for (let i = 0; i < 220; i++) {
+  // Cartoony chunky leaves — big teardrop / oval shapes only (no flowers)
+  const greens = [
+    "#2ecc71", "#27ae60", "#3dd68c", "#1e8a40", "#48c774",
+    "#20b060", "#6ae08a", "#189848", "#50d070", "#0f7030",
+  ];
+  for (let i = 0; i < 90; i++) {
     const x = rnd() * S;
     const y = rnd() * S;
-    const r = 10 + rnd() * 28;
+    const r = 18 + rnd() * 36;
+    const rot = rnd() * Math.PI;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rot);
     ctx.fillStyle = greens[i % greens.length];
+    // Fat teardrop leaf
     ctx.beginPath();
-    ctx.ellipse(x, y, r, r * (0.55 + rnd() * 0.5), rnd() * Math.PI, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, r * 0.45, r, 0, 0, Math.PI * 2);
     ctx.fill();
+    // Light midrib highlight
+    ctx.strokeStyle = "rgba(200,255,180,0.35)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, -r * 0.85);
+    ctx.lineTo(0, r * 0.85);
+    ctx.stroke();
+    ctx.restore();
   }
-  // Vine stems
-  ctx.strokeStyle = "rgba(20,60,28,0.55)";
-  ctx.lineWidth = 3;
-  for (let i = 0; i < 18; i++) {
+  // Playful vine squiggles
+  ctx.strokeStyle = "rgba(40,140,60,0.65)";
+  ctx.lineWidth = 5;
+  ctx.lineCap = "round";
+  for (let i = 0; i < 12; i++) {
     ctx.beginPath();
     let x = rnd() * S;
-    let y = 0;
+    let y = rnd() * S * 0.2;
     ctx.moveTo(x, y);
-    for (let k = 0; k < 8; k++) {
-      x += (rnd() - 0.5) * 40;
-      y += S / 8;
+    for (let k = 0; k < 10; k++) {
+      x += (rnd() - 0.5) * 50;
+      y += S / 11;
       ctx.lineTo(x, y);
     }
     ctx.stroke();
   }
-  // Red / pink accent flowers (photo has tropical blooms)
-  for (let i = 0; i < 28; i++) {
-    const x = rnd() * S;
-    const y = rnd() * S;
-    ctx.fillStyle = i % 3 ? "#c41e3a" : "#e85a8a";
+  // Lime speckles for cartoony pop
+  for (let i = 0; i < 60; i++) {
+    ctx.fillStyle = "rgba(180,255,120,0.35)";
     ctx.beginPath();
-    ctx.arc(x, y, 3 + rnd() * 6, 0, Math.PI * 2);
+    ctx.arc(rnd() * S, rnd() * S, 2 + rnd() * 3, 0, Math.PI * 2);
     ctx.fill();
-    // Petal rays
-    for (let p = 0; p < 5; p++) {
-      const a = (p / 5) * Math.PI * 2;
-      ctx.beginPath();
-      ctx.ellipse(x + Math.cos(a) * 5, y + Math.sin(a) * 5, 4, 2.2, a, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  // Speckle highlights
-  for (let i = 0; i < 80; i++) {
-    ctx.fillStyle = "rgba(120,200,100,0.25)";
-    ctx.fillRect(rnd() * S, rnd() * S, 2, 2);
   }
   return canvasTexture(c, 2);
 }
 
-/** Layered 3D foliage panel for the sign wall. */
+/** Layered cartoony foliage panel for the activation wall (leaves only — no flowers). */
 function buildFoliageWall(w = 2.4, h = 2.4) {
   const g = new THREE.Group();
   const back = new THREE.Mesh(
     new THREE.PlaneGeometry(w, h),
     new THREE.MeshStandardMaterial({
       map: foliageTex(),
-      roughness: 0.9,
+      roughness: 0.88,
       flatShading: true,
     })
   );
   g.add(back);
-  // Proud leaf clumps for depth
-  const leafCols = [0x1e5a28, 0x2a7a38, 0x246030, 0x3a8a48, 0x185028];
+  // Big proud low-poly leaves for depth (chunky, fun, no flowers)
+  const leafCols = [0x2ecc71, 0x27ae60, 0x3dd68c, 0x1e8a40, 0x48c774, 0x6ae08a, 0x20b060];
   let rs = 99;
   const rnd = () => ((rs = (rs * 16807) % 2147483647) / 2147483647);
-  for (let i = 0; i < 48; i++) {
-    const lx = (rnd() - 0.5) * w * 0.9;
-    const ly = (rnd() - 0.5) * h * 0.9;
-    const s = 0.12 + rnd() * 0.18;
-    const leaf = box(s, s * 0.55, 0.06 + rnd() * 0.08, leafCols[i % leafCols.length], {
-      roughness: 0.92,
+  for (let i = 0; i < 56; i++) {
+    const lx = (rnd() - 0.5) * w * 0.92;
+    const ly = (rnd() - 0.5) * h * 0.92;
+    const s = 0.16 + rnd() * 0.28;
+    // Fat diamond / kite leaf (reads as cartoony foliage, not a brick)
+    const leaf = box(s * 0.55, s, 0.07 + rnd() * 0.06, leafCols[i % leafCols.length], {
+      roughness: 0.85,
       castShadow: false,
+      emissive: leafCols[i % leafCols.length],
+      emissiveIntensity: 0.06,
     });
-    leaf.position.set(lx, ly, 0.04 + rnd() * 0.08);
-    leaf.rotation.z = rnd() * Math.PI;
-    leaf.rotation.x = (rnd() - 0.5) * 0.4;
+    leaf.position.set(lx, ly, 0.05 + rnd() * 0.1);
+    leaf.rotation.z = (rnd() - 0.5) * 1.2;
+    leaf.rotation.x = (rnd() - 0.5) * 0.5;
+    leaf.rotation.y = (rnd() - 0.5) * 0.35;
     g.add(leaf);
   }
-  // Flower accents
-  for (let i = 0; i < 14; i++) {
-    const flower = cyl(0.04, 0.04, 0.03, i % 2 ? 0xc41e3a : 0xe85a8a, {
-      roughness: 0.7,
+  // A few oversized "hero" leaves for silhouette pop
+  for (let i = 0; i < 8; i++) {
+    const s = 0.38 + rnd() * 0.18;
+    const hero = box(s * 0.4, s, 0.1, leafCols[(i + 3) % leafCols.length], {
+      roughness: 0.82,
       castShadow: false,
-    }, 6);
-    flower.rotation.x = Math.PI / 2;
-    flower.position.set((rnd() - 0.5) * w * 0.8, (rnd() - 0.5) * h * 0.8, 0.1);
-    g.add(flower);
+      emissive: 0x1a6030,
+      emissiveIntensity: 0.08,
+    });
+    hero.position.set(
+      (rnd() - 0.5) * w * 0.7,
+      (rnd() - 0.5) * h * 0.7,
+      0.12 + rnd() * 0.06
+    );
+    hero.rotation.z = (rnd() - 0.5) * 0.9;
+    g.add(hero);
   }
   return g;
 }
@@ -3286,16 +3300,26 @@ function buildBackBar(nightMats, lit, add, nightLights, wallX) {
     }
   }
 
-  // Diamond Stacy's neon on the dark-purple back bar wall (window sits above)
-  const barDiamond = buildDiamondNeon(nightMats);
-  barDiamond.rotation.y = -Math.PI / 2;
-  barDiamond.position.set(wallX - 0.2, 2.55, 0.15);
-  barDiamond.scale.setScalar(1.1);
-  add(barDiamond);
-  const barNeonWash = new THREE.PointLight(0xff4fa8, 1.15, 5, 2);
-  barNeonWash.position.set(railX, 2.4, 0.15);
-  add(barNeonWash);
-  nightLights.push({ light: barNeonWash, day: 0.65, night: 1.25 });
+  // Stacy's diamond neon — smaller, resting ON the empty top shelf (not behind it)
+  {
+    const topShelfY = 1.22 + 3 * 0.38; // tier 3 surface
+    const dScale = 0.68;
+    const faceH = 0.72;
+    const barDiamond = buildDiamondNeon(nightMats);
+    barDiamond.rotation.y = -Math.PI / 2;
+    barDiamond.scale.setScalar(dScale);
+    // Sit on top shelf, proud toward the aisle so bottles don't hide it
+    barDiamond.position.set(
+      shelfX - 0.05,
+      topShelfY + 0.04 + (faceH * 0.5) * dScale,
+      0.15
+    );
+    add(barDiamond);
+    const barNeonWash = new THREE.PointLight(0xff4fa8, 0.95, 4.5, 2);
+    barNeonWash.position.set(shelfX - 0.35, topShelfY + 0.35, 0.15);
+    add(barNeonWash);
+    nightLights.push({ light: barNeonWash, day: 0.55, night: 1.1 });
+  }
 
   // Speed rail / well — bartender side of the aisle
   const well = box(0.5, 0.35, 2.6, 0x2a2a30, { metalness: 0.3, roughness: 0.4 });
