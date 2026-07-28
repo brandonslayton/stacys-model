@@ -1186,6 +1186,219 @@ function buildDiscoBall(radius = 0.22) {
   return g;
 }
 
+/**
+ * Gothic wrought-iron chandelier — chain, crown ring, candle arms.
+ * Local origin = ceiling mount; hangs down −Y. Orange/red candle glow with soft flicker.
+ */
+function buildGothicChandelier(lit, nightLights, flashLights) {
+  const g = new THREE.Group();
+  g.name = "gothicChandelier";
+
+  const iron = 0x1c1614;
+  const ironHi = 0x2e2622;
+  const bronze = 0x6a4830;
+  const amber = 0xff6a28;
+  const ember = 0xff3020;
+
+  // Ceiling rose / mount plate
+  const rose = cyl(0.14, 0.16, 0.05, ironHi, { metalness: 0.55, roughness: 0.4 }, 10);
+  rose.position.y = 0;
+  g.add(rose);
+  const roseRing = cyl(0.18, 0.18, 0.03, iron, { metalness: 0.5, roughness: 0.45 }, 12);
+  roseRing.position.y = -0.03;
+  g.add(roseRing);
+
+  // Drop chain (linked rings)
+  const chainLen = 0.95;
+  const linkN = 7;
+  for (let i = 0; i < linkN; i++) {
+    const link = cyl(0.045, 0.045, 0.04, ironHi, { metalness: 0.6, roughness: 0.35 }, 8);
+    link.scale.set(1, 1, 0.55);
+    link.rotation.x = (i % 2) * (Math.PI / 2);
+    link.position.y = -0.08 - (i + 0.5) * (chainLen / linkN);
+    g.add(link);
+  }
+  // Center rod through chain for silhouette
+  const rod = cyl(0.012, 0.012, chainLen + 0.15, iron, { metalness: 0.55, roughness: 0.4 }, 6);
+  rod.position.y = -chainLen * 0.5 - 0.05;
+  g.add(rod);
+
+  // Body hangs at end of chain — halfway down the room
+  const bodyY = -chainLen - 0.12;
+
+  // Gothic crown / finial on top of body
+  const finial = box(0.08, 0.16, 0.08, bronze, { metalness: 0.55, roughness: 0.35 });
+  finial.position.set(0, bodyY + 0.22, 0);
+  finial.rotation.y = Math.PI / 4;
+  g.add(finial);
+  const tip = cyl(0.02, 0.04, 0.1, bronze, { metalness: 0.6, roughness: 0.3 }, 6);
+  tip.position.set(0, bodyY + 0.34, 0);
+  g.add(tip);
+
+  // Central hub
+  const hub = cyl(0.11, 0.14, 0.18, ironHi, { metalness: 0.5, roughness: 0.38 }, 10);
+  hub.position.y = bodyY;
+  g.add(hub);
+  const hubBand = cyl(0.15, 0.15, 0.04, bronze, { metalness: 0.55, roughness: 0.32 }, 10);
+  hubBand.position.y = bodyY;
+  g.add(hubBand);
+
+  // Lower gothic drop / pointed boss
+  const boss = cyl(0.06, 0.02, 0.22, iron, { metalness: 0.5, roughness: 0.4 }, 8);
+  boss.position.y = bodyY - 0.2;
+  g.add(boss);
+  const bossTip = box(0.05, 0.08, 0.05, bronze, { metalness: 0.55, roughness: 0.35 });
+  bossTip.position.set(0, bodyY - 0.34, 0);
+  bossTip.rotation.y = Math.PI / 4;
+  g.add(bossTip);
+
+  // Six gothic arms + candles
+  const arms = 6;
+  const glowMats = [];
+  for (let i = 0; i < arms; i++) {
+    const a = (i / arms) * Math.PI * 2;
+    const arm = new THREE.Group();
+
+    // Curved arm from hub to candle (two segments)
+    const arm1 = box(0.04, 0.05, 0.22, iron, { metalness: 0.5, roughness: 0.4 });
+    arm1.position.set(0, 0.02, 0.14);
+    arm1.rotation.x = -0.55;
+    arm.add(arm1);
+    const arm2 = box(0.035, 0.04, 0.2, ironHi, { metalness: 0.5, roughness: 0.38 });
+    arm2.position.set(0, -0.06, 0.3);
+    arm2.rotation.x = 0.35;
+    arm.add(arm2);
+
+    // Scroll / leaf flourish at elbow
+    const scroll = box(0.06, 0.08, 0.04, bronze, { metalness: 0.45, roughness: 0.4 });
+    scroll.position.set(0, 0.0, 0.22);
+    scroll.rotation.x = -0.4;
+    arm.add(scroll);
+
+    // Candle cup
+    const cup = cyl(0.055, 0.04, 0.07, bronze, { metalness: 0.5, roughness: 0.35 }, 8);
+    cup.position.set(0, -0.02, 0.42);
+    arm.add(cup);
+    // Drip pan
+    const pan = cyl(0.07, 0.07, 0.02, ironHi, { metalness: 0.45, roughness: 0.4 }, 8);
+    pan.position.set(0, -0.06, 0.42);
+    arm.add(pan);
+
+    // Candle
+    const candle = cyl(0.028, 0.03, 0.14, 0xf0e8d0, { roughness: 0.75 }, 8);
+    candle.position.set(0, 0.08, 0.42);
+    arm.add(candle);
+
+    // Flame (soft orange/red emissive)
+    const flameCol = i % 2 === 0 ? amber : ember;
+    const flame = cyl(0.018, 0.006, 0.08, flameCol, {
+      emissive: flameCol,
+      emissiveIntensity: 1.1,
+      roughness: 0.35,
+      metalness: 0.05,
+    }, 6);
+    flame.position.set(0, 0.18, 0.42);
+    lit(flame, 1.35, 0.85, { glimmer: true, glimmerSpeed: 2.2 + i * 0.15, phase: i * 1.3 });
+    arm.add(flame);
+    glowMats.push(flame.material);
+
+    // Tiny flame tip
+    const tipF = cyl(0.01, 0.003, 0.04, 0xffe080, {
+      emissive: 0xffc040,
+      emissiveIntensity: 1.2,
+      roughness: 0.3,
+    }, 5);
+    tipF.position.set(0, 0.24, 0.42);
+    lit(tipF, 1.2, 0.75, { glimmer: true, glimmerSpeed: 3.1 + i * 0.2, phase: i * 0.7 });
+    arm.add(tipF);
+    glowMats.push(tipF.material);
+
+    // Crystal drop under cup
+    const drop = box(0.03, 0.1, 0.03, 0xc8a060, {
+      metalness: 0.35,
+      roughness: 0.25,
+      emissive: 0x402010,
+      emissiveIntensity: 0.25,
+      transparent: true,
+      opacity: 0.85,
+    });
+    drop.position.set(0, -0.14, 0.42);
+    drop.rotation.y = Math.PI / 4;
+    arm.add(drop);
+
+    arm.rotation.y = a;
+    arm.position.y = bodyY;
+    g.add(arm);
+  }
+
+  // Inner ring of smaller candles for density
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + 0.4;
+    const ix = Math.cos(a) * 0.22;
+    const iz = Math.sin(a) * 0.22;
+    const cup = cyl(0.04, 0.032, 0.05, bronze, { metalness: 0.5, roughness: 0.35 }, 7);
+    cup.position.set(ix, bodyY + 0.08, iz);
+    g.add(cup);
+    const candle = cyl(0.022, 0.024, 0.1, 0xf0e8d0, { roughness: 0.75 }, 6);
+    candle.position.set(ix, bodyY + 0.16, iz);
+    g.add(candle);
+    const flame = cyl(0.014, 0.005, 0.06, amber, {
+      emissive: amber,
+      emissiveIntensity: 1.0,
+      roughness: 0.35,
+    }, 5);
+    flame.position.set(ix, bodyY + 0.24, iz);
+    lit(flame, 1.2, 0.75, { glimmer: true, glimmerSpeed: 2.6 + i * 0.3, phase: i * 2.1 });
+    g.add(flame);
+    glowMats.push(flame.material);
+  }
+
+  // Warm fill lights — soft orange/red, gently flicker via flashLights
+  const mainGlow = new THREE.PointLight(0xff5520, 0.95, 5.5, 2);
+  mainGlow.position.set(0, bodyY + 0.15, 0);
+  g.add(mainGlow);
+  nightLights.push({ light: mainGlow, day: 0.55, night: 1.05 });
+  if (flashLights) {
+    flashLights.push({
+      light: mainGlow,
+      night: 1.05,
+      speed: 2.4,
+    });
+  }
+  const emberGlow = new THREE.PointLight(0xff2030, 0.4, 3.8, 2);
+  emberGlow.position.set(0, bodyY - 0.1, 0.15);
+  g.add(emberGlow);
+  nightLights.push({ light: emberGlow, day: 0.22, night: 0.5 });
+  if (flashLights) {
+    flashLights.push({
+      light: emberGlow,
+      night: 0.48,
+      speed: 1.7,
+    });
+  }
+
+  // Soft bloom halo (reads as heat haze)
+  const halo = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.35, 1.0),
+    new THREE.MeshBasicMaterial({
+      color: 0xff4018,
+      transparent: true,
+      opacity: 0.12,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    })
+  );
+  halo.position.set(0, bodyY + 0.1, 0);
+  halo.rotation.x = -0.2;
+  g.add(halo);
+
+  g.userData.glowMats = glowMats;
+  g.userData.bodyY = bodyY;
+  // Total hang length for placement (~ chain + body)
+  g.userData.hangLen = chainLen + 0.55;
+  return g;
+}
+
 /** Single TV screen — dark frame + colorful “show” content. */
 function tvScreenTex(seed = 0) {
   const c = document.createElement("canvas");
@@ -4768,6 +4981,20 @@ export function createInterior() {
     prideBrick.position.set(barX - 0.1, 1.28, 0.85);
     prideBrick.rotation.y = 0.15;
     add(prideBrick);
+
+    // Gothic chandelier — RIGHT side when facing the bar (east / −Z),
+    // hanging from the vault about halfway down over the customer stools.
+    {
+      const chand = buildGothicChandelier(lit, nightLights, flashLights);
+      // Ceiling height near bar (south of ridge) sits around eave
+      const ceilY = roofYAt(-1.8) - 0.08;
+      // Over customer edge of bar, east/right end
+      const chX = barX - barDepth * 0.5 - 0.55;
+      const chZ = 0.15 - 1.85; // right when facing +X at the bar
+      chand.position.set(chX, ceilY, chZ);
+      add(chand);
+      g.userData.barChandelier = chand;
+    }
 
     // Sleek square POS on the LEFT end of the bar (east / −Z when facing bar)
     // Staff side of the top — ring in drinks next to drafts / walk-in.
