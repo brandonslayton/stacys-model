@@ -1238,7 +1238,9 @@ function enterInterior() {
   insideMode = true;
   setOutsideVisible(false);
   interior.visible = true;
+  // Club neons stay on; frosted lot door follows real outdoor sun time
   interior.userData.setNight?.(1);
+  interior.userData.setDayAmbient?.(nightMix);
   // Spawn first-person at the front door looking into the room
   const sp = interior.userData.spawn || {};
   const wb = interior.userData.walk || INTERIOR_WALK;
@@ -1566,6 +1568,9 @@ async function boot() {
     last = now;
 
     const vnow = venueNow();
+    // Always track real sun time so the interior frosted lot door matches
+    // outdoor day/night even while the club neons stay "on".
+    nightMix = nightFromSun(vnow, weather?.sunriseMin, weather?.sunsetMin);
 
     if (insideMode) {
       // Club neons always on; rainbow window cycles hue
@@ -1577,11 +1582,11 @@ async function boot() {
           // Karaoke host + singers: Monday night, or always while creative/open so the room feels alive
           karaoke: isMon || isOpenForSim(vnow),
         };
+        interior.userData.setDayAmbient?.(nightMix);
       }
       interior?.userData.tickInterior?.(now / 1000);
       stepFp(dt);
     } else {
-      nightMix = nightFromSun(vnow, weather?.sunriseMin, weather?.sunsetMin);
       applyNight(nightMix);
       model.userData.tickNight?.(now);
       flicker.update(now / 1000, nightMix);

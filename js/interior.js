@@ -777,6 +777,49 @@ function dartboardTex() {
   return canvasTexture(c, 2);
 }
 
+/** Soft milky frost for the north lot glass door (opaque, transmits sky glow). */
+function frostedGlassTex() {
+  const S = 256;
+  const c = document.createElement("canvas");
+  c.width = c.height = S;
+  const ctx = c.getContext("2d");
+  // Cool milky base
+  const g = ctx.createLinearGradient(0, 0, S * 0.3, S);
+  g.addColorStop(0, "#e8f0f6");
+  g.addColorStop(0.45, "#c8d8e6");
+  g.addColorStop(1, "#a8c0d4");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, S, S);
+  // Soft grain / etch (reads as frosted privacy glass)
+  for (let i = 0; i < 900; i++) {
+    const x = Math.random() * S;
+    const y = Math.random() * S;
+    const a = 0.04 + Math.random() * 0.1;
+    const r = 0.6 + Math.random() * 2.4;
+    ctx.fillStyle =
+      Math.random() > 0.5
+        ? `rgba(255,255,255,${a})`
+        : `rgba(140,170,200,${a * 0.8})`;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Faint horizontal privacy bands
+  for (let y = 0; y < S; y += 7) {
+    ctx.fillStyle = `rgba(255,255,255,${0.03 + (y % 21 === 0 ? 0.05 : 0)})`;
+    ctx.fillRect(0, y, S, 2);
+  }
+  // Soft vertical highlight edge
+  const edge = ctx.createLinearGradient(0, 0, S, 0);
+  edge.addColorStop(0, "rgba(255,255,255,0.18)");
+  edge.addColorStop(0.15, "rgba(255,255,255,0)");
+  edge.addColorStop(0.85, "rgba(255,255,255,0)");
+  edge.addColorStop(1, "rgba(200,220,240,0.12)");
+  ctx.fillStyle = edge;
+  ctx.fillRect(0, 0, S, S);
+  return canvasTexture(c, 4);
+}
+
 function foliageTex() {
   const S = 512;
   const c = document.createElement("canvas");
@@ -4178,46 +4221,114 @@ export function createInterior() {
     // Facing north: left = +Z — nudge further left toward the west corner.
     const doorZ = 3.78;
 
-    // Full glass door to the parking lot — aluminum frame + clear panes
+    // Frosted glass lot door — opaque frost that transmits outdoor daylight.
+    // Bright by day (natural room fill), nearly dark after sunset. Driven by
+    // setDayAmbient(nightT), not club neon setNight.
     {
       const dw = 1.15;
       const dh = 2.25;
-      const frame = box(0.12, dh + 0.12, dw + 0.12, 0x4a5058, {
-        metalness: 0.45,
-        roughness: 0.35,
+      const frostMap = frostedGlassTex();
+
+      const frame = box(0.12, dh + 0.12, dw + 0.12, 0x5a6068, {
+        metalness: 0.5,
+        roughness: 0.32,
       });
       frame.position.set(x, dh * 0.5 + 0.06, doorZ);
       add(frame);
-      // Two vertical panes (double glass door)
+      // Outer aluminum face trim (storefront)
+      const face = box(0.04, dh + 0.04, dw + 0.04, 0x8a9098, {
+        metalness: 0.55,
+        roughness: 0.28,
+      });
+      face.position.set(x + 0.07, dh * 0.5 + 0.02, doorZ);
+      add(face);
+
+      // Two frosted leaves — milky, rough, soft sky emissive (daylight through glass)
+      const dayMats = [];
       for (const side of [-1, 1]) {
-        const pane = box(0.05, dh - 0.15, dw * 0.42, 0x8ec8e8, {
+        const paneMat = new THREE.MeshStandardMaterial({
+          color: 0xd0dce6,
+          map: frostMap,
+          emissive: 0xc4daf0,
+          emissiveMap: frostMap,
+          emissiveIntensity: 0.85,
+          roughness: 0.82,
+          metalness: 0.04,
           transparent: true,
-          opacity: 0.28,
-          roughness: 0.12,
-          metalness: 0.25,
-          emissive: 0x306080,
-          emissiveIntensity: 0.18,
+          opacity: 0.92,
+          flatShading: true,
         });
-        pane.position.set(x + 0.06, dh * 0.5 + 0.02, doorZ + side * dw * 0.24);
+        const pane = new THREE.Mesh(
+          new THREE.BoxGeometry(0.06, dh - 0.18, dw * 0.42),
+          paneMat
+        );
+        pane.position.set(x + 0.08, dh * 0.5 + 0.02, doorZ + side * dw * 0.24);
+        pane.castShadow = false;
+        pane.receiveShadow = true;
         add(pane);
+        dayMats.push({ mat: paneMat, day: 0.95, night: 0.04 });
       }
+      // Soft luminous edge strip so frost reads as backlit glass, not plastic
+      for (const side of [-1, 1]) {
+        const edgeMat = new THREE.MeshStandardMaterial({
+          color: 0xe8f2fa,
+          emissive: 0xd0e8ff,
+          emissiveIntensity: 0.55,
+          roughness: 0.55,
+          metalness: 0.08,
+          transparent: true,
+          opacity: 0.75,
+          flatShading: true,
+        });
+        const edge = new THREE.Mesh(
+          new THREE.BoxGeometry(0.03, dh - 0.28, dw * 0.36),
+          edgeMat
+        );
+        edge.position.set(x + 0.11, dh * 0.5 + 0.02, doorZ + side * dw * 0.24);
+        edge.castShadow = false;
+        add(edge);
+        dayMats.push({ mat: edgeMat, day: 0.7, night: 0.02 });
+      }
+
       // Mid stile + push bar
-      const stile = box(0.06, dh - 0.1, 0.08, 0x3a4048, { metalness: 0.4, roughness: 0.4 });
-      stile.position.set(x + 0.05, dh * 0.5, doorZ);
+      const stile = box(0.06, dh - 0.12, 0.09, 0x4a5058, { metalness: 0.45, roughness: 0.38 });
+      stile.position.set(x + 0.06, dh * 0.5, doorZ);
       add(stile);
       const push = box(0.05, 0.05, dw * 0.7, 0xc8ccd0, { metalness: 0.55, roughness: 0.35 });
-      push.position.set(x + 0.12, 1.05, doorZ);
+      push.position.set(x + 0.14, 1.05, doorZ);
       add(push);
-      // EXIT glow above
+      // Bottom kick plate
+      const kick = box(0.07, 0.22, dw * 0.92, 0x3a4048, { metalness: 0.4, roughness: 0.42 });
+      kick.position.set(x + 0.08, 0.18, doorZ);
+      add(kick);
+      // EXIT glow above (club neon — stays on setNight)
       const exitLite = neonBox(0.08, 0.12, 0.45, 0x3dd68c, 0.85);
       exitLite.position.set(x + 0.1, dh + 0.18, doorZ);
       lit(exitLite, 1.1, 0.7);
       add(exitLite);
-      // Night lot glow through glass
-      const lotGlow = new THREE.PointLight(0x80b0d0, 0.4, 4, 2);
-      lotGlow.position.set(x + 0.6, 1.4, doorZ);
-      add(lotGlow);
-      nightLights.push({ light: lotGlow, day: 0.25, night: 0.5 });
+
+      // Daylight spill into the room (warm sun + cool sky mix)
+      const sunSpill = new THREE.PointLight(0xffe4c0, 1.55, 7.5, 2);
+      sunSpill.position.set(x + 1.35, 1.55, doorZ);
+      add(sunSpill);
+      const skyFill = new THREE.PointLight(0xb8d4f0, 0.75, 9, 2);
+      skyFill.position.set(x + 2.1, 2.1, doorZ);
+      add(skyFill);
+      // Soft pool on the floor just inside the door
+      const floorPool = new THREE.PointLight(0xfff0d8, 0.55, 4.5, 2);
+      floorPool.position.set(x + 1.0, 0.35, doorZ);
+      add(floorPool);
+
+      const dayLights = [
+        { light: sunSpill, day: 1.65, night: 0.02 },
+        { light: skyFill, day: 0.85, night: 0.01 },
+        { light: floorPool, day: 0.6, night: 0.0 },
+      ];
+      // Publish for setDayAmbient (real outdoor sun time)
+      g.userData.dayAmbient = g.userData.dayAmbient || { mats: [], lights: [] };
+      g.userData.dayAmbient.mats.push(...dayMats);
+      g.userData.dayAmbient.lights.push(...dayLights);
+      g.userData.lotDoor = { z: doorZ, x, mats: dayMats, lights: dayLights };
     }
 
     // Dark wood railing to the right of the glass door, running SOUTH (+X)
@@ -4928,6 +5039,33 @@ export function createInterior() {
     flashLights,
   });
   g.userData.setNight?.(1);
+
+  // Outdoor daylight channel (inverse of club neon): high at noon, off at night.
+  // Used by the frosted lot door so real sun time washes into the room.
+  g.userData.setDayAmbient = (nightT) => {
+    const t = Math.max(0, Math.min(1, nightT));
+    // Soft sunset curve — full day until late afternoon, then falls off
+    const sun = Math.pow(1 - t, 1.15);
+    const da = g.userData.dayAmbient;
+    if (!da) return;
+    for (const e of da.mats || []) {
+      if (!e?.mat) continue;
+      e.mat.emissiveIntensity = e.night + (e.day - e.night) * sun;
+      // Slightly cooler/darker glass base as night comes on
+      if (e.mat.color) {
+        const dayCol = 0xd0dce6;
+        const nightCol = 0x3a4550;
+        e.mat.color.setHex(dayCol).lerp(new THREE.Color(nightCol), t * 0.85);
+      }
+    }
+    for (const e of da.lights || []) {
+      if (!e?.light) continue;
+      e.light.intensity = e.night + (e.day - e.night) * sun;
+    }
+    g.userData._dayNightT = t;
+  };
+  // Default: full day until pocket drives real sun time
+  g.userData.setDayAmbient?.(0);
 
   // Rainbow cathedral (body + peak + neon), diamond, disco, TVs
   g.userData.tickInterior = (nowSec) => {
