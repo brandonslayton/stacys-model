@@ -1227,6 +1227,54 @@ function setOutsideVisible(vis) {
   }
 }
 
+/** True while the enter-interior rainbow loader is up (blocks double-tap). */
+let enterLoadPending = false;
+
+function showEnterLoad(on) {
+  const el = $("enter-load");
+  const btn = $("inside");
+  if (el) {
+    el.hidden = !on;
+    el.setAttribute("aria-busy", on ? "true" : "false");
+  }
+  if (btn) {
+    btn.classList.toggle("loading", !!on);
+    btn.disabled = !!on;
+  }
+}
+
+/**
+ * Enter the club with a rainbow loading overlay.
+ * First interior frame can hitch 1–2s (shader compile / mesh wake); paint the
+ * loader first so the tap always feels acknowledged.
+ */
+function enterInteriorWithLoader() {
+  if (insideMode || !interior || enterLoadPending) return;
+  enterLoadPending = true;
+  const started = performance.now();
+  showEnterLoad(true);
+  // Double-rAF: let the browser paint the overlay before the main-thread hitch
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      try {
+        enterInterior();
+      } finally {
+        // Keep spinner up at least ~320ms so it never just flashes; longer if
+        // the hitch itself was long (shader compile etc.).
+        const minMs = 320;
+        const elapsed = performance.now() - started;
+        const wait = Math.max(0, minMs - elapsed);
+        const finish = () => {
+          showEnterLoad(false);
+          enterLoadPending = false;
+        };
+        if (wait > 0) setTimeout(finish, wait);
+        else requestAnimationFrame(finish);
+      }
+    });
+  });
+}
+
 function enterInterior() {
   if (insideMode || !interior) return;
   cancelFocus();
@@ -1320,8 +1368,9 @@ function wireInsideButton() {
   if (!btn) return;
   btn.innerHTML = INSIDE_ICON;
   btn.onclick = () => {
+    if (enterLoadPending) return;
     if (insideMode) exitInterior();
-    else enterInterior();
+    else enterInteriorWithLoader();
   };
   const exitBtn = $("exit-inside");
   if (exitBtn) {

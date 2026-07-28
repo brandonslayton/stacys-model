@@ -902,6 +902,122 @@ body.inside-mode #card {
   pointer-events: none;
 }
 
+/* ---------------------------------------------------------------- enter-interior loader
+   Rainbow ring + diamond while the first inside frame compiles (can hitch ~1–2s). */
+#enter-load {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: rgba(12, 8, 22, 0.55);
+  backdrop-filter: blur(10px) saturate(130%);
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+#enter-load:not([hidden]) {
+  opacity: 1;
+}
+#enter-load[hidden] {
+  display: none !important;
+}
+.enter-load-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 22px 28px 20px;
+  border-radius: 20px;
+  background: rgba(18, 14, 32, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 95, 162, 0.12);
+}
+.rainbow-spin {
+  position: relative;
+  width: 64px;
+  height: 64px;
+}
+.rainbow-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    #ff3b3b,
+    #ff9a1a,
+    #ffe14a,
+    #3dd68c,
+    #3ca0ff,
+    #9b6dff,
+    #ff4fa8,
+    #ff3b3b
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  animation: rainbow-spin 0.95s linear infinite;
+  filter: drop-shadow(0 0 10px rgba(255, 95, 162, 0.45));
+}
+.rainbow-diamond {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  transform: rotate(45deg);
+  border-radius: 4px;
+  background: linear-gradient(
+    135deg,
+    #ff4fa8 0%,
+    #9b6dff 35%,
+    #3ca0ff 55%,
+    #3dd68c 75%,
+    #ffe14a 100%
+  );
+  background-size: 200% 200%;
+  animation: rainbow-shift 1.6s ease-in-out infinite alternate;
+  box-shadow:
+    0 0 14px rgba(255, 95, 162, 0.55),
+    inset 0 0 0 1.5px rgba(255, 255, 255, 0.35);
+}
+.enter-load-txt {
+  margin: 0;
+  font: 700 14px/1.2 Outfit, "DM Sans", system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  color: #f2eef8;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.55);
+}
+@keyframes rainbow-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes rainbow-shift {
+  from {
+    background-position: 0% 40%;
+  }
+  to {
+    background-position: 100% 60%;
+  }
+}
+
+/* Pulse the Inside button while the loader is up */
+#inside.loading {
+  pointer-events: none;
+  opacity: 0.85;
+  box-shadow: 0 0 0 2px rgba(255, 95, 162, 0.55);
+  animation: inside-btn-pulse 0.9s ease-in-out infinite;
+}
+@keyframes inside-btn-pulse {
+  50% {
+    box-shadow: 0 0 0 4px rgba(157, 109, 255, 0.45);
+  }
+}
+
 #err {
   position: fixed;
   left: var(--pad);
