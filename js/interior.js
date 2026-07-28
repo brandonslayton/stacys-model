@@ -1303,11 +1303,11 @@ export function createInterior() {
     });
     deck.position.set(stageX, stageH + 0.02, stageZ);
     add(deck);
-    // Front edge lip (toward the room / curtains)
+    // Front edge lip (audience / pit side = east / −Z)
     const lip = box(stageLen + 0.06, 0.06, 0.06, 0x3a2a38, { roughness: 0.6 });
-    lip.position.set(stageX, stageH + 0.03, stageZ + stageDepth * 0.5 + 0.02);
+    lip.position.set(stageX, stageH + 0.03, stageZ - stageDepth * 0.5 - 0.02);
     add(lip);
-    // Subtle stage wash lights under the lip
+    // Subtle stage wash
     const stageWash = new THREE.PointLight(0xff80c0, 0.55, 5, 2);
     stageWash.position.set(stageX, stageH + 0.8, stageZ);
     add(stageWash);
@@ -1319,6 +1319,98 @@ export function createInterior() {
       len: stageLen,
       depth: stageDepth,
     };
+
+    // ── The Pit ────────────────────────────────────────────────────
+    // Sunken dance floor in front of the stage: same length as the stage,
+    // ~10" gap from the stage apron, flush with the north (cathedral) wall.
+    // One step down — tables sometimes go here for drag shows.
+    {
+      const gap = 0.25; // ~10 inches from the stage
+      const pitDepth = 0.14; // one step into the ground
+      const pitLen = stageLen; // same width/length as the stage
+      const pitSpan = 2.35; // how far it extends in front of the stage (east)
+      // Flush with north wall (cathedral / neon-window wall)
+      const pitXMin = -halfW + WALL * 0.5 + 0.02;
+      const pitX = pitXMin + pitLen * 0.5;
+      // Stage's east face, then 10" gap, then the pit runs further east (−Z)
+      const stageEastFace = stageZ - stageDepth * 0.5;
+      const pitWestFace = stageEastFace - gap; // closest edge to the stage
+      const pitZ = pitWestFace - pitSpan * 0.5;
+
+      // Sunken floor
+      const pitFloor = box(pitLen, 0.06, pitSpan, 0x18101c, {
+        roughness: 0.4,
+        metalness: 0.12,
+      });
+      pitFloor.position.set(pitX, 0.04 - pitDepth, pitZ);
+      add(pitFloor);
+
+      // Step walls / curb around the pit
+      const curbH = pitDepth + 0.05;
+      const curbY = pitDepth * 0.4;
+      // South curb (+X end of pit — open toward the room)
+      const curbS = box(0.12, curbH, pitSpan + 0.08, 0x2a1a28, { roughness: 0.72 });
+      curbS.position.set(pitX + pitLen * 0.5, curbY, pitZ);
+      add(curbS);
+      // East curb (far from stage)
+      const curbE = box(pitLen + 0.12, curbH, 0.12, 0x2a1a28, { roughness: 0.72 });
+      curbE.position.set(pitX, curbY, pitZ - pitSpan * 0.5);
+      add(curbE);
+      // West curb (toward stage) — leaves the 10" gap
+      const curbW = box(pitLen + 0.12, curbH, 0.1, 0x2a1a28, { roughness: 0.72 });
+      curbW.position.set(pitX, curbY, pitWestFace);
+      add(curbW);
+      // North side is flush with the wall — no curb (wall is the edge)
+
+      // Glow tiles on the pit floor
+      const tileCols = [0xff4fa8, 0x40e0ff, 0x9b6dff, 0x3dd68c, 0xffe14a];
+      const cols = 5;
+      const rows = 3;
+      for (let i = 0; i < cols; i++) {
+        for (let j = 0; j < rows; j++) {
+          const tw = (pitLen - 0.2) / cols;
+          const td = (pitSpan - 0.2) / rows;
+          const tile = box(tw * 0.88, 0.02, td * 0.88, 0x201828, {
+            emissive: tileCols[(i + j) % tileCols.length],
+            emissiveIntensity: 0.24,
+          });
+          tile.position.set(
+            pitX - pitLen * 0.5 + 0.12 + (i + 0.5) * tw,
+            0.08 - pitDepth,
+            pitZ - pitSpan * 0.5 + 0.12 + (j + 0.5) * td
+          );
+          lit(tile, 0.48, 0.24, { glimmerSpeed: 1.4 + i * 0.15, phase: i + j });
+          add(tile);
+        }
+      }
+
+      // Ambient dance lights over The Pit
+      const danceLights = [];
+      for (let i = 0; i < 4; i++) {
+        const col = [0xff4fa8, 0x40e0ff, 0x9b6dff, 0x3dd68c][i];
+        const dl = new THREE.PointLight(col, 0.7, 6, 2);
+        dl.position.set(pitX, 2.5, pitZ);
+        add(dl);
+        danceLights.push(dl);
+        flashLights.push({ light: dl });
+        nightLights.push({ light: dl, day: 0.4, night: 0.9 });
+      }
+      g.userData.danceLights = danceLights;
+      g.userData.danceCenter = { x: pitX, z: pitZ };
+      g.userData.thePit = {
+        x: pitX,
+        z: pitZ,
+        len: pitLen,
+        span: pitSpan,
+        depth: pitDepth,
+        gap,
+      };
+
+      const danceKey = new THREE.PointLight(0xff80c0, 1.0, 8, 2);
+      danceKey.position.set(pitX, 2.6, pitZ);
+      add(danceKey);
+      nightLights.push({ light: danceKey, day: 0.55, night: 1.15 });
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -1748,69 +1840,7 @@ export function createInterior() {
     add(photosNeon);
   }
 
-  // ── Dance floor — slightly sunken pit (photo has indented hardwood) ──
-  {
-    const pitX = -1.6;
-    const pitZ = -0.9;
-    const pitW = 3.6;
-    const pitD = 3.0;
-    const pitDepth = 0.12;
-
-    // Pit floor (indented)
-    const dance = box(pitW, 0.06, pitD, 0x18101c, { roughness: 0.35, metalness: 0.2 });
-    dance.position.set(pitX, 0.04 - pitDepth, pitZ);
-    add(dance);
-    // Pit walls / step edge
-    for (const [dx, dz, ww, dd] of [
-      [0, pitD * 0.5, pitW + 0.12, 0.12],
-      [0, -pitD * 0.5, pitW + 0.12, 0.12],
-      [pitW * 0.5, 0, 0.12, pitD],
-      [-pitW * 0.5, 0, 0.12, pitD],
-    ]) {
-      const edge = box(ww, pitDepth + 0.04, dd, 0x2a1a28, { roughness: 0.7 });
-      edge.position.set(pitX + dx, pitDepth * 0.35, pitZ + dz);
-      add(edge);
-    }
-    // Glow tiles on sunken floor
-    const tileCols = [0xff4fa8, 0x40e0ff, 0x9b6dff, 0x3dd68c, 0xffe14a];
-    for (let i = 0; i < 5; i++) {
-      for (let j = 0; j < 4; j++) {
-        const tile = box(0.58, 0.02, 0.58, 0x201828, {
-          emissive: tileCols[(i + j) % tileCols.length],
-          emissiveIntensity: 0.22,
-        });
-        tile.position.set(
-          pitX - 1.4 + i * 0.7,
-          0.08 - pitDepth,
-          pitZ - 1.05 + j * 0.7
-        );
-        lit(tile, 0.45, 0.22, { glimmerSpeed: 1.4 + i * 0.15, phase: i + j });
-        add(tile);
-      }
-    }
-    // Ambient dance lights (colored, animated in tick)
-    const danceLights = [];
-    for (let i = 0; i < 4; i++) {
-      const col = [0xff4fa8, 0x40e0ff, 0x9b6dff, 0x3dd68c][i];
-      const dl = new THREE.PointLight(col, 0.7, 6, 2);
-      dl.position.set(pitX, 2.5, pitZ);
-      add(dl);
-      danceLights.push(dl);
-      flashLights.push({ light: dl });
-      nightLights.push({ light: dl, day: 0.4, night: 0.9 });
-    }
-    g.userData.danceLights = danceLights;
-    g.userData.danceCenter = { x: pitX, z: pitZ };
-
-    // Overhead color wash
-    const danceKey = new THREE.PointLight(0xff80c0, 1.0, 8, 2);
-    danceKey.position.set(pitX, 2.6, pitZ);
-    add(danceKey);
-    nightLights.push({ light: danceKey, day: 0.55, night: 1.15 });
-  }
-
-  // High-tops (away from the curtain / performance stage — the two that
-  // sat in front of the drapes at z≈1.8 / 1.2 were removed)
+  // High-tops (away from The Pit / stage — kept off the sunken dance apron)
   for (const [x, z] of [
     [-0.5, -2.8],
     [0.8, -2.2],
