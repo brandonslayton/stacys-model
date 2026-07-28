@@ -28,6 +28,7 @@ import {
   STACYS_DISPLAY,
   STACYS_UI,
 } from "./stacys.js";
+import { createInteriorLife } from "./interiorLife.js";
 
 /** Thick modern club UI type (Outfit). Stacy's wordmark uses STACYS_DISPLAY via font:"logo". */
 const FUN_FONT = `Outfit, "DM Sans", "Segoe UI", system-ui, sans-serif`;
@@ -4185,6 +4186,8 @@ export function createInterior() {
 
     // Patio door (end of the flat east wall / video-wall run)
     const patioX = 1.55;
+    g.userData.patioDoor = { x: patioX, z: z + 0.35 };
+    g.userData.patioSpot = { x: patioX, z: z + 0.85 }; // just inside, hanging by the door
     const patioDoor = box(1.0, 2.15, 0.12, 0x2a3a2a);
     patioDoor.position.set(patioX, 1.15, z + 0.08);
     add(patioDoor);
@@ -4460,12 +4463,12 @@ export function createInterior() {
 
     buildBackBar(nightMats, lit, add, nightLights, wallX);
 
-    // Bartender + ambient tasks (venue is open)
+    // Bartender + ambient tasks (lot-style guests arrive via interiorLife)
     {
       const btX = barX + barDepth * 0.5 + 0.38; // service aisle
       const btZ0 = 0.15;
       const barFrontX = barX - barDepth * 0.5;
-      // Patron stool positions (match customer stools)
+      // Patron stool / order spots (match customer stools)
       const stoolZs = [];
       for (let i = 0; i < 9; i++) stoolZs.push(-2.0 + i * 0.55);
 
@@ -4475,32 +4478,25 @@ export function createInterior() {
       bt.rotation.y = -Math.PI / 2;
       add(bt);
 
-      // Seated patron (toggles presence over time)
-      const patron = buildBarPatron(0x5a3a7a);
-      const patronZ = stoolZs[4]; // mid-bar seat
-      patron.position.set(barFrontX - 0.55, 0, patronZ);
-      patron.rotation.y = Math.PI / 2; // face bar / +X (bartender)
-      patron.visible = true;
-      add(patron);
-
+      g.userData.barFrontX = barFrontX;
+      g.userData.stoolZs = stoolZs;
       g.userData.bartender = {
         mesh: bt,
-        patron,
         homeX: btX,
         homeZ: btZ0,
         zMin: -1.35,
         zMax: 1.5,
         restockX: btX + 0.25, // step toward back bar
         // State machine
-        state: "serve", // clean | restock | serve | idle
+        state: "idle", // clean | restock | serve | idle
         stateT: 0,
-        stateDur: 6,
-        patronPresent: true,
-        patronTimer: 0,
+        stateDur: 4,
+        patronPresent: false,
+        orderGuest: null,
         // Zones along the bar for tasks
         cleanZ: 0.6,
         restockZ: -0.8,
-        serveZ: patronZ,
+        serveZ: stoolZs[4],
       };
     }
 
@@ -4821,7 +4817,8 @@ export function createInterior() {
     const disco = g.userData.discoBall;
     if (disco) disco.rotation.y = nowSec * 0.7;
 
-    // Bartender ambient AI: clean · restock · serve (if patron) · idle
+    // Bartender ambient AI: clean · restock · serve (when guests order) · idle
+    // Guests are lot-style peds driven by interiorLife (enter → bar → mingle…).
     const bt = g.userData.bartender;
     if (bt?.mesh) {
       const m = bt.mesh;
@@ -4829,48 +4826,24 @@ export function createInterior() {
       bt._lastT = nowSec;
       bt.stateT = (bt.stateT || 0) + dt;
 
-      // Patron comes and goes every ~18–28s
-      bt.patronTimer = (bt.patronTimer || 0) + dt;
-      if (bt.patronTimer > 12 + (bt.patronPresent ? 16 : 8)) {
-        bt.patronTimer = 0;
-        // Prefer having a patron more often when open
-        bt.patronPresent = !bt.patronPresent || Math.random() < 0.35;
-        if (bt.patron) bt.patron.visible = bt.patronPresent;
-        // If they just sat down, interrupt into serve
-        if (bt.patronPresent && bt.state !== "serve") {
-          bt.state = "serve";
-          bt.stateT = 0;
-          bt.stateDur = 7 + Math.random() * 3;
-        }
-      }
-      if (bt.patron) {
-        bt.patron.visible = !!bt.patronPresent;
-        // Subtle patron fidget
-        const pt = bt.patron.userData.torso;
-        if (pt && bt.patronPresent) {
-          pt.rotation.z = Math.sin(nowSec * 0.8) * 0.04;
-          pt.rotation.x = Math.sin(nowSec * 1.1) * 0.03;
-        }
-      }
-
-      // Pick next task when current ends
+      // Pick next task when current ends (serve is short — quick pour for orders)
       if (bt.stateT >= (bt.stateDur || 5)) {
         bt.stateT = 0;
         const roll = Math.random();
-        if (bt.patronPresent && roll < 0.5) {
+        if (bt.patronPresent && roll < 0.55) {
           bt.state = "serve";
-          bt.stateDur = 6 + Math.random() * 4;
-        } else if (roll < 0.72) {
+          bt.stateDur = 3.0 + Math.random() * 1.5;
+        } else if (roll < 0.75) {
           bt.state = "clean";
-          bt.stateDur = 5 + Math.random() * 3;
+          bt.stateDur = 4 + Math.random() * 3;
           bt.cleanZ = THREE.MathUtils.lerp(bt.zMin, bt.zMax, Math.random());
         } else if (roll < 0.9) {
           bt.state = "restock";
-          bt.stateDur = 4 + Math.random() * 2.5;
+          bt.stateDur = 3.5 + Math.random() * 2;
           bt.restockZ = THREE.MathUtils.lerp(bt.zMin + 0.2, bt.zMax - 0.2, Math.random());
         } else {
           bt.state = "idle";
-          bt.stateDur = 2.5 + Math.random() * 2;
+          bt.stateDur = 2 + Math.random() * 2;
         }
       }
 
@@ -5046,6 +5019,9 @@ export function createInterior() {
     };
     rotateMaps(g.userData.musicScreens, 4.5);
     rotateMaps(g.userData.adScreens, 6.5);
+
+    // Lot-style crowd: enter, order, mingle, patio, karaoke
+    g.userData.interiorLife?.tick?.(nowSec, g.userData._lifeOpts || { karaoke: true, open: true });
   };
 
   // Spawn just inside the wooden front doors, looking into the club —
@@ -5062,6 +5038,33 @@ export function createInterior() {
     center: new THREE.Vector3(0, 1.4, 0),
     radius: 6.5,
   };
+
+  // ── Living room: lot pedestrians + karaoke host ─────────────────
+  {
+    const stage = g.userData.performanceStage;
+    const mingleSpots = [
+      { x: -1.2, z: 0.2 }, // dance floor / pit edge
+      { x: -0.4, z: -1.0 },
+      { x: 0.6, z: 1.2 },
+      { x: 0.9, z: -1.8 }, // high-top area
+      { x: -2.0, z: 1.6 }, // near stage apron
+      { x: -1.5, z: -2.4 }, // DJ side
+      { x: 1.2, z: 0.4 },
+      { x: -0.2, z: 2.2 }, // west room
+    ];
+    g.userData.interiorLife = createInteriorLife(g, {
+      entrance: { x: g.userData.spawn.x, z: g.userData.spawn.z + 0.35 },
+      barFrontX: g.userData.barFrontX ?? halfW - 2.8,
+      stoolZs: g.userData.stoolZs || [-2, -1.45, -0.9, -0.35, 0.2, 0.75, 1.3, 1.85, 2.4],
+      mingleSpots,
+      patioDoor: g.userData.patioDoor || { x: 1.55, z: -halfD + 0.5 },
+      patioSpot: g.userData.patioSpot || { x: 1.55, z: -halfD + 0.9 },
+      stage,
+      walk: WALK,
+      bartender: g.userData.bartender,
+    });
+    g.userData._lifeOpts = { karaoke: true, open: true };
+  }
 
   return g;
 }

@@ -1568,6 +1568,15 @@ async function boot() {
 
     if (insideMode) {
       // Club neons always on; rainbow window cycles hue
+      // Monday karaoke night + open doors drive interior crowd life
+      if (interior) {
+        const isMon = String(vnow.weekday || "").toLowerCase() === "monday";
+        interior.userData._lifeOpts = {
+          open: isOpenForSim(vnow),
+          // Karaoke host + singers: Monday night, or always while creative/open so the room feels alive
+          karaoke: isMon || isOpenForSim(vnow),
+        };
+      }
       interior?.userData.tickInterior?.(now / 1000);
       stepFp(dt);
     } else {
