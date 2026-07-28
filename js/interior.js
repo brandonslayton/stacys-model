@@ -48,7 +48,8 @@ const RAFTER_WOOD = 0x2a1e16;
 const RAFTER_DARK = 0x1a120e;
 
 // Walk bounds (inset from walls so the camera never clips furniture hard).
-// xMax stops short of the bartender aisle + back bar.
+// xMax stops short of the bartender aisle on the main floor; loft/stair
+// expand this in pocket.js via userData.loft / userData.stair.
 export const WALK = {
   xMin: -halfW + 0.55,
   xMax: halfW - 2.9,
@@ -56,6 +57,345 @@ export const WALK = {
   zMax: halfD - 0.55,
   eyeY: 1.55,
 };
+
+/**
+ * Circular staircase — wedge treads climbing around a center pole.
+ * Returns group + step samples for walk height (local/world same if unrotated).
+ */
+function buildSpiralStair(totalH, opts = {}) {
+  const {
+    turns = 1.65,
+    steps = 16,
+    radius = 0.72,
+    treadW = 0.42,
+    treadD = 0.28,
+    startAngle = Math.PI * 0.15, // open toward the room
+  } = opts;
+  const g = new THREE.Group();
+  g.name = "spiralStair";
+  // Center pole
+  const pole = cyl(0.07, 0.08, totalH + 0.15, 0x2a2a32, {
+    metalness: 0.45,
+    roughness: 0.4,
+  }, 10);
+  pole.position.y = totalH * 0.5;
+  g.add(pole);
+  // Finial
+  const finial = cyl(0.09, 0.05, 0.08, 0x3a3a42, { metalness: 0.5, roughness: 0.35 }, 8);
+  finial.position.y = totalH + 0.1;
+  g.add(finial);
+
+  const stepSamples = [];
+  for (let i = 0; i < steps; i++) {
+    const t = i / (steps - 1);
+    const a = startAngle + t * turns * Math.PI * 2;
+    const y = 0.04 + t * totalH;
+    const px = Math.cos(a) * radius;
+    const pz = Math.sin(a) * radius;
+    const tread = box(treadW, 0.045, treadD, i % 2 ? WOOD_COL : WOOD_COL_DARK, {
+      roughness: 0.75,
+    });
+    tread.position.set(px, y, pz);
+    tread.rotation.y = -a;
+    g.add(tread);
+    // Riser lip
+    const lip = box(treadW * 0.95, 0.03, 0.04, WOOD_COL_DARK, { roughness: 0.8 });
+    lip.position.set(px, y - 0.03, pz);
+    lip.rotation.y = -a;
+    g.add(lip);
+    // Outer handrail post
+    if (i % 2 === 0) {
+      const post = cyl(0.02, 0.02, 0.55, METAL, { metalness: 0.5, roughness: 0.4 }, 6);
+      const ox = Math.cos(a) * (radius + treadW * 0.35);
+      const oz = Math.sin(a) * (radius + treadW * 0.35);
+      post.position.set(ox, y + 0.28, oz);
+      g.add(post);
+    }
+    stepSamples.push({
+      x: px,
+      z: pz,
+      y,
+      r: treadW * 0.55,
+    });
+  }
+  // Continuous outer rail ribbon (short horizontal segments around the spiral)
+  for (let i = 0; i < steps - 1; i++) {
+    const t0 = i / (steps - 1);
+    const t1 = (i + 1) / (steps - 1);
+    const a0 = startAngle + t0 * turns * Math.PI * 2;
+    const a1 = startAngle + t1 * turns * Math.PI * 2;
+    const rRail = radius + treadW * 0.35;
+    const x0 = Math.cos(a0) * rRail;
+    const z0 = Math.sin(a0) * rRail;
+    const x1 = Math.cos(a1) * rRail;
+    const z1 = Math.sin(a1) * rRail;
+    const y0 = 0.04 + t0 * totalH + 0.55;
+    const y1 = 0.04 + t1 * totalH + 0.55;
+    const mx = (x0 + x1) * 0.5;
+    const mz = (z0 + z1) * 0.5;
+    const my = (y0 + y1) * 0.5;
+    const len = Math.hypot(x1 - x0, z1 - z0) + 0.02;
+    const rail = box(len, 0.04, 0.04, 0xc8a040, { metalness: 0.45, roughness: 0.35 });
+    rail.position.set(mx, my, mz);
+    rail.rotation.y = -Math.atan2(z1 - z0, x1 - x0);
+    g.add(rail);
+  }
+
+  g.userData.stepSamples = stepSamples;
+  g.userData.totalH = totalH;
+  g.userData.radius = radius;
+  g.userData.outerR = radius + treadW * 0.5;
+  return g;
+}
+
+/**
+ * Management loft / catwalk above the bar — lookout over the dance floor.
+ * Historic DJ perch; now gear + a small work desk. Floor at `floorY`.
+ */
+function buildBarLoft(nightMats, lit, floorY, dims) {
+  const { xMin, xMax, zMin, zMax } = dims;
+  const g = new THREE.Group();
+  g.name = "barLoft";
+  const lenZ = zMax - zMin;
+  const lenX = xMax - xMin;
+  const cx = (xMin + xMax) * 0.5;
+  const cz = (zMin + zMax) * 0.5;
+
+  // Deck / floor
+  const deck = box(lenX, 0.08, lenZ, 0x2a2018, { roughness: 0.82 });
+  deck.position.set(cx, floorY - 0.04, cz);
+  g.add(deck);
+  // Plank lines on top
+  const nPlank = Math.max(4, Math.floor(lenZ / 0.35));
+  for (let i = 0; i < nPlank; i++) {
+    const pz = zMin + 0.15 + (i + 0.5) * ((lenZ - 0.3) / nPlank);
+    const plank = box(lenX * 0.96, 0.015, 0.28, i % 2 ? 0x3a2a1e : 0x2e2218, {
+      roughness: 0.88,
+      castShadow: false,
+    });
+    plank.position.set(cx, floorY + 0.01, pz);
+    g.add(plank);
+  }
+
+  // Soffit underside (visible from the dance floor)
+  const soffit = box(lenX + 0.08, 0.06, lenZ + 0.08, 0x1a120e, { roughness: 0.9 });
+  soffit.position.set(cx, floorY - 0.12, cz);
+  g.add(soffit);
+  // Support beams under the loft (along Z)
+  for (const u of [-0.35, 0.35]) {
+    const beam = box(0.12, 0.14, lenZ * 0.95, RAFTER_WOOD, { roughness: 0.85 });
+    beam.position.set(cx + u * lenX * 0.4, floorY - 0.22, cz);
+    g.add(beam);
+  }
+  // Cross joists
+  for (let i = 0; i < 5; i++) {
+    const jz = zMin + 0.3 + i * ((lenZ - 0.6) / 4);
+    const joist = box(lenX * 0.92, 0.1, 0.1, RAFTER_DARK, { roughness: 0.88 });
+    joist.position.set(cx, floorY - 0.22, jz);
+    g.add(joist);
+  }
+
+  // Posts down to bar area (hold the loft up)
+  for (const [px, pz] of [
+    [xMin + 0.2, zMin + 0.35],
+    [xMin + 0.2, zMax - 0.35],
+    [xMax - 0.15, zMin + 0.5],
+    [xMax - 0.15, zMax - 0.5],
+  ]) {
+    const post = box(0.14, floorY - 0.15, 0.14, WOOD_COL_DARK, { roughness: 0.8 });
+    post.position.set(px, (floorY - 0.15) * 0.5, pz);
+    g.add(post);
+  }
+
+  // Lookout railing on the dance-floor side (−X / north face of loft)
+  const railH = 0.95;
+  const railTopY = floorY + railH;
+  const lookX = xMin + 0.06;
+  const topRail = box(0.07, 0.06, lenZ * 0.98, WOOD_COL, { roughness: 0.75 });
+  topRail.position.set(lookX, railTopY, cz);
+  g.add(topRail);
+  const botRail = box(0.06, 0.05, lenZ * 0.98, WOOD_COL_DARK, { roughness: 0.8 });
+  botRail.position.set(lookX, floorY + 0.28, cz);
+  g.add(botRail);
+  const picketN = Math.floor(lenZ / 0.22);
+  for (let i = 0; i < picketN; i++) {
+    const pz = zMin + 0.12 + (i + 0.5) * ((lenZ - 0.24) / picketN);
+    const picket = box(0.04, railH - 0.12, 0.04, i % 2 ? WOOD_COL : WOOD_COL_DARK, {
+      roughness: 0.8,
+    });
+    picket.position.set(lookX, floorY + railH * 0.5, pz);
+    g.add(picket);
+  }
+  // Side rails (east/west ends open toward stair on east)
+  for (const zEdge of [zMin + 0.05, zMax - 0.05]) {
+    const side = box(lenX * 0.9, 0.06, 0.06, WOOD_COL, { roughness: 0.75 });
+    side.position.set(cx, railTopY, zEdge);
+    g.add(side);
+  }
+  // Back wall low curb against south wall
+  const curb = box(0.12, 0.45, lenZ * 0.98, 0x1a1420, { roughness: 0.75 });
+  curb.position.set(xMax - 0.08, floorY + 0.22, cz);
+  g.add(curb);
+
+  // LED strip under lookout lip (reads the loft edge from the floor)
+  const underLed = box(0.05, 0.03, lenZ * 0.9, 0xff4fa8, {
+    emissive: 0xff2a80,
+    emissiveIntensity: 0.7,
+  });
+  underLed.position.set(lookX - 0.02, floorY - 0.08, cz);
+  lit(underLed, 0.95, 0.55, { glimmerSpeed: 2.4 });
+  g.add(underLed);
+
+  // ── Management desk + monitors (old DJ perch gear) ──
+  const deskZ = cz + lenZ * 0.12;
+  const desk = box(0.55, 0.08, 1.4, 0x1a1a22, { roughness: 0.45, metalness: 0.25 });
+  desk.position.set(cx + 0.15, floorY + 0.78, deskZ);
+  g.add(desk);
+  const deskLegL = box(0.08, 0.75, 1.35, 0x12141a, { roughness: 0.6 });
+  deskLegL.position.set(cx + 0.15, floorY + 0.38, deskZ);
+  g.add(deskLegL);
+
+  // Dual monitors facing the lookout / dance floor (−X)
+  for (const [dz, label] of [
+    [-0.35, "LIGHTS"],
+    [0.35, "AUDIO"],
+  ]) {
+    const mon = box(0.06, 0.32, 0.42, 0x0a0c10, { metalness: 0.4, roughness: 0.35 });
+    mon.position.set(cx - 0.05, floorY + 1.05, deskZ + dz);
+    g.add(mon);
+    const scr = box(0.04, 0.28, 0.38, 0x0a2840, {
+      emissive: 0x186080,
+      emissiveIntensity: 0.75,
+      roughness: 0.25,
+    });
+    scr.position.set(cx - 0.09, floorY + 1.05, deskZ + dz);
+    lit(scr, 1.05, 0.6);
+    g.add(scr);
+    const ui = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.34, 0.24),
+      new THREE.MeshStandardMaterial({
+        map: labelTex(label, {
+          w: 220,
+          h: 140,
+          bg: "#0a2040",
+          fg: "#80e8ff",
+          size: 32,
+          weight: 800,
+          font: "fun",
+        }),
+        emissive: 0x2080c0,
+        emissiveIntensity: 0.5,
+        roughness: 0.4,
+        flatShading: true,
+      })
+    );
+    ui.position.set(cx - 0.12, floorY + 1.05, deskZ + dz);
+    ui.rotation.y = Math.PI / 2; // face the dance floor (−X)
+    g.add(ui);
+  }
+
+  // Small mixer leftover on the desk
+  const mix = box(0.28, 0.06, 0.45, 0x12141a, { metalness: 0.35, roughness: 0.4 });
+  mix.position.set(cx + 0.05, floorY + 0.86, deskZ);
+  g.add(mix);
+  for (let i = 0; i < 6; i++) {
+    const k = cyl(0.015, 0.015, 0.02, [0xff4fa8, 0x40e0ff, 0x9b6dff][i % 3], {
+      emissive: [0xff4fa8, 0x40e0ff, 0x9b6dff][i % 3],
+      emissiveIntensity: 0.5,
+    }, 6);
+    k.position.set(cx + 0.02, floorY + 0.92, deskZ - 0.15 + i * 0.06);
+    lit(k, 0.65, 0.35, { glimmerSpeed: 2.5 + i * 0.2 });
+    g.add(k);
+  }
+
+  // Rolling stool
+  const stool = cyl(0.16, 0.16, 0.06, 0x1a1a22, { roughness: 0.6 }, 10);
+  stool.position.set(cx + 0.45, floorY + 0.55, deskZ + 0.55);
+  g.add(stool);
+  const stoolPost = cyl(0.04, 0.05, 0.5, METAL, { metalness: 0.5, roughness: 0.4 }, 6);
+  stoolPost.position.set(cx + 0.45, floorY + 0.28, deskZ + 0.55);
+  g.add(stoolPost);
+
+  // Road cases / gear along the back wall
+  for (const [dz, col] of [
+    [-lenZ * 0.28, 0x1a1a22],
+    [lenZ * 0.32, 0x221818],
+  ]) {
+    const case_ = box(0.45, 0.55, 0.7, col, { roughness: 0.7 });
+    case_.position.set(xMax - 0.35, floorY + 0.3, cz + dz);
+    g.add(case_);
+    const latch = box(0.08, 0.06, 0.12, 0xc8a040, { metalness: 0.5, roughness: 0.4 });
+    latch.position.set(xMax - 0.58, floorY + 0.35, cz + dz);
+    g.add(latch);
+  }
+
+  // Moving-head lights on the loft edge (point at dance floor)
+  for (const dz of [-lenZ * 0.3, 0, lenZ * 0.3]) {
+    const base = box(0.16, 0.1, 0.16, 0x1a1a22, { metalness: 0.4, roughness: 0.4 });
+    base.position.set(lookX + 0.12, floorY + 0.08, cz + dz);
+    g.add(base);
+    const head = cyl(0.07, 0.09, 0.14, 0x2a2a32, { metalness: 0.45, roughness: 0.35 }, 8);
+    head.rotation.z = Math.PI / 2;
+    head.position.set(lookX - 0.05, floorY + 0.12, cz + dz);
+    g.add(head);
+    const lens = cyl(0.05, 0.05, 0.04, 0x80c0ff, {
+      emissive: 0x4080ff,
+      emissiveIntensity: 0.65,
+    }, 8);
+    lens.rotation.z = Math.PI / 2;
+    lens.position.set(lookX - 0.14, floorY + 0.12, cz + dz);
+    lit(lens, 0.85, 0.5, { glimmerSpeed: 3.0 });
+    g.add(lens);
+  }
+
+  // Loft work lights
+  const loftKey = new THREE.PointLight(0xffd0a0, 0.7, 5, 2);
+  loftKey.position.set(cx, floorY + 1.4, cz);
+  g.add(loftKey);
+  const loftCool = new THREE.PointLight(0x80c0ff, 0.35, 4, 2);
+  loftCool.position.set(lookX + 0.3, floorY + 1.1, cz);
+  g.add(loftCool);
+
+  // Small "MGR" plate on the rail
+  const plate = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.35, 0.1),
+    new THREE.MeshStandardMaterial({
+      map: labelTex("LOOKOUT", {
+        w: 200,
+        h: 64,
+        bg: "#1a1020",
+        fg: "#ff80c0",
+        size: 28,
+        weight: 800,
+        font: "fun",
+      }),
+      emissive: 0xff4fa8,
+      emissiveIntensity: 0.4,
+      roughness: 0.45,
+      flatShading: true,
+    })
+  );
+  plate.position.set(lookX - 0.04, floorY + 0.7, cz);
+  plate.rotation.y = -Math.PI / 2;
+  g.add(plate);
+
+  // TVs on the loft face (as in the refs — hanging toward the room)
+  for (const dz of [-0.85, 0.85]) {
+    const tv = box(0.08, 0.4, 0.55, 0x0a0c10, { metalness: 0.35, roughness: 0.4 });
+    tv.position.set(lookX - 0.08, floorY - 0.35, cz + dz);
+    g.add(tv);
+    const tvScr = box(0.04, 0.34, 0.48, 0x102030, {
+      emissive: 0x204060,
+      emissiveIntensity: 0.55,
+      roughness: 0.3,
+    });
+    tvScr.position.set(lookX - 0.13, floorY - 0.35, cz + dz);
+    lit(tvScr, 0.8, 0.45);
+    g.add(tvScr);
+  }
+
+  return g;
+}
 
 const WOOD = 0x4a3428;
 const WOOD_DARK = 0x2e2018;
@@ -1970,16 +2310,16 @@ function buildBackBar(nightMats, lit, add, nightLights, wallX) {
     }
   }
 
-  // Diamond Stacy's neon on the back bar wall
+  // Diamond Stacy's neon on the back bar wall (under the loft soffit)
   const barDiamond = buildDiamondNeon(nightMats);
   barDiamond.rotation.y = -Math.PI / 2;
-  barDiamond.position.set(wallX - 0.2, 2.75, 0.15);
-  barDiamond.scale.setScalar(1.15);
+  barDiamond.position.set(wallX - 0.2, 2.35, 0.15);
+  barDiamond.scale.setScalar(1.0);
   add(barDiamond);
-  const barNeonWash = new THREE.PointLight(0xff4fa8, 1.1, 5, 2);
-  barNeonWash.position.set(railX, 2.6, 0.15);
+  const barNeonWash = new THREE.PointLight(0xff4fa8, 1.0, 5, 2);
+  barNeonWash.position.set(railX, 2.25, 0.15);
   add(barNeonWash);
-  nightLights.push({ light: barNeonWash, day: 0.65, night: 1.25 });
+  nightLights.push({ light: barNeonWash, day: 0.6, night: 1.15 });
 
   // Speed rail / well — bartender side of the aisle
   const well = box(0.5, 0.35, 2.6, 0x2a2a30, { metalness: 0.3, roughness: 0.4 });
@@ -2966,6 +3306,85 @@ export function createInterior() {
     photosNeon.position.set(wallX - 1.0, 2.35, 3.4);
     lit(photosNeon, 1.15, 0.75);
     add(photosNeon);
+
+    // ══════════════════════════════════════════════════════════════
+    // BAR LOFT / CATWALK + SPIRAL STAIR (management lookout)
+    // Refs: loft railing + TVs above the rainbow bar; spiral by baths.
+    // Historic DJ perch — now a walkable management space.
+    // ══════════════════════════════════════════════════════════════
+    {
+      const loftFloorY = 2.72;
+      // Loft sits above the bar run, open lookout toward the dance floor (−X)
+      const loftXMin = barX - barDepth * 0.15; // slight overhang past bar front
+      const loftXMax = wallX - 0.12;
+      const loftZMin = -2.35;
+      const loftZMax = 2.65;
+
+      const loft = buildBarLoft(nightMats, lit, loftFloorY, {
+        xMin: loftXMin,
+        xMax: loftXMax,
+        zMin: loftZMin,
+        zMax: loftZMax,
+      });
+      add(loft);
+
+      // Spiral stair near bathrooms (SE of bar, by bath entry)
+      const stairCx = wallX - 1.45;
+      const stairCz = -2.95; // snug to loft east end so the top treads meet the landing
+      const stair = buildSpiralStair(loftFloorY, {
+        turns: 1.6,
+        steps: 16,
+        radius: 0.7,
+        treadW: 0.42,
+        startAngle: Math.PI * 0.55, // bottom opens into the room aisle
+      });
+      stair.position.set(stairCx, 0, stairCz);
+      add(stair);
+
+      // Landing bridge: loft east end → spiral top
+      const landZ = loftZMin - 0.28;
+      const landing = box(loftXMax - loftXMin, 0.07, 0.7, 0x2a2018, { roughness: 0.8 });
+      landing.position.set((loftXMin + loftXMax) * 0.5, loftFloorY - 0.03, landZ);
+      add(landing);
+      const landRail = box(0.06, 0.9, 0.65, WOOD_COL, { roughness: 0.75 });
+      landRail.position.set(loftXMin + 0.05, loftFloorY + 0.45, landZ);
+      add(landRail);
+
+      // Stair halo light
+      const stairLight = new THREE.PointLight(0xffc090, 0.55, 4, 2);
+      stairLight.position.set(stairCx, loftFloorY * 0.55, stairCz);
+      add(stairLight);
+      nightLights.push({ light: stairLight, day: 0.3, night: 0.65 });
+
+      // World-space step samples for walk height
+      const stepWorld = (stair.userData.stepSamples || []).map((s) => ({
+        x: s.x + stairCx,
+        z: s.z + stairCz,
+        y: s.y,
+        r: s.r,
+      }));
+      // Landing as a high step
+      stepWorld.push({
+        x: (loftXMin + loftXMax) * 0.5,
+        z: landZ,
+        y: loftFloorY,
+        r: 0.55,
+      });
+
+      g.userData.loft = {
+        floorY: loftFloorY,
+        xMin: loftXMin,
+        xMax: loftXMax,
+        zMin: loftZMin - 0.4, // include landing
+        zMax: loftZMax,
+      };
+      g.userData.stair = {
+        cx: stairCx,
+        cz: stairCz,
+        outerR: stair.userData.outerR || 1.0,
+        steps: stepWorld,
+      };
+    }
   }
 
   // High-tops — kept clear of The Pit (no furniture over the sunken floor)

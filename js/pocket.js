@@ -221,17 +221,63 @@ function applyFpCamera() {
   camera.lookAt(fp.x + look.x, fp.y + look.y, fp.z + look.z);
 }
 
+/** Surface height offset under the player (0 = main floor). */
+function sampleInteriorSurfaceY(x, z) {
+  if (!interior?.userData) return 0;
+  const loft = interior.userData.loft;
+  if (
+    loft &&
+    x >= loft.xMin &&
+    x <= loft.xMax &&
+    z >= loft.zMin &&
+    z <= loft.zMax
+  ) {
+    return loft.floorY;
+  }
+  const stair = interior.userData.stair;
+  if (stair?.steps?.length) {
+    let best = 0;
+    for (const s of stair.steps) {
+      const d = Math.hypot(x - s.x, z - s.z);
+      if (d < s.r) best = Math.max(best, s.y);
+    }
+    if (best > 0.05) return best;
+  }
+  const pit = interior.userData.thePit;
+  if (pit && x >= pit.xMin && x <= pit.xMax && z >= pit.zMin && z <= pit.zMax) {
+    return -(pit.depth || 0.34);
+  }
+  return 0;
+}
+
 function clampFp() {
   const b = fp.bounds;
-  fp.x = THREE.MathUtils.clamp(fp.x, b.xMin, b.xMax);
-  fp.z = THREE.MathUtils.clamp(fp.z, b.zMin, b.zMax);
-  // Drop eye height when standing in The Pit so the step-down is felt
-  let eye = b.eyeY;
-  const pit = interior?.userData?.thePit;
-  if (pit && fp.x >= pit.xMin && fp.x <= pit.xMax && fp.z >= pit.zMin && fp.z <= pit.zMax) {
-    eye = b.eyeY - (pit.depth || 0.34);
+  const loft = interior?.userData?.loft;
+  const stair = interior?.userData?.stair;
+  const surf = sampleInteriorSurfaceY(fp.x, fp.z);
+  const elevated = surf > 0.4;
+
+  // On the loft (or climbing the spiral) open the south walk bounds so
+  // management space + stair are reachable; main floor keeps the bar aisle blocked.
+  let xMin = b.xMin;
+  let xMax = b.xMax;
+  let zMin = b.zMin;
+  let zMax = b.zMax;
+  if (elevated && loft) {
+    xMin = loft.xMin + 0.2;
+    xMax = loft.xMax - 0.15;
+    zMin = loft.zMin + 0.15;
+    zMax = loft.zMax - 0.15;
+  } else if (stair && Math.hypot(fp.x - stair.cx, fp.z - stair.cz) < (stair.outerR || 1) + 0.55) {
+    xMax = Math.max(xMax, stair.cx + (stair.outerR || 1) + 0.35);
+    zMin = Math.min(zMin, stair.cz - (stair.outerR || 1) - 0.35);
   }
-  fp.y = eye;
+
+  fp.x = THREE.MathUtils.clamp(fp.x, xMin, xMax);
+  fp.z = THREE.MathUtils.clamp(fp.z, zMin, zMax);
+  // Re-sample after clamp (edge of loft / stair)
+  const surfaceY = sampleInteriorSurfaceY(fp.x, fp.z);
+  fp.y = b.eyeY + surfaceY;
   fp.pitch = THREE.MathUtils.clamp(fp.pitch, -72, 68);
 }
 
