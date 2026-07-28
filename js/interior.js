@@ -1252,11 +1252,8 @@ export function createInterior() {
   }
 
   // Twisted dark-wood columns — full height to the vault.
-  // Three in a row on the railing line (z≈2.2), so the rail touches all three:
-  //   1) ~1 ft in from the north wall
-  //   2) mid bay
-  //   3) south end of the rail run
-  // Plus two free columns further into the room (aligned with railing end x).
+  // Three on the railing line (z≈2.2). One free column further into the room.
+  // (Removed the free column at z≈−1.25 that sat in front of the cathedral window.)
   const railZ = 2.2;
   const railNearWallX = -halfW + 0.35 + 0.3; // ~1 ft (0.3 units) off the north wall
   const railColXs = [railNearWallX, -2.4, -0.35];
@@ -1264,8 +1261,7 @@ export function createInterior() {
     [railColXs[0], railZ], // closest to north wall on the rail
     [railColXs[1], railZ], // mid railing post
     [railColXs[2], railZ], // south end of rail run
-    [0.35, 1.55],
-    [0.35, -1.25],
+    [0.35, 1.55], // free post (not on the cathedral sightline)
   ]) {
     const topY = roofYAt(z) - 0.12;
     const col = buildTwistedColumn(topY);
