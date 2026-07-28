@@ -1045,6 +1045,154 @@ function tvScreenTex(seed = 0) {
   return canvasTexture(c, 2);
 }
 
+/** Music-video / dance-party graphics for the jukebox TV (landscape). */
+function musicVideoTex(seed = 0) {
+  const c = document.createElement("canvas");
+  c.width = 384;
+  c.height = 216;
+  const ctx = c.getContext("2d");
+  const palettes = [
+    ["#120820", "#ff2a80", "#40e0ff", "#ffe14a"],
+    ["#081828", "#9b6dff", "#3dd68c", "#ff80c0"],
+    ["#1a0820", "#ff6a3a", "#60e8ff", "#c080ff"],
+    ["#0a1028", "#40e0ff", "#ff4fa8", "#80ffb0"],
+  ][seed % 4];
+  const g = ctx.createLinearGradient(0, 0, 384, 216);
+  g.addColorStop(0, palettes[0]);
+  g.addColorStop(0.45, palettes[1]);
+  g.addColorStop(1, palettes[2]);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 384, 216);
+  // EQ bars
+  for (let i = 0; i < 18; i++) {
+    const h = 20 + ((i * 17 + seed * 9) % 90);
+    ctx.fillStyle = i % 2 ? palettes[2] : palettes[3];
+    ctx.globalAlpha = 0.55;
+    ctx.fillRect(24 + i * 19, 180 - h, 12, h);
+  }
+  ctx.globalAlpha = 1;
+  // Performer blob
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  ctx.beginPath();
+  ctx.ellipse(192, 150, 55, 60, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(192, 85, 32, 0, Math.PI * 2);
+  ctx.fill();
+  // Notes
+  ctx.fillStyle = palettes[3];
+  ctx.font = `800 36px ${FUN_FONT}`;
+  ctx.textAlign = "center";
+  ctx.fillText("♪  ♫  ♬", 192, 55);
+  // Banner
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
+  ctx.fillRect(0, 0, 384, 32);
+  ctx.fillStyle = "#fff";
+  ctx.font = `800 18px ${FUN_FONT}`;
+  const vids = ["MUSIC VIDEO", "DANCE MIX", "CLUB VISUALS", "NOW SPINNING", "PARTY MODE", "BASS DROP"];
+  ctx.fillText(vids[seed % vids.length], 192, 22);
+  return canvasTexture(c, 2);
+}
+
+/** Vertical bar advertisement (portrait). */
+function barAdTex(seed = 0) {
+  const c = document.createElement("canvas");
+  c.width = 200;
+  c.height = 360;
+  const ctx = c.getContext("2d");
+  const ads = [
+    { bg: ["#1a0828", "#ff2a80"], title: "KARAOKE", sub: "MONDAYS", tag: "8PM · NO COVER" },
+    { bg: ["#081828", "#40e0ff"], title: "HAPPY\nHOUR", sub: "DAILY 4–7", tag: "$5 WELLS" },
+    { bg: ["#201018", "#ff6a3a"], title: "DRAG\nNIGHT", sub: "FRIDAYS", tag: "DOORS 9PM" },
+    { bg: ["#102818", "#3dd68c"], title: "DANCE\nPARTY", sub: "SATURDAYS", tag: "DJ SETS" },
+    { bg: ["#180828", "#9b6dff"], title: "STACY'S", sub: "@ MELROSE", tag: "COME THRU" },
+    { bg: ["#101020", "#ffe14a"], title: "BOTTLE\nSERVICE", sub: "VIP BOOTHS", tag: "ASK THE BAR" },
+  ];
+  const ad = ads[seed % ads.length];
+  const g = ctx.createLinearGradient(0, 0, 0, 360);
+  g.addColorStop(0, ad.bg[0]);
+  g.addColorStop(1, ad.bg[1]);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 200, 360);
+  ctx.fillStyle = "rgba(255,255,255,0.08)";
+  for (let i = 0; i < 8; i++) ctx.fillRect(0, i * 48, 200, 2);
+  ctx.fillStyle = "#fff";
+  ctx.font = `800 36px ${FUN_FONT}`;
+  ctx.textAlign = "center";
+  const lines = ad.title.split("\n");
+  lines.forEach((ln, i) => ctx.fillText(ln, 100, 120 + i * 42));
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.font = `700 22px ${FUN_FONT}`;
+  ctx.fillText(ad.sub, 100, 240);
+  ctx.fillStyle = ad.bg[0];
+  ctx.fillRect(20, 280, 160, 48);
+  ctx.fillStyle = ad.bg[1];
+  ctx.font = `800 16px ${FUN_FONT}`;
+  ctx.fillText(ad.tag, 100, 310);
+  return canvasTexture(c, 2);
+}
+
+/**
+ * Slim wall-mounted flat screen. Local +Z = screen faces into the room.
+ * `opts.vertical` for portrait ads; `opts.tilt` radians (pitch toward floor).
+ */
+function buildFlatScreen(lit, opts = {}) {
+  const {
+    w = 1.0,
+    h = 0.56,
+    vertical = false,
+    tilt = 0,
+    map = null,
+    emissive = 0x204060,
+  } = opts;
+  const g = new THREE.Group();
+  g.name = vertical ? "adScreen" : "partyScreen";
+  const sw = vertical ? Math.min(w, h) : w;
+  const sh = vertical ? Math.max(w, h) : h;
+  // Bezel
+  const frame = box(sw + 0.06, sh + 0.06, 0.05, 0x0a0c10, {
+    metalness: 0.45,
+    roughness: 0.35,
+  });
+  frame.position.z = -0.01;
+  g.add(frame);
+  // Screen slab
+  const slab = box(sw, sh, 0.02, 0x061018, {
+    emissive,
+    emissiveIntensity: 0.55,
+    roughness: 0.22,
+    metalness: 0.15,
+  });
+  slab.position.z = 0.01;
+  lit(slab, 0.85, 0.5);
+  g.add(slab);
+  // Content plane
+  const screen = new THREE.Mesh(
+    new THREE.PlaneGeometry(sw * 0.94, sh * 0.94),
+    new THREE.MeshStandardMaterial({
+      map: map,
+      emissive,
+      emissiveIntensity: 0.5,
+      roughness: 0.35,
+      flatShading: true,
+    })
+  );
+  screen.position.z = 0.025;
+  g.add(screen);
+  // Thin LED edge under bezel
+  const led = box(sw * 0.9, 0.02, 0.015, 0x40e0ff, {
+    emissive: 0x20c0ff,
+    emissiveIntensity: 0.55,
+  });
+  led.position.set(0, -sh * 0.5 - 0.02, 0.02);
+  lit(led, 0.7, 0.35, { glimmerSpeed: 2.4 });
+  g.add(led);
+  if (tilt) g.rotation.x = tilt;
+  g.userData.screen = screen;
+  g.userData.slab = slab;
+  return g;
+}
+
 /**
  * Tall Gothic / cathedral arched window — photo: pointed arch, dense vertical
  * bars, deep reveal, strong glow that cycles rainbow at runtime.
@@ -3152,6 +3300,32 @@ export function createInterior() {
     nightLights.push({ light: neonBounce, day: 0.4, night: 0.85 });
     g.userData.diamondBounce = neonBounce;
 
+    // Vertical ad TV — LEFT of activation wall (further +X / south when facing wall)
+    {
+      const adMaps = [0, 1, 2, 3, 4, 5].map((i) => barAdTex(i));
+      const adTv = buildFlatScreen(lit, {
+        w: 0.55,
+        h: 1.05,
+        vertical: true,
+        map: adMaps[0],
+        emissive: 0x302050,
+      });
+      // Face into room (−Z)
+      adTv.rotation.y = Math.PI;
+      const adX = foliageX + foliageW * 0.5 + 0.42;
+      adTv.position.set(adX, 1.7, z - 0.14);
+      add(adTv);
+      g.userData.tvScreens = g.userData.tvScreens || [];
+      g.userData.tvScreens.push(adTv.userData.screen, adTv.userData.slab);
+      g.userData.adScreens = g.userData.adScreens || [];
+      g.userData.adScreens.push({ screen: adTv.userData.screen, maps: adMaps, idx: 0 });
+      // Soft wash from the ad panel
+      const adLite = new THREE.PointLight(0x9b6dff, 0.35, 3.5, 2);
+      adLite.position.set(adX, 1.7, z - 0.7);
+      add(adLite);
+      nightLights.push({ light: adLite, day: 0.2, night: 0.45 });
+    }
+
     // 2) ATM between activation wall and wooden doors (face into room = −Z)
     const atm = buildAtm(nightMats, lit);
     atm.rotation.y = Math.PI;
@@ -3320,6 +3494,31 @@ export function createInterior() {
     jukePink.position.set(x + 0.65, 0.9, jukeZ);
     add(jukePink);
     nightLights.push({ light: jukePink, day: 0.18, night: 0.4 });
+
+    // Horizontal music-video TV above the jukebox — tilted down toward the room
+    {
+      const mvMaps = [0, 1, 2, 3, 4, 5].map((i) => musicVideoTex(i));
+      const mvTv = buildFlatScreen(lit, {
+        w: 1.15,
+        h: 0.62,
+        map: mvMaps[0],
+        emissive: 0x184060,
+      });
+      // Face into the room (+X) like the jukebox, then tilt down
+      mvTv.rotation.order = "YXZ";
+      mvTv.rotation.y = Math.PI / 2;
+      mvTv.rotation.x = -0.32;
+      mvTv.position.set(x + 0.22, 2.45, jukeZ);
+      add(mvTv);
+      g.userData.tvScreens = g.userData.tvScreens || [];
+      g.userData.tvScreens.push(mvTv.userData.screen, mvTv.userData.slab);
+      g.userData.musicScreens = g.userData.musicScreens || [];
+      g.userData.musicScreens.push({ screen: mvTv.userData.screen, maps: mvMaps, idx: 0 });
+      const mvLite = new THREE.PointLight(0x60c0ff, 0.4, 4, 2);
+      mvLite.position.set(x + 0.9, 2.3, jukeZ);
+      add(mvLite);
+      nightLights.push({ light: mvLite, day: 0.22, night: 0.5 });
+    }
 
     // Small lounge seating south of the corner booth (not over the pit)
     for (const [bx, bz] of [
@@ -3817,6 +4016,22 @@ export function createInterior() {
         if (m) m.emissiveIntensity = tvPulse + 0.06 * Math.sin(nowSec * 3 + i);
       }
     }
+
+    // Rotate music-video + bar-ad graphics every few seconds
+    const rotateMaps = (list, period) => {
+      if (!list) return;
+      for (const entry of list) {
+        if (!entry.maps?.length || !entry.screen?.material) continue;
+        const next = Math.floor(nowSec / period) % entry.maps.length;
+        if (next !== entry.idx) {
+          entry.idx = next;
+          entry.screen.material.map = entry.maps[next];
+          entry.screen.material.needsUpdate = true;
+        }
+      }
+    };
+    rotateMaps(g.userData.musicScreens, 4.5);
+    rotateMaps(g.userData.adScreens, 6.5);
   };
 
   // Spawn just inside the wooden front doors, looking into the club —
