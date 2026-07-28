@@ -699,19 +699,81 @@ body { user-select: none; -webkit-user-select: none; }
 body.inside-mode #controls button:not(#inside) {
   display: none;
 }
-body.inside-mode #top {
-  opacity: 0.55;
-  pointer-events: none;
+
+/* Inside: drop brand + event card so the room has the focus; keep a small clock/date */
+body.inside-mode #top .ident {
+  display: none;
 }
 body.inside-mode #card {
-  max-width: 160px;
+  display: none !important;
 }
+body.inside-mode #top {
+  opacity: 0.9;
+  pointer-events: none;
+  justify-content: flex-end;
+}
+body.inside-mode #top .when .day {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0.85;
+}
+body.inside-mode #top .when .date {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0.7;
+}
+body.inside-mode #top .when .pill {
+  margin-bottom: 3px;
+  padding: 4px 9px;
+  font-size: 11px;
+}
+body.inside-mode .pill #clock {
+  font-size: 11px;
+}
+body.inside-mode #top .when .cond {
+  margin-top: 3px;
+  gap: 4px;
+}
+body.inside-mode #top .when .cond .temp {
+  font-size: 12px;
+  font-weight: 600;
+}
+body.inside-mode #top .when .cond .ic svg {
+  width: 13px;
+  height: 13px;
+}
+body.inside-mode #top .when .moonrow {
+  margin-top: 2px;
+  gap: 3px;
+}
+body.inside-mode #top .when .moonrow .moonname {
+  font-size: 10px;
+}
+body.inside-mode #top .when .moonrow .moon svg {
+  width: 12px;
+  height: 12px;
+}
+
 @media (max-width: 520px) {
   body.inside-mode #controls {
     opacity: 0.4;
   }
-  body.inside-mode #top {
-    opacity: 0.35;
+  /* Mobile inside: even tighter status stack, top-right only */
+  body.inside-mode #top .when .day,
+  body.inside-mode #top .when .date {
+    font-size: 11px;
+  }
+  body.inside-mode #top .when .pill {
+    font-size: 10px;
+    padding: 3px 8px;
+  }
+  body.inside-mode .pill #clock {
+    font-size: 10px;
+  }
+  body.inside-mode #top .when .cond .temp {
+    font-size: 11px;
   }
 }
 
