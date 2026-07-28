@@ -71,13 +71,39 @@
   <button id="inside" type="button" aria-label="Step inside Stacy's" title="Step inside" aria-pressed="false"></button>
 </div>
 
-<button id="exit-inside" type="button" hidden aria-label="Back to the lot">← Lot</button>
-<button id="office" type="button" hidden aria-label="Manager office" title="Manager office" aria-pressed="false">Office</button>
+<!-- Interior walk HUD — bottom-anchored, mobile-first -->
+<div id="inside-hud" hidden aria-hidden="true">
+  <!-- Left: virtual joystick (move) -->
+  <div id="walk-stick" class="hud-stick" aria-label="Move">
+    <div class="hud-stick-ring" aria-hidden="true"></div>
+    <div id="walk-stick-knob" class="hud-stick-knob"></div>
+    <span class="hud-stick-label">Move</span>
+  </div>
 
-<!-- Virtual stick for walking while inside (mobile + desktop pointer) -->
-<div id="walk-stick" hidden aria-hidden="true">
-  <div id="walk-stick-knob"></div>
-  <span class="walk-hint">WASD · drag look</span>
+  <!-- Right: look pad (drag to look — also works on the whole screen) -->
+  <div id="look-pad" class="hud-stick hud-look" aria-label="Look around">
+    <div class="hud-stick-ring" aria-hidden="true"></div>
+    <div id="look-pad-knob" class="hud-stick-knob"></div>
+    <span class="hud-stick-label">Look</span>
+  </div>
+
+  <!-- Bottom action bar -->
+  <nav id="inside-bar" aria-label="Interior actions">
+    <button id="exit-inside" type="button" aria-label="Back to the lot">
+      <span class="ibar-ico" aria-hidden="true">←</span>
+      <span class="ibar-txt">Lot</span>
+    </button>
+    <button id="office" type="button" aria-label="Manager office" aria-pressed="false">
+      <span class="ibar-ico" aria-hidden="true">⌂</span>
+      <span class="ibar-txt">Office</span>
+    </button>
+  </nav>
+
+  <!-- One-time tip strip -->
+  <p id="inside-tip" class="inside-tip">
+    <span class="tip-mobile">Left stick moves · Right stick looks</span>
+    <span class="tip-desktop">WASD move · Drag to look · Esc = Lot</span>
+  </p>
 </div>
 
 <!-- Closed-hours pickup: Gaymo texts that nobody is free to ride -->

@@ -170,8 +170,12 @@ const fp = {
   bounds: { ...INTERIOR_WALK },
 };
 const keysDown = new Set();
-/** Virtual stick vector −1..1 (mobile). */
+/** Virtual move stick vector −1..1 (left pad). */
 const stick = { x: 0, y: 0, active: false };
+/** Virtual look stick vector −1..1 (right pad). */
+const lookStick = { x: 0, y: 0, active: false };
+/** deg/sec scale for right-stick look */
+const LOOK_STICK_SPEED = 95;
 
 function computeFit() {
   if (insideMode) {
@@ -282,13 +286,20 @@ function enterOffice() {
   clampFp();
   applyFpCamera();
   document.body.classList.add("office-mode");
+  setOfficeBtn(true);
+}
+
+function setOfficeBtn(inOffice) {
   const btn = $("office");
-  if (btn) {
-    btn.classList.add("on");
-    btn.setAttribute("aria-pressed", "true");
-    btn.title = "Back to the bar";
-    btn.textContent = "↓ Bar";
-  }
+  if (!btn) return;
+  btn.classList.toggle("on", inOffice);
+  btn.setAttribute("aria-pressed", String(inOffice));
+  btn.title = inOffice ? "Back to the bar" : "Manager office";
+  const txt = btn.querySelector(".ibar-txt");
+  if (txt) txt.textContent = inOffice ? "Bar" : "Office";
+  else btn.textContent = inOffice ? "↓ Bar" : "Office";
+  const ico = btn.querySelector(".ibar-ico");
+  if (ico) ico.textContent = inOffice ? "↓" : "⌂";
 }
 
 function exitOffice() {
@@ -306,13 +317,7 @@ function exitOffice() {
   clampFp();
   applyFpCamera();
   document.body.classList.remove("office-mode");
-  const btn = $("office");
-  if (btn) {
-    btn.classList.remove("on");
-    btn.setAttribute("aria-pressed", "false");
-    btn.title = "Manager office";
-    btn.textContent = "Office";
-  }
+  setOfficeBtn(false);
 }
 
 function toggleOffice() {
@@ -322,6 +327,11 @@ function toggleOffice() {
 
 function stepFp(dt) {
   if (!insideMode) return;
+  // Right stick look (mobile dual-stick)
+  if (lookStick.active) {
+    fp.yaw -= lookStick.x * LOOK_STICK_SPEED * dt;
+    fp.pitch -= lookStick.y * LOOK_STICK_SPEED * dt;
+  }
   let mx = 0;
   let mz = 0;
   if (keysDown.has("KeyW") || keysDown.has("ArrowUp")) mz += 1;
@@ -1237,24 +1247,33 @@ function enterInterior() {
   document.body.classList.add("inside-mode");
   $("inside")?.classList.add("on");
   $("inside")?.setAttribute("aria-pressed", "true");
-  const exitBtn = $("exit-inside");
-  if (exitBtn) exitBtn.hidden = false;
-  const officeBtn = $("office");
-  if (officeBtn) {
-    officeBtn.hidden = false;
-    officeBtn.classList.remove("on");
-    officeBtn.setAttribute("aria-pressed", "false");
-    officeBtn.textContent = "Office";
-    officeBtn.title = "Manager office";
-  }
   officeMode = false;
   officeReturn = null;
-  const stickEl = $("walk-stick");
-  if (stickEl) stickEl.hidden = false;
+  setOfficeBtn(false);
+  showInsideHud(true);
   if (outdoor?.life) outdoor.life.setCrowd?.(0);
   computeFit();
   applyFpCamera();
   idleAt = performance.now();
+}
+
+function showInsideHud(on) {
+  const hud = $("inside-hud");
+  if (!hud) return;
+  hud.hidden = !on;
+  hud.setAttribute("aria-hidden", on ? "false" : "true");
+  const tip = $("inside-tip");
+  if (tip && on) {
+    tip.classList.remove("fade");
+    clearTimeout(showInsideHud._tipTimer);
+    showInsideHud._tipTimer = setTimeout(() => tip.classList.add("fade"), 4500);
+  }
+  if (!on) {
+    stick.x = stick.y = 0;
+    stick.active = false;
+    lookStick.x = lookStick.y = 0;
+    lookStick.active = false;
+  }
 }
 
 function exitInterior() {
@@ -1265,6 +1284,9 @@ function exitInterior() {
   stick.x = 0;
   stick.y = 0;
   stick.active = false;
+  lookStick.x = 0;
+  lookStick.y = 0;
+  lookStick.active = false;
   if (interior) interior.visible = false;
   setOutsideVisible(true);
   if (exteriorViewSnapshot) {
@@ -1283,16 +1305,7 @@ function exitInterior() {
   document.body.classList.remove("office-mode");
   $("inside")?.classList.remove("on");
   $("inside")?.setAttribute("aria-pressed", "false");
-  const exitBtn = $("exit-inside");
-  if (exitBtn) exitBtn.hidden = true;
-  const officeBtn = $("office");
-  if (officeBtn) {
-    officeBtn.hidden = true;
-    officeBtn.classList.remove("on");
-    officeBtn.textContent = "Office";
-  }
-  const stickEl = $("walk-stick");
-  if (stickEl) stickEl.hidden = true;
+  showInsideHud(false);
   computeFit();
   applyCamera();
   idleAt = performance.now();
@@ -1317,15 +1330,29 @@ function wireInsideButton() {
   if (officeBtn) {
     officeBtn.onclick = () => toggleOffice();
   }
-  wireWalkStick();
+  wireVirtualStick("walk-stick", "walk-stick-knob", stick);
+  wireVirtualStick("look-pad", "look-pad-knob", lookStick);
+  window.addEventListener("keydown", (e) => {
+    if (!insideMode) return;
+    if (e.code === "Escape") {
+      e.preventDefault();
+      if (officeMode) exitOffice();
+      else exitInterior();
+    }
+  });
 }
 
-/** Mobile virtual stick — left side of the screen while inside. */
-function wireWalkStick() {
-  const el = $("walk-stick");
-  const knob = $("walk-stick-knob");
+/**
+ * Shared virtual joystick (move or look).
+ * @param {string} elId
+ * @param {string} knobId
+ * @param {{x:number,y:number,active:boolean}} state
+ */
+function wireVirtualStick(elId, knobId, state) {
+  const el = $(elId);
+  const knob = $(knobId);
   if (!el || !knob) return;
-  const R = 48;
+  const R = 46;
   let pid = null;
   const setFrom = (clientX, clientY) => {
     const rect = el.getBoundingClientRect();
@@ -1337,16 +1364,16 @@ function wireWalkStick() {
     const clamp = Math.min(len, R) / len;
     dx *= clamp;
     dy *= clamp;
-    stick.x = dx / R;
-    stick.y = dy / R;
-    stick.active = true;
+    state.x = dx / R;
+    state.y = dy / R;
+    state.active = true;
     knob.style.transform = `translate(${dx}px, ${dy}px)`;
   };
   const end = () => {
     pid = null;
-    stick.x = 0;
-    stick.y = 0;
-    stick.active = false;
+    state.x = 0;
+    state.y = 0;
+    state.active = false;
     knob.style.transform = "translate(0,0)";
   };
   el.addEventListener("pointerdown", (e) => {
@@ -1363,6 +1390,9 @@ function wireWalkStick() {
   });
   el.addEventListener("pointerup", end);
   el.addEventListener("pointercancel", end);
+  el.addEventListener("pointerleave", (e) => {
+    if (e.pointerId === pid) end();
+  });
 }
 
 // ---------------------------------------------------------------- boot
