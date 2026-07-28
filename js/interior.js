@@ -1659,17 +1659,89 @@ export function createInterior() {
     return mesh;
   };
 
-  // ── Shell ──────────────────────────────────────────────────────────
-  const floor = box(RW, 0.08, RD, FLOOR, { roughness: 0.9 });
-  floor.position.y = 0.04;
-  add(floor);
+  // ── Layout anchors (stage / pit) — computed early so the main floor can
+  // leave a real hole for The Pit (otherwise a "sunken" slab is just under
+  // solid floor and only the raised curbs read).
+  const railZ = 2.2;
+  const railNearWallX = -halfW + 0.35 + 0.3;
+  const railColXs = [railNearWallX, -2.4, -0.35];
+  const curtainZ = railZ - 0.38;
+  const stageH = 0.3;
+  const stageDepth = 1.05;
+  const rodX0 = railColXs[0] - 0.1;
+  const rodX1 = railColXs[2] + 0.15;
+  const stageLen = rodX1 - rodX0;
+  const stageZ = curtainZ - 0.22 - stageDepth * 0.5;
+  const stageX = rodX0 + stageLen * 0.5;
+  // The Pit — true step-down in front of the stage
+  const pitGap = 0.25;
+  const pitDepth = 0.34; // ~13" drop — clearly a step, not a curb
+  const pitLen = stageLen;
+  const pitSpan = 2.35;
+  const pitXMin = -halfW + WALL * 0.5 + 0.02;
+  const pitXMax = pitXMin + pitLen;
+  const pitX = pitXMin + pitLen * 0.5;
+  const stageEastFace = stageZ - stageDepth * 0.5;
+  const pitWestFace = stageEastFace - pitGap; // pit edge nearest stage
+  const pitEastFace = pitWestFace - pitSpan;
+  const pitZ = (pitWestFace + pitEastFace) * 0.5;
+  const FLOOR_THICK = 0.08;
+  const FLOOR_TOP = 0.08; // top of main floor slab
+  const PIT_FLOOR_Y = FLOOR_TOP - pitDepth; // top surface of sunken dance floor
+
+  // ── Shell: main floor with a HOLE for The Pit ─────────────────────
+  const addFloorSlab = (x0, x1, z0, z1) => {
+    const w = x1 - x0;
+    const d = z1 - z0;
+    if (w < 0.04 || d < 0.04) return;
+    const slab = box(w, FLOOR_THICK, d, FLOOR, { roughness: 0.9 });
+    slab.position.set((x0 + x1) * 0.5, FLOOR_TOP - FLOOR_THICK * 0.5, (z0 + z1) * 0.5);
+    add(slab);
+  };
+  // Room extents
+  const fx0 = -halfW;
+  const fx1 = halfW;
+  const fz0 = -halfD;
+  const fz1 = halfD;
+  // Four slabs around the pit rectangle [pitXMin..pitXMax] × [pitEastFace..pitWestFace]
+  addFloorSlab(fx0, fx1, pitWestFace, fz1); // west of pit (toward street / rail)
+  addFloorSlab(fx0, fx1, fz0, pitEastFace); // east of pit (toward patio)
+  addFloorSlab(fx0, pitXMin, pitEastFace, pitWestFace); // north strip (usually tiny / wall)
+  addFloorSlab(pitXMax, fx1, pitEastFace, pitWestFace); // south of pit (into the room)
+
+  // Wood planks — skip any that fall inside the pit hole
   for (let i = 0; i < 22; i++) {
-    const plank = box(RW * 0.98, 0.01, 0.18, i % 2 ? 0x4a3428 : 0x3a2a1e, {
-      roughness: 0.92,
-      castShadow: false,
-    });
-    plank.position.set(0, 0.085, -halfD + 0.3 + i * 0.4);
-    add(plank);
+    const pz = -halfD + 0.3 + i * 0.4;
+    const plankHalf = 0.09;
+    const overlapsPitZ = pz + plankHalf > pitEastFace && pz - plankHalf < pitWestFace;
+    if (overlapsPitZ) {
+      // Two planks flanking the pit in X
+      const leftW = pitXMin - fx0;
+      if (leftW > 0.15) {
+        const plank = box(leftW * 0.98, 0.01, 0.18, i % 2 ? 0x4a3428 : 0x3a2a1e, {
+          roughness: 0.92,
+          castShadow: false,
+        });
+        plank.position.set((fx0 + pitXMin) * 0.5, FLOOR_TOP + 0.005, pz);
+        add(plank);
+      }
+      const rightW = fx1 - pitXMax;
+      if (rightW > 0.15) {
+        const plank = box(rightW * 0.98, 0.01, 0.18, i % 2 ? 0x4a3428 : 0x3a2a1e, {
+          roughness: 0.92,
+          castShadow: false,
+        });
+        plank.position.set((pitXMax + fx1) * 0.5, FLOOR_TOP + 0.005, pz);
+        add(plank);
+      }
+    } else {
+      const plank = box(RW * 0.98, 0.01, 0.18, i % 2 ? 0x4a3428 : 0x3a2a1e, {
+        roughness: 0.92,
+        castShadow: false,
+      });
+      plank.position.set(0, FLOOR_TOP + 0.005, pz);
+      add(plank);
+    }
   }
 
   // Interior wall finishes (photo-matched materials):
@@ -1837,16 +1909,13 @@ export function createInterior() {
   }
 
   // Twisted dark-wood columns — full height to the vault.
-  // Three on the railing line (z≈2.2). One free column further into the room.
-  // (Removed the free column at z≈−1.25 that sat in front of the cathedral window.)
-  const railZ = 2.2;
-  const railNearWallX = -halfW + 0.35 + 0.3; // ~1 ft (0.3 units) off the north wall
-  const railColXs = [railNearWallX, -2.4, -0.35];
+  // Three on the railing line. One free column further into the room.
+  // (Removed the free column that sat in front of the cathedral window.)
   for (const [x, z] of [
-    [railColXs[0], railZ], // closest to north wall on the rail
-    [railColXs[1], railZ], // mid railing post
-    [railColXs[2], railZ], // south end of rail run
-    [0.35, 1.55], // free post (not on the cathedral sightline)
+    [railColXs[0], railZ],
+    [railColXs[1], railZ],
+    [railColXs[2], railZ],
+    [0.35, 1.55],
   ]) {
     const topY = roofYAt(z) - 0.12;
     const col = buildTwistedColumn(topY);
@@ -1857,13 +1926,9 @@ export function createInterior() {
   // Stage curtain rod just EAST (−Z) of the three railing columns — black
   // drape pair like a proscenium. Performance stage sits east of the curtains.
   {
-    const curtainZ = railZ - 0.38; // ~1 ft east of the column line
-    const rodX0 = railColXs[0] - 0.1;
-    const rodX1 = railColXs[2] + 0.15;
-    const rodLen = rodX1 - rodX0;
     const rodY = roofYAt(curtainZ) - 0.22;
     const curtainH = rodY - 0.15;
-    const curtains = buildStageCurtains(rodLen, curtainH, {
+    const curtains = buildStageCurtains(stageLen, curtainH, {
       openGap: 0.32,
       folds: 8,
     });
@@ -1872,99 +1937,119 @@ export function createInterior() {
 
     // Performance platform (drag / karaoke) — ~1 ft high, as long as the
     // curtains, not too deep (narrow apron east of the drape line).
-    const stageH = 0.3; // ~1 foot
-    const stageDepth = 1.05; // not too wide
-    const stageLen = rodLen; // match curtain span
-    const stageZ = curtainZ - 0.22 - stageDepth * 0.5; // just east of curtains
-    const stageX = rodX0 + rodLen * 0.5;
-    // Skirt / riser body
+    // Stage sits on the MAIN floor (not in the pit).
     const riser = box(stageLen, stageH, stageDepth, 0x1a1218, { roughness: 0.75 });
-    riser.position.set(stageX, stageH * 0.5, stageZ);
+    riser.position.set(stageX, FLOOR_TOP + stageH * 0.5, stageZ);
     add(riser);
-    // Deck surface (slightly proud)
     const deck = box(stageLen + 0.04, 0.04, stageDepth + 0.04, 0x2a1e28, {
       roughness: 0.55,
       metalness: 0.08,
     });
-    deck.position.set(stageX, stageH + 0.02, stageZ);
+    deck.position.set(stageX, FLOOR_TOP + stageH + 0.02, stageZ);
     add(deck);
-    // Front edge lip (audience / pit side = east / −Z)
     const lip = box(stageLen + 0.06, 0.06, 0.06, 0x3a2a38, { roughness: 0.6 });
-    lip.position.set(stageX, stageH + 0.03, stageZ - stageDepth * 0.5 - 0.02);
+    lip.position.set(stageX, FLOOR_TOP + stageH + 0.03, stageEastFace - 0.02);
     add(lip);
-    // Subtle stage wash
     const stageWash = new THREE.PointLight(0xff80c0, 0.55, 5, 2);
-    stageWash.position.set(stageX, stageH + 0.8, stageZ);
+    stageWash.position.set(stageX, FLOOR_TOP + stageH + 0.8, stageZ);
     add(stageWash);
     nightLights.push({ light: stageWash, day: 0.35, night: 0.7 });
     g.userData.performanceStage = {
       x: stageX,
-      y: stageH,
+      y: FLOOR_TOP + stageH,
       z: stageZ,
       len: stageLen,
       depth: stageDepth,
     };
 
     // ── The Pit ────────────────────────────────────────────────────
-    // Sunken dance floor in front of the stage: same length as the stage,
-    // ~10" gap from the stage apron, flush with the north (cathedral) wall.
-    // One step down — tables sometimes go here for drag shows.
+    // TRUE sunken dance floor: hole already cut in the main floor above.
+    // Floor surface at PIT_FLOOR_Y; vertical risers up to FLOOR_TOP only
+    // (no curb sticking above the main floor — that read as a ledge).
     {
-      const gap = 0.25; // ~10 inches from the stage
-      const pitDepth = 0.28; // deeper step-down (~11") so The Pit really reads as sunken
-      const pitLen = stageLen; // same width/length as the stage
-      const pitSpan = 2.35; // how far it extends in front of the stage (east)
-      // Flush with north wall (cathedral / neon-window wall)
-      const pitXMin = -halfW + WALL * 0.5 + 0.02;
-      const pitX = pitXMin + pitLen * 0.5;
-      // Stage's east face, then 10" gap, then the pit runs further east (−Z)
-      const stageEastFace = stageZ - stageDepth * 0.5;
-      const pitWestFace = stageEastFace - gap; // closest edge to the stage
-      const pitZ = pitWestFace - pitSpan * 0.5;
-
-      // Sunken floor
-      const pitFloor = box(pitLen, 0.06, pitSpan, 0x18101c, {
-        roughness: 0.4,
-        metalness: 0.12,
+      const pitFloorThick = 0.07;
+      // Sunken dance floor surface
+      const pitFloor = box(pitLen, pitFloorThick, pitSpan, 0x141018, {
+        roughness: 0.38,
+        metalness: 0.14,
       });
-      pitFloor.position.set(pitX, 0.04 - pitDepth, pitZ);
+      pitFloor.position.set(pitX, PIT_FLOOR_Y - pitFloorThick * 0.5, pitZ);
       add(pitFloor);
 
-      // Step walls / curb around the pit
-      const curbH = pitDepth + 0.05;
-      const curbY = pitDepth * 0.4;
-      // South curb (+X end of pit — open toward the room)
-      const curbS = box(0.12, curbH, pitSpan + 0.08, 0x2a1a28, { roughness: 0.72 });
-      curbS.position.set(pitX + pitLen * 0.5, curbY, pitZ);
-      add(curbS);
-      // East curb (far from stage)
-      const curbE = box(pitLen + 0.12, curbH, 0.12, 0x2a1a28, { roughness: 0.72 });
-      curbE.position.set(pitX, curbY, pitZ - pitSpan * 0.5);
-      add(curbE);
-      // West curb (toward stage) — leaves the 10" gap
-      const curbW = box(pitLen + 0.12, curbH, 0.1, 0x2a1a28, { roughness: 0.72 });
-      curbW.position.set(pitX, curbY, pitWestFace);
-      add(curbW);
-      // North side is flush with the wall — no curb (wall is the edge)
+      // Vertical step faces — tops flush with main floor, bottoms at pit floor.
+      // Inset slightly so the floor nosing reads as a step lip, not a wall.
+      const riserH = pitDepth;
+      const riserY = PIT_FLOOR_Y + riserH * 0.5;
+      const faceCol = 0x241820;
+      // South face (+X) — open step into the room
+      const faceS = box(0.08, riserH, pitSpan, faceCol, { roughness: 0.78 });
+      faceS.position.set(pitXMax - 0.04, riserY, pitZ);
+      add(faceS);
+      // East face (−Z, far from stage)
+      const faceE = box(pitLen, riserH, 0.08, faceCol, { roughness: 0.78 });
+      faceE.position.set(pitX, riserY, pitEastFace + 0.04);
+      add(faceE);
+      // West face (+Z, toward stage) — 10" gap of main floor beyond this
+      const faceW = box(pitLen, riserH, 0.08, faceCol, { roughness: 0.78 });
+      faceW.position.set(pitX, riserY, pitWestFace - 0.04);
+      add(faceW);
+      // North: flush with cathedral wall — exposed wall acts as the step
 
-      // Glow tiles on the pit floor
+      // Thin metal nosing on the main-floor edge (flush, not a raised curb)
+      const noseH = 0.03;
+      const noseY = FLOOR_TOP - noseH * 0.5 + 0.005;
+      const noseCol = 0x3a2a38;
+      const noseS = box(0.07, noseH, pitSpan + 0.04, noseCol, {
+        roughness: 0.45,
+        metalness: 0.25,
+      });
+      noseS.position.set(pitXMax, noseY, pitZ);
+      add(noseS);
+      const noseE = box(pitLen + 0.06, noseH, 0.07, noseCol, {
+        roughness: 0.45,
+        metalness: 0.25,
+      });
+      noseE.position.set(pitX, noseY, pitEastFace);
+      add(noseE);
+      const noseW = box(pitLen + 0.06, noseH, 0.07, noseCol, {
+        roughness: 0.45,
+        metalness: 0.25,
+      });
+      noseW.position.set(pitX, noseY, pitWestFace);
+      add(noseW);
+
+      // Soft shadow strip at the base of each riser (reads as depth)
+      for (const [px, pz, pw, pd] of [
+        [pitXMax - 0.06, pitZ, 0.1, pitSpan * 0.92],
+        [pitX, pitEastFace + 0.06, pitLen * 0.92, 0.1],
+        [pitX, pitWestFace - 0.06, pitLen * 0.92, 0.1],
+      ]) {
+        const shadow = box(pw, 0.015, pd, 0x08060a, {
+          roughness: 0.95,
+          castShadow: false,
+        });
+        shadow.position.set(px, PIT_FLOOR_Y + 0.01, pz);
+        add(shadow);
+      }
+
+      // Glow tiles on the pit floor (on top of sunken surface)
       const tileCols = [0xff4fa8, 0x40e0ff, 0x9b6dff, 0x3dd68c, 0xffe14a];
       const cols = 5;
       const rows = 3;
       for (let i = 0; i < cols; i++) {
         for (let j = 0; j < rows; j++) {
-          const tw = (pitLen - 0.2) / cols;
-          const td = (pitSpan - 0.2) / rows;
-          const tile = box(tw * 0.88, 0.02, td * 0.88, 0x201828, {
+          const tw = (pitLen - 0.25) / cols;
+          const td = (pitSpan - 0.25) / rows;
+          const tile = box(tw * 0.86, 0.025, td * 0.86, 0x1a1420, {
             emissive: tileCols[(i + j) % tileCols.length],
-            emissiveIntensity: 0.24,
+            emissiveIntensity: 0.32,
           });
           tile.position.set(
-            pitX - pitLen * 0.5 + 0.12 + (i + 0.5) * tw,
-            0.08 - pitDepth,
-            pitZ - pitSpan * 0.5 + 0.12 + (j + 0.5) * td
+            pitXMin + 0.14 + (i + 0.5) * tw,
+            PIT_FLOOR_Y + 0.015,
+            pitEastFace + 0.14 + (j + 0.5) * td
           );
-          lit(tile, 0.48, 0.24, { glimmerSpeed: 1.4 + i * 0.15, phase: i + j });
+          lit(tile, 0.55, 0.28, { glimmerSpeed: 1.4 + i * 0.15, phase: i + j });
           add(tile);
         }
       }
@@ -1973,7 +2058,7 @@ export function createInterior() {
       const danceLights = [];
       for (let i = 0; i < 4; i++) {
         const col = [0xff4fa8, 0x40e0ff, 0x9b6dff, 0x3dd68c][i];
-        const dl = new THREE.PointLight(col, 0.7, 6, 2);
+        const dl = new THREE.PointLight(col, 0.75, 6, 2);
         dl.position.set(pitX, 2.5, pitZ);
         add(dl);
         danceLights.push(dl);
@@ -1985,16 +2070,37 @@ export function createInterior() {
       g.userData.thePit = {
         x: pitX,
         z: pitZ,
+        xMin: pitXMin,
+        xMax: pitXMax,
+        zMin: pitEastFace,
+        zMax: pitWestFace,
         len: pitLen,
         span: pitSpan,
         depth: pitDepth,
-        gap,
+        floorY: PIT_FLOOR_Y,
+        gap: pitGap,
       };
 
-      const danceKey = new THREE.PointLight(0xff80c0, 1.0, 8, 2);
-      danceKey.position.set(pitX, 2.6, pitZ);
+      const danceKey = new THREE.PointLight(0xff80c0, 1.05, 8, 2);
+      danceKey.position.set(pitX, 2.55, pitZ);
       add(danceKey);
       nightLights.push({ light: danceKey, day: 0.55, night: 1.15 });
+
+      // Under-lip LEDs along the step (read depth from the room)
+      const stepLed = box(pitLen * 0.92, 0.025, 0.04, 0xff4fa8, {
+        emissive: 0xff2a80,
+        emissiveIntensity: 0.55,
+      });
+      stepLed.position.set(pitX, FLOOR_TOP - 0.04, pitWestFace - 0.02);
+      lit(stepLed, 0.7, 0.35, { glimmerSpeed: 2.2 });
+      add(stepLed);
+      const stepLedS = box(0.04, 0.025, pitSpan * 0.9, 0x40e0ff, {
+        emissive: 0x20c0ff,
+        emissiveIntensity: 0.5,
+      });
+      stepLedS.position.set(pitXMax - 0.02, FLOOR_TOP - 0.04, pitZ);
+      lit(stepLedS, 0.65, 0.32, { glimmerSpeed: 2.4 });
+      add(stepLedS);
     }
   }
 

@@ -225,7 +225,13 @@ function clampFp() {
   const b = fp.bounds;
   fp.x = THREE.MathUtils.clamp(fp.x, b.xMin, b.xMax);
   fp.z = THREE.MathUtils.clamp(fp.z, b.zMin, b.zMax);
-  fp.y = b.eyeY;
+  // Drop eye height when standing in The Pit so the step-down is felt
+  let eye = b.eyeY;
+  const pit = interior?.userData?.thePit;
+  if (pit && fp.x >= pit.xMin && fp.x <= pit.xMax && fp.z >= pit.zMin && fp.z <= pit.zMax) {
+    eye = b.eyeY - (pit.depth || 0.34);
+  }
+  fp.y = eye;
   fp.pitch = THREE.MathUtils.clamp(fp.pitch, -72, 68);
 }
 
