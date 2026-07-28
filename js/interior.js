@@ -3265,7 +3265,8 @@ export function createInterior() {
   // ── Layout anchors (stage / pit) — computed early so the main floor can
   // leave a real hole for The Pit (otherwise a "sunken" slab is just under
   // solid floor and only the raised curbs read).
-  const railZ = 2.2;
+  // railZ is west of room center (+Z). Facing the north wall, +Z is LEFT.
+  const railZ = 2.42; // slightly left of prior 2.2
   const railNearWallX = -halfW + 0.35 + 0.3;
   const railColXs = [railNearWallX, -2.4, -0.35];
   const curtainZ = railZ - 0.38;
@@ -3909,8 +3910,9 @@ export function createInterior() {
   // ══════════════════════════════════════════════════════════════════
   {
     const x = -halfW + 0.1;
-    // Glass door sits on the west end of the north wall (NW corner → parking)
-    const doorZ = 3.15;
+    // Glass door on the west end of the north wall (NW corner → parking).
+    // Facing north: left = +Z — nudge further left toward the west corner.
+    const doorZ = 3.55;
 
     // Full glass door to the parking lot — aluminum frame + clear panes
     {
@@ -3956,8 +3958,8 @@ export function createInterior() {
 
     // Dark wood railing to the right of the glass door, running SOUTH (+X)
     // through all three railing-line columns (near wall, mid, end).
+    // Uses shared railZ (columns / curtains / stage) so everything stays aligned.
     {
-      const railZ = 2.2;
       const railStartX = -halfW + 0.35; // at the north wall
       const railEndX = 0.35; // past the third column
       const railLen = railEndX - railStartX;
