@@ -1292,16 +1292,21 @@ export function createInterior() {
   }
 
   // ══════════════════════════════════════════════════════════════════
-  // WEST (+Z) wall — looking at the wall from inside, LEFT → RIGHT:
-  //   (−X / north)  activation (green + neon) · ATM · wooden double doors  (+X / south)
+  // WEST (+Z) wall — face the wall (look toward +Z / street).
+  // Camera RIGHT = +X (south). Camera LEFT = −X (north).
+  //
+  // LEFT → RIGHT as requested:
+  //   1) activation wall (green + neon)
+  //   2) wooden double doors
+  // ATM sits further right of the doors so it doesn't sit between them.
   // ══════════════════════════════════════════════════════════════════
   {
     const z = halfD - 0.1;
     const dartTex = dartboardTex();
     // Far left (north end) — dart cabinets
     for (const [x, s] of [
-      [-4.2, 1],
-      [-3.4, 0.95],
+      [-4.4, 1],
+      [-3.55, 0.95],
     ]) {
       const cabinet = box(0.6 * s, 1.45 * s, 0.3, BLACK);
       cabinet.position.set(x, 0.9 * s, z - 0.15);
@@ -1318,9 +1323,9 @@ export function createInterior() {
       add(board);
     }
 
-    // Party camera between darts and activation wall
+    // Party camera left of activation wall
     const camStand = box(0.12, 1.2, 0.12, METAL);
-    camStand.position.set(-2.2, 0.6, z - 0.3);
+    camStand.position.set(-2.5, 0.6, z - 0.3);
     add(camStand);
     const camRing = cyl(0.26, 0.26, 0.05, 0xf0f0f0, {
       emissive: 0xffffff,
@@ -1328,13 +1333,14 @@ export function createInterior() {
       roughness: 0.3,
     }, 16);
     camRing.rotation.x = Math.PI / 2;
-    camRing.position.set(-2.2, 1.4, z - 0.42);
+    camRing.position.set(-2.5, 1.4, z - 0.42);
     lit(camRing, 1.0, 0.65);
     add(camRing);
 
-    // 1) Activation wall (green foliage + diamond neon) — LEFT of ATM and doors
-    const foliageW = 2.2;
-    const foliageX = 0.35; // left/center of the main trio
+    // --- Explicit L→R layout (increasing world +X = to your right) ---
+    // 1) Activation wall LEFT
+    const foliageW = 2.15;
+    const foliageX = -0.55; // left of center
     const foliage = buildFoliageWall(foliageW, 2.45);
     foliage.position.set(foliageX, 1.55, z - 0.04);
     foliage.rotation.y = Math.PI;
@@ -1356,18 +1362,14 @@ export function createInterior() {
     nightLights.push({ light: neonBounce, day: 0.4, night: 0.85 });
     g.userData.diamondBounce = neonBounce;
 
-    // 2) ATM — middle, to the RIGHT of the activation wall
-    const foliageRight = foliageX + foliageW * 0.5;
-    const atm = buildAtm(nightMats, lit);
-    atm.position.set(foliageRight + 0.55, 0, z - 0.28);
-    add(atm);
-
-    // 3) Wooden double doors — far RIGHT of ATM
+    // 2) Wooden double doors — immediately RIGHT of activation wall
+    const foliageRight = foliageX + foliageW * 0.5; // ≈ +0.525
     const leafW = 0.95;
     const leafH = 2.25;
     const totalW = leafW * 2 + 0.12;
-    const atmRight = foliageRight + 0.55 + 0.4; // past ATM body
-    const doorCx = atmRight + 0.35 + totalW * 0.5;
+    // Left edge of door frame just past green wall
+    const doorLeft = foliageRight + 0.18;
+    const doorCx = doorLeft + totalW * 0.5;
     const doorFrame = box(totalW + 0.22, 2.55, 0.18, WOOD_DARK);
     doorFrame.position.set(doorCx, 1.3, z - 0.04);
     add(doorFrame);
@@ -1379,6 +1381,7 @@ export function createInterior() {
       jamb.position.set(doorCx + side * (totalW * 0.5 + 0.02), 1.2, z - 0.1);
       add(jamb);
     }
+    // Left leaf (next to green wall) = entry
     const leftLeaf = box(leafW, leafH, 0.1, WOOD);
     leftLeaf.position.set(doorCx - leafW * 0.5 - 0.03, 1.18, z - 0.15);
     leftLeaf.name = "interiorFrontDoor";
@@ -1412,6 +1415,12 @@ export function createInterior() {
     doorRing.rotation.x = Math.PI / 2;
     doorRing.position.set(doorCx - 0.12, 1.2, z - 0.26);
     add(doorRing);
+
+    // ATM to the RIGHT of the wooden doors (south end of this wall)
+    const doorRight = doorCx + totalW * 0.5;
+    const atm = buildAtm(nightMats, lit);
+    atm.position.set(doorRight + 0.55, 0, z - 0.28);
+    add(atm);
   }
 
   // ══════════════════════════════════════════════════════════════════
