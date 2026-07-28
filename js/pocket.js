@@ -30,7 +30,7 @@ import {
   moonIcon,
 } from "./icons.js";
 import { createStacys } from "./stacys.js";
-import { createInterior } from "./interior.js";
+import { createInterior, WALK as INTERIOR_WALK } from "./interior.js";
 import { createStreet, SIDEWALK_INNER_Z } from "./street.js";
 import { LifeSystem, crowdFactor } from "./life.js";
 import { ChoreSystem } from "./chores.js";
@@ -135,12 +135,6 @@ const SUBJECT_LANDSCAPE = {
   radius: 8.5,
 };
 
-/** Interior orbit target — overwritten once createInterior() runs. */
-const SUBJECT_INSIDE = {
-  center: new THREE.Vector3(0.1, 1.15, 0.1),
-  radius: 3.4,
-};
-
 let SUBJECT = SUBJECT_PORTRAIT;
 
 /**
@@ -162,29 +156,49 @@ let insideMode = false;
 /** Saved exterior view so exit restores where you were. */
 let exteriorViewSnapshot = null;
 
+/**
+ * First-person walk state while inside. yaw/pitch in degrees; x/z on the floor.
+ * Desktop: WASD + drag look. Mobile: virtual stick + drag look.
+ */
+const fp = {
+  x: 0,
+  y: INTERIOR_WALK.eyeY,
+  z: 0,
+  yaw: 200,
+  pitch: -4,
+  speed: 3.4,
+  bounds: { ...INTERIOR_WALK },
+};
+const keysDown = new Set();
+/** Virtual stick vector −1..1 (mobile). */
+const stick = { x: 0, y: 0, active: false };
+
 function computeFit() {
   if (insideMode) {
-    SUBJECT = SUBJECT_INSIDE;
-    // Inside: keep the orbit target stable while dragging; only snap on enter.
-    if (view._needsSubjectSnap) {
-      view.target.copy(SUBJECT.center);
-      view._needsSubjectSnap = false;
-    }
-  } else {
-    SUBJECT = camera.aspect >= 1 ? SUBJECT_LANDSCAPE : SUBJECT_PORTRAIT;
-    view.target.copy(SUBJECT.center);
+    // First-person: fitDist unused; keep camera near/far tight for the room
+    camera.near = 0.08;
+    camera.far = 40;
+    camera.fov = 68;
+    camera.updateProjectionMatrix();
+    return;
   }
+  camera.near = 0.5;
+  camera.far = 400;
+  camera.fov = 46;
+  camera.updateProjectionMatrix();
+  SUBJECT = camera.aspect >= 1 ? SUBJECT_LANDSCAPE : SUBJECT_PORTRAIT;
+  view.target.copy(SUBJECT.center);
   const vHalf = THREE.MathUtils.degToRad(camera.fov) / 2;
   const hHalf = Math.atan(Math.tan(vHalf) * camera.aspect);
-  // 1.06 leaves a little air around the fitted sphere
-  const pad = insideMode ? 1.02 : 1.06;
-  fitDist = (SUBJECT.radius * pad) / Math.sin(Math.min(vHalf, hHalf));
+  fitDist = (SUBJECT.radius * 1.06) / Math.sin(Math.min(vHalf, hHalf));
 }
 
 function applyCamera() {
-  const zMin = insideMode ? 0.35 : 0.22;
-  const zMax = insideMode ? 1.35 : 1.5;
-  const dist = THREE.MathUtils.clamp(fitDist * view.zoom, fitDist * zMin, fitDist * zMax);
+  if (insideMode) {
+    applyFpCamera();
+    return;
+  }
+  const dist = THREE.MathUtils.clamp(fitDist * view.zoom, fitDist * 0.22, fitDist * 1.5);
   const azr = (view.az * Math.PI) / 180;
   const elr = (view.el * Math.PI) / 180;
   camera.position.set(
@@ -192,11 +206,57 @@ function applyCamera() {
     view.target.y + Math.sin(elr) * dist,
     view.target.z + Math.sin(azr) * Math.cos(elr) * dist
   );
-  // Keep the camera out of the floor / ceiling when inside
-  if (insideMode) {
-    camera.position.y = THREE.MathUtils.clamp(camera.position.y, 0.35, 2.45);
-  }
   camera.lookAt(view.target);
+}
+
+function applyFpCamera() {
+  camera.position.set(fp.x, fp.y, fp.z);
+  const yawR = (fp.yaw * Math.PI) / 180;
+  const pitchR = (fp.pitch * Math.PI) / 180;
+  const look = new THREE.Vector3(
+    Math.sin(yawR) * Math.cos(pitchR),
+    Math.sin(pitchR),
+    Math.cos(yawR) * Math.cos(pitchR)
+  );
+  camera.lookAt(fp.x + look.x, fp.y + look.y, fp.z + look.z);
+}
+
+function clampFp() {
+  const b = fp.bounds;
+  fp.x = THREE.MathUtils.clamp(fp.x, b.xMin, b.xMax);
+  fp.z = THREE.MathUtils.clamp(fp.z, b.zMin, b.zMax);
+  fp.y = b.eyeY;
+  fp.pitch = THREE.MathUtils.clamp(fp.pitch, -72, 68);
+}
+
+function stepFp(dt) {
+  if (!insideMode) return;
+  let mx = 0;
+  let mz = 0;
+  if (keysDown.has("KeyW") || keysDown.has("ArrowUp")) mz += 1;
+  if (keysDown.has("KeyS") || keysDown.has("ArrowDown")) mz -= 1;
+  if (keysDown.has("KeyA") || keysDown.has("ArrowLeft")) mx -= 1;
+  if (keysDown.has("KeyD") || keysDown.has("ArrowRight")) mx += 1;
+  if (stick.active) {
+    mx += stick.x;
+    mz += -stick.y; // stick up = forward
+  }
+  const len = Math.hypot(mx, mz);
+  if (len > 1e-4) {
+    mx /= len;
+    mz /= len;
+    const yawR = (fp.yaw * Math.PI) / 180;
+    // Forward is +local look on XZ: (sin yaw, cos yaw)
+    const fx = Math.sin(yawR);
+    const fz = Math.cos(yawR);
+    const rx = Math.cos(yawR);
+    const rz = -Math.sin(yawR);
+    const sp = fp.speed * (keysDown.has("ShiftLeft") || keysDown.has("ShiftRight") ? 1.65 : 1);
+    fp.x += (fx * mz + rx * mx) * sp * dt;
+    fp.z += (fz * mz + rz * mx) * sp * dt;
+    clampFp();
+    applyFpCamera();
+  }
 }
 
 function resize() {
@@ -382,16 +442,23 @@ canvas.addEventListener("pointermove", (e) => {
 
   if (pointers.size === 2) {
     pointers.set(e.pointerId, cur);
-    const d = pinchDist();
-    if (pinchStart > 0 && d > 0) {
-      view.zoom = THREE.MathUtils.clamp(zoomStart * (pinchStart / d), 0.22, 1.5);
-      applyCamera();
+    if (!insideMode) {
+      const d = pinchDist();
+      if (pinchStart > 0 && d > 0) {
+        view.zoom = THREE.MathUtils.clamp(zoomStart * (pinchStart / d), 0.22, 1.5);
+        applyCamera();
+      }
     }
+  } else if (insideMode) {
+    // First-person look
+    fp.yaw -= (cur.x - prev.x) * 0.22;
+    fp.pitch -= (cur.y - prev.y) * 0.18;
+    clampFp();
+    pointers.set(e.pointerId, cur);
+    applyFpCamera();
   } else {
     view.az -= (cur.x - prev.x) * 0.28;
-    const elMin = insideMode ? 2 : 6;
-    const elMax = insideMode ? 55 : 82;
-    view.el = THREE.MathUtils.clamp(view.el + (cur.y - prev.y) * 0.22, elMin, elMax);
+    view.el = THREE.MathUtils.clamp(view.el + (cur.y - prev.y) * 0.22, 6, 82);
     pointers.set(e.pointerId, cur);
     applyCamera();
   }
@@ -410,14 +477,34 @@ canvas.addEventListener(
   "wheel",
   (e) => {
     e.preventDefault();
-    const zMin = insideMode ? 0.35 : 0.22;
-    const zMax = insideMode ? 1.35 : 1.5;
-    view.zoom = THREE.MathUtils.clamp(view.zoom * (1 + e.deltaY * 0.0012), zMin, zMax);
-    applyCamera();
+    if (insideMode) {
+      // Scroll nudges forward/back while inside
+      const yawR = (fp.yaw * Math.PI) / 180;
+      const step = e.deltaY > 0 ? -0.45 : 0.45;
+      fp.x += Math.sin(yawR) * step;
+      fp.z += Math.cos(yawR) * step;
+      clampFp();
+      applyFpCamera();
+    } else {
+      view.zoom = THREE.MathUtils.clamp(view.zoom * (1 + e.deltaY * 0.0012), 0.22, 1.5);
+      applyCamera();
+    }
     idleAt = performance.now();
   },
   { passive: false }
 );
+
+// Keyboard walk (desktop)
+addEventListener("keydown", (e) => {
+  if (!insideMode) return;
+  keysDown.add(e.code);
+  if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
+    e.preventDefault();
+  }
+});
+addEventListener("keyup", (e) => {
+  keysDown.delete(e.code);
+});
 
 // ---------------------------------------------------------------- day / night
 /**
@@ -1044,30 +1131,38 @@ function enterInterior() {
   setOutsideVisible(false);
   interior.visible = true;
   interior.userData.setNight?.(1);
-  if (interior.userData.subject) {
-    SUBJECT_INSIDE.center.copy(interior.userData.subject.center);
-    SUBJECT_INSIDE.radius = interior.userData.subject.radius;
-  }
-  const dv = interior.userData.defaultView || { az: 200, el: 12, zoom: 0.95 };
-  view.az = dv.az;
-  view.el = dv.el;
-  view.zoom = dv.zoom;
-  view._needsSubjectSnap = true;
+  // Spawn first-person at the front door looking into the room
+  const sp = interior.userData.spawn || {};
+  const wb = interior.userData.walk || INTERIOR_WALK;
+  fp.bounds = { ...wb };
+  fp.x = sp.x ?? 2.2;
+  fp.y = sp.y ?? wb.eyeY;
+  fp.z = sp.z ?? 2.5;
+  fp.yaw = sp.yaw ?? 200;
+  fp.pitch = sp.pitch ?? -4;
+  clampFp();
+  spin = false;
+  $("spin")?.classList.remove("on");
   document.body.classList.add("inside-mode");
   $("inside")?.classList.add("on");
   $("inside")?.setAttribute("aria-pressed", "true");
   const exitBtn = $("exit-inside");
   if (exitBtn) exitBtn.hidden = false;
-  // Softer outdoor sim while you're at the bar
+  const stickEl = $("walk-stick");
+  if (stickEl) stickEl.hidden = false;
   if (outdoor?.life) outdoor.life.setCrowd?.(0);
   computeFit();
-  applyCamera();
+  applyFpCamera();
   idleAt = performance.now();
 }
 
 function exitInterior() {
   if (!insideMode) return;
   insideMode = false;
+  keysDown.clear();
+  stick.x = 0;
+  stick.y = 0;
+  stick.active = false;
   if (interior) interior.visible = false;
   setOutsideVisible(true);
   if (exteriorViewSnapshot) {
@@ -1080,11 +1175,15 @@ function exitInterior() {
     view.el = 26;
     view.zoom = 1;
   }
+  spin = true;
+  $("spin")?.classList.add("on");
   document.body.classList.remove("inside-mode");
   $("inside")?.classList.remove("on");
   $("inside")?.setAttribute("aria-pressed", "false");
   const exitBtn = $("exit-inside");
   if (exitBtn) exitBtn.hidden = true;
+  const stickEl = $("walk-stick");
+  if (stickEl) stickEl.hidden = true;
   computeFit();
   applyCamera();
   idleAt = performance.now();
@@ -1102,6 +1201,52 @@ function wireInsideButton() {
   if (exitBtn) {
     exitBtn.onclick = () => exitInterior();
   }
+  wireWalkStick();
+}
+
+/** Mobile virtual stick — left side of the screen while inside. */
+function wireWalkStick() {
+  const el = $("walk-stick");
+  const knob = $("walk-stick-knob");
+  if (!el || !knob) return;
+  const R = 48;
+  let pid = null;
+  const setFrom = (clientX, clientY) => {
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    let dx = clientX - cx;
+    let dy = clientY - cy;
+    const len = Math.hypot(dx, dy) || 1;
+    const clamp = Math.min(len, R) / len;
+    dx *= clamp;
+    dy *= clamp;
+    stick.x = dx / R;
+    stick.y = dy / R;
+    stick.active = true;
+    knob.style.transform = `translate(${dx}px, ${dy}px)`;
+  };
+  const end = () => {
+    pid = null;
+    stick.x = 0;
+    stick.y = 0;
+    stick.active = false;
+    knob.style.transform = "translate(0,0)";
+  };
+  el.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    pid = e.pointerId;
+    el.setPointerCapture(e.pointerId);
+    setFrom(e.clientX, e.clientY);
+  });
+  el.addEventListener("pointermove", (e) => {
+    if (e.pointerId !== pid) return;
+    e.preventDefault();
+    setFrom(e.clientX, e.clientY);
+  });
+  el.addEventListener("pointerup", end);
+  el.addEventListener("pointercancel", end);
 }
 
 // ---------------------------------------------------------------- boot
@@ -1267,6 +1412,7 @@ async function boot() {
     if (insideMode) {
       // Club neons always on; rainbow window cycles hue
       interior?.userData.tickInterior?.(now / 1000);
+      stepFp(dt);
     } else {
       nightMix = nightFromSun(vnow, weather?.sunriseMin, weather?.sunsetMin);
       applyNight(nightMix);
@@ -1296,10 +1442,9 @@ async function boot() {
       );
     }
 
-    // Auto-rotate, resuming a few seconds after the last touch. Held off during a
-    // focus swing, which would otherwise fight it for the azimuth.
-    if (!focusTarget && spin && now - idleAt > IDLE_RESUME_MS) {
-      view.az += dt * (insideMode ? 4.5 : 3.2);
+    // Auto-rotate outdoors only — inside is first-person walk.
+    if (!insideMode && !focusTarget && spin && now - idleAt > IDLE_RESUME_MS) {
+      view.az += dt * 3.2;
       applyCamera();
     }
 
