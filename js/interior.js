@@ -798,6 +798,343 @@ function buildBottle(col, h = 0.28, r = 0.04) {
   return g;
 }
 
+/** CDJ-style deck (platter + screen + pads). Local +Z = front of deck. */
+function buildDjDeck(lit, accent = 0x40e0ff) {
+  const g = new THREE.Group();
+  // Chassis
+  const body = box(0.55, 0.08, 0.42, 0x12141a, { roughness: 0.4, metalness: 0.35 });
+  body.position.y = 0.04;
+  g.add(body);
+  // Platter
+  const platter = cyl(0.14, 0.14, 0.025, 0x1a1a22, { metalness: 0.45, roughness: 0.35 }, 16);
+  platter.position.set(-0.08, 0.1, 0.02);
+  g.add(platter);
+  const hub = cyl(0.04, 0.04, 0.03, 0xc0c8d0, { metalness: 0.6, roughness: 0.3 }, 10);
+  hub.position.set(-0.08, 0.12, 0.02);
+  g.add(hub);
+  // Jog ring glow
+  const ring = cyl(0.15, 0.15, 0.012, accent, {
+    emissive: accent,
+    emissiveIntensity: 0.7,
+    roughness: 0.3,
+  }, 16);
+  ring.position.set(-0.08, 0.085, 0.02);
+  lit(ring, 0.95, 0.55, { glimmerSpeed: 3.5 });
+  g.add(ring);
+  // Screen
+  const screen = box(0.2, 0.12, 0.02, 0x0a2030, {
+    emissive: 0x1860a0,
+    emissiveIntensity: 0.65,
+    roughness: 0.25,
+  });
+  screen.position.set(0.16, 0.12, -0.08);
+  lit(screen, 0.9, 0.5);
+  g.add(screen);
+  // Performance pads
+  for (let i = 0; i < 4; i++) {
+    const pad = box(0.07, 0.02, 0.07, 0x2a2a35, {
+      emissive: accent,
+      emissiveIntensity: 0.35,
+      roughness: 0.4,
+    });
+    pad.position.set(0.08 + (i % 2) * 0.09, 0.09, 0.08 + Math.floor(i / 2) * 0.09);
+    lit(pad, 0.6, 0.3, { glimmerSpeed: 4 + i * 0.3 });
+    g.add(pad);
+  }
+  // Tempo fader slot
+  const fader = box(0.04, 0.015, 0.16, 0x40a0ff, {
+    emissive: 0x2080d0,
+    emissiveIntensity: 0.4,
+  });
+  fader.position.set(0.22, 0.09, 0.05);
+  g.add(fader);
+  return g;
+}
+
+/** Slim mixer between the decks. */
+function buildDjMixer(lit) {
+  const g = new THREE.Group();
+  const body = box(0.38, 0.07, 0.42, 0x0e1016, { roughness: 0.35, metalness: 0.4 });
+  body.position.y = 0.04;
+  g.add(body);
+  // Channel faders
+  for (let i = 0; i < 4; i++) {
+    const slot = box(0.025, 0.01, 0.14, 0x1a1a22);
+    slot.position.set(-0.12 + i * 0.08, 0.085, 0.06);
+    g.add(slot);
+    const knob = box(0.03, 0.02, 0.04, 0xc8ccd0, { metalness: 0.5, roughness: 0.3 });
+    knob.position.set(-0.12 + i * 0.08, 0.095, 0.02 + (i % 2) * 0.04);
+    g.add(knob);
+  }
+  // EQ knobs
+  for (let i = 0; i < 8; i++) {
+    const k = cyl(0.018, 0.018, 0.02, 0x2a2a32, {
+      metalness: 0.4,
+      roughness: 0.35,
+      emissive: [0xff4fa8, 0x40e0ff, 0x9b6dff, 0x3dd68c][i % 4],
+      emissiveIntensity: 0.45,
+    }, 8);
+    k.position.set(-0.12 + (i % 4) * 0.08, 0.1, -0.1 + Math.floor(i / 4) * 0.08);
+    lit(k, 0.7, 0.4, { glimmerSpeed: 2.5 + i * 0.2 });
+    g.add(k);
+  }
+  // Crossfader
+  const xf = box(0.16, 0.015, 0.035, 0xff4fa8, {
+    emissive: 0xff2a80,
+    emissiveIntensity: 0.5,
+  });
+  xf.position.set(0, 0.09, 0.16);
+  lit(xf, 0.8, 0.45);
+  g.add(xf);
+  return g;
+}
+
+/**
+ * AMI-style digital jukebox — dual touchscreens, neon frame, EQ bars.
+ * Wall-mounted; local +Z faces into the room.
+ */
+function buildAmiJukebox(nightMats, lit) {
+  const g = new THREE.Group();
+  g.name = "amiJukebox";
+  // Curved-ish tall body (blocky AMI Curve silhouette)
+  const body = box(0.55, 1.85, 0.28, 0x0c0e14, { roughness: 0.35, metalness: 0.4 });
+  body.position.y = 1.0;
+  g.add(body);
+  // Side wings
+  for (const side of [-1, 1]) {
+    const wing = box(0.08, 1.7, 0.22, 0x12151c, { roughness: 0.4, metalness: 0.35 });
+    wing.position.set(side * 0.3, 1.0, -0.02);
+    g.add(wing);
+  }
+  // Neon edge frame (full perimeter glow)
+  const frameCol = 0x40e0ff;
+  for (const [w, h, y] of [
+    [0.62, 0.04, 1.95], // top
+    [0.62, 0.04, 0.12], // bottom
+  ]) {
+    const f = box(w, h, 0.06, frameCol, {
+      emissive: frameCol,
+      emissiveIntensity: 0.95,
+      roughness: 0.25,
+    });
+    f.position.set(0, y, 0.14);
+    lit(f, 1.25, 0.8, { glimmerSpeed: 2.8 });
+    g.add(f);
+  }
+  for (const side of [-1, 1]) {
+    const f = box(0.04, 1.8, 0.06, frameCol, {
+      emissive: frameCol,
+      emissiveIntensity: 0.9,
+      roughness: 0.25,
+    });
+    f.position.set(side * 0.3, 1.0, 0.14);
+    lit(f, 1.2, 0.75, { glimmerSpeed: 3.0 });
+    g.add(f);
+  }
+  // Magenta accent stripe (AMI vibe)
+  const accent = box(0.58, 0.03, 0.05, 0xff4fa8, {
+    emissive: 0xff2a80,
+    emissiveIntensity: 0.85,
+  });
+  accent.position.set(0, 1.05, 0.15);
+  lit(accent, 1.15, 0.7, { glimmerSpeed: 3.5 });
+  g.add(accent);
+
+  // Upper video screen
+  const upper = box(0.46, 0.42, 0.04, 0x0a1828, {
+    emissive: 0x184868,
+    emissiveIntensity: 0.7,
+    roughness: 0.22,
+  });
+  upper.position.set(0, 1.55, 0.16);
+  lit(upper, 1.0, 0.6);
+  g.add(upper);
+  const upperUi = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.42, 0.36),
+    new THREE.MeshStandardMaterial({
+      map: labelTex("NOW PLAYING", {
+        w: 320,
+        h: 240,
+        bg: "#0a2040",
+        fg: "#80e8ff",
+        size: 26,
+      }),
+      emissive: 0x2060a0,
+      emissiveIntensity: 0.5,
+      roughness: 0.35,
+      flatShading: true,
+    })
+  );
+  upperUi.position.set(0, 1.55, 0.19);
+  g.add(upperUi);
+
+  // Lower touchscreen
+  const lower = box(0.46, 0.48, 0.04, 0x081420, {
+    emissive: 0x102838,
+    emissiveIntensity: 0.75,
+    roughness: 0.2,
+  });
+  lower.position.set(0, 0.95, 0.16);
+  lit(lower, 1.05, 0.65);
+  g.add(lower);
+  const lowerUi = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.42, 0.42),
+    new THREE.MeshStandardMaterial({
+      map: labelTex("AMI TOUCH", {
+        w: 320,
+        h: 280,
+        bg: "#0c1830",
+        fg: "#ff80c0",
+        size: 28,
+      }),
+      emissive: 0x402060,
+      emissiveIntensity: 0.45,
+      roughness: 0.35,
+      flatShading: true,
+    })
+  );
+  lowerUi.position.set(0, 0.95, 0.19);
+  g.add(lowerUi);
+
+  // EQ bars under lower screen (beat-reactive look)
+  for (let i = 0; i < 8; i++) {
+    const h = 0.06 + (i % 4) * 0.04;
+    const bar = box(0.04, h, 0.03, 0x40e0ff, {
+      emissive: 0x20c0ff,
+      emissiveIntensity: 0.8,
+    });
+    bar.position.set(-0.16 + i * 0.045, 0.55 + h * 0.5, 0.15);
+    lit(bar, 1.1, 0.65, { glimmerSpeed: 4 + i * 0.4, phase: i });
+    g.add(bar);
+  }
+  // Logo strip
+  const logo = box(0.4, 0.08, 0.03, 0x1a1020, {
+    emissive: 0xff4fa8,
+    emissiveIntensity: 0.55,
+  });
+  logo.position.set(0, 0.38, 0.15);
+  lit(logo, 0.9, 0.5);
+  g.add(logo);
+  // Soft neon wash into the room
+  const wash = new THREE.PointLight(0x40e0ff, 0.7, 4, 2);
+  wash.position.set(0, 1.2, 0.6);
+  g.add(wash);
+  const wash2 = new THREE.PointLight(0xff4fa8, 0.4, 3.5, 2);
+  wash2.position.set(0, 0.7, 0.5);
+  g.add(wash2);
+  return g;
+}
+
+/**
+ * Sleek modern DJ booth: black riser, LED-edge desk, dual decks + mixer,
+ * laptop, monitors. Returns a group; place with rotation so +Z faces audience.
+ */
+function buildDjBooth(nightMats, lit, nightLights) {
+  const g = new THREE.Group();
+  g.name = "djBooth";
+
+  // Low platform
+  const platform = box(2.2, 0.18, 1.5, 0x101018, { roughness: 0.55, metalness: 0.2 });
+  platform.position.set(0, 0.09, 0);
+  g.add(platform);
+  // LED toe-kick
+  const kick = box(2.15, 0.04, 0.05, 0x40e0ff, {
+    emissive: 0x20c0ff,
+    emissiveIntensity: 0.75,
+  });
+  kick.position.set(0, 0.06, 0.76);
+  lit(kick, 1.05, 0.6, { glimmerSpeed: 2.5 });
+  g.add(kick);
+
+  // Desk surface
+  const desk = box(2.0, 0.08, 0.85, 0x0a0c12, { roughness: 0.3, metalness: 0.45 });
+  desk.position.set(0, 1.0, 0.1);
+  g.add(desk);
+  // RGB edge under desk
+  const edge = box(2.0, 0.03, 0.04, 0x9b6dff, {
+    emissive: 0x7040c0,
+    emissiveIntensity: 0.85,
+  });
+  edge.position.set(0, 0.95, 0.5);
+  lit(edge, 1.15, 0.7, { glimmerSpeed: 2.8 });
+  g.add(edge);
+
+  // Dual decks + mixer
+  const deckL = buildDjDeck(lit, 0x40e0ff);
+  deckL.position.set(-0.55, 1.04, 0.15);
+  g.add(deckL);
+  const deckR = buildDjDeck(lit, 0xff4fa8);
+  deckR.position.set(0.55, 1.04, 0.15);
+  g.add(deckR);
+  const mixer = buildDjMixer(lit);
+  mixer.position.set(0, 1.04, 0.15);
+  g.add(mixer);
+
+  // Laptop
+  const laptopBase = box(0.35, 0.02, 0.24, 0x1a1a22, { metalness: 0.5, roughness: 0.3 });
+  laptopBase.position.set(0, 1.12, -0.15);
+  g.add(laptopBase);
+  const laptopScreen = box(0.35, 0.22, 0.015, 0x0a2030, {
+    emissive: 0x186080,
+    emissiveIntensity: 0.55,
+    roughness: 0.25,
+  });
+  laptopScreen.position.set(0, 1.24, -0.25);
+  laptopScreen.rotation.x = -0.35;
+  lit(laptopScreen, 0.85, 0.5);
+  g.add(laptopScreen);
+
+  // Booth back / facade toward audience
+  const facade = box(2.05, 0.85, 0.08, 0x0e1018, { roughness: 0.4, metalness: 0.3 });
+  facade.position.set(0, 0.55, 0.72);
+  g.add(facade);
+  // Stacy's LED strip on facade
+  const facadeLed = box(1.4, 0.12, 0.04, 0x3060ff, {
+    emissive: 0x2040c0,
+    emissiveIntensity: 0.9,
+  });
+  facadeLed.position.set(0, 0.7, 0.78);
+  lit(facadeLed, 1.2, 0.75, { glimmerSpeed: 3.2 });
+  g.add(facadeLed);
+  const facadeLabel = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.9, 0.1),
+    new THREE.MeshStandardMaterial({
+      map: labelTex("Stacy's", { w: 256, h: 64, bg: "#102040", fg: "#80c0ff", size: 36 }),
+      emissive: 0x3060ff,
+      emissiveIntensity: 0.45,
+      roughness: 0.4,
+      flatShading: true,
+    })
+  );
+  facadeLabel.position.set(0, 0.7, 0.81);
+  g.add(facadeLabel);
+
+  // Side speakers
+  for (const side of [-1, 1]) {
+    const spk = box(0.28, 0.55, 0.28, 0x12141a, { roughness: 0.6 });
+    spk.position.set(side * 1.0, 0.45, 0.35);
+    g.add(spk);
+    const cone = cyl(0.08, 0.1, 0.04, 0x2a2a32, { roughness: 0.5 }, 10);
+    cone.rotation.x = Math.PI / 2;
+    cone.position.set(side * 1.0, 0.5, 0.5);
+    g.add(cone);
+  }
+
+  // Overhead bar light on the booth
+  const bar = box(1.6, 0.06, 0.08, 0x40a0ff, {
+    emissive: 0x2080d0,
+    emissiveIntensity: 0.8,
+  });
+  bar.position.set(0, 2.15, -0.1);
+  lit(bar, 1.15, 0.7, { glimmerSpeed: 2.6 });
+  g.add(bar);
+  const boothLight = new THREE.PointLight(0x80c0ff, 0.65, 4.5, 2);
+  boothLight.position.set(0, 1.9, 0.3);
+  g.add(boothLight);
+
+  return g;
+}
+
 /** Freestanding ATM — grey body, lit screen, keypad, card slot, receipt. */
 function buildAtm(nightMats, lit) {
   const g = new THREE.Group();
@@ -1633,34 +1970,34 @@ export function createInterior() {
     nightLights.push({ light: winSpot, day: 1.0, night: 1.9 });
     g.userData.cathedralSpot = winSpot;
 
-    // DJ booth
-    const stage = box(1.8, 0.4, 2.0, 0x1a1a22);
-    stage.position.set(x + 1.1, 0.22, -2.4);
-    add(stage);
-    const djDesk = box(1.5, 0.6, 0.65, BLACK);
-    djDesk.position.set(x + 1.0, 0.8, -2.4);
-    add(djDesk);
-    for (let i = 0; i < 6; i++) {
-      const knob = box(0.14, 0.05, 0.14, 0x2a2a30, {
-        emissive: [0xff4fa8, 0x40e0ff, 0x9b6dff, 0x3dd68c, 0xffe14a, 0xff6a3a][i],
-        emissiveIntensity: 0.6,
-      });
-      knob.position.set(x + 0.5 + i * 0.2, 1.12, -2.2);
-      lit(knob, 0.9, 0.55);
-      add(knob);
-    }
-    const ledBar = neonBox(1.6, 0.28, 0.1, 0x3060ff, 0.9);
-    ledBar.position.set(x + 0.25, 2.1, -2.4);
-    lit(ledBar, 1.25, 0.8, { glimmerSpeed: 3.5 });
-    add(ledBar);
+    // Sleek modern DJ booth — dual decks, mixer, laptop, LED facade
+    // Faces into the room (+X). Placed on the east end of the north wall.
+    const dj = buildDjBooth(nightMats, lit, nightLights);
+    // Booth local +Z = audience; rotate so +Z → +X (into room from north wall)
+    dj.rotation.y = Math.PI / 2;
+    dj.position.set(x + 1.15, 0, -2.55);
+    add(dj);
 
-    // (Jukebox / pink-glow unit between curtains and cathedral removed —
-    //  that slot is open toward the performance stage.)
+    // AMI-style neon touchscreen jukebox on the wall behind the booth
+    const juke = buildAmiJukebox(nightMats, lit);
+    // Face into the room (+X)
+    juke.rotation.y = Math.PI / 2;
+    juke.position.set(x + 0.18, 0, -2.55);
+    add(juke);
+    // Extra wall wash from the jukebox
+    const jukeWash = new THREE.PointLight(0x40e0ff, 0.55, 5, 2);
+    jukeWash.position.set(x + 0.9, 1.4, -2.55);
+    add(jukeWash);
+    nightLights.push({ light: jukeWash, day: 0.35, night: 0.7 });
+    const jukePink = new THREE.PointLight(0xff4fa8, 0.35, 4, 2);
+    jukePink.position.set(x + 0.8, 0.9, -2.55);
+    add(jukePink);
+    nightLights.push({ light: jukePink, day: 0.2, night: 0.45 });
 
-    // Booths further east by the DJ (not in front of the curtains)
-    for (const zb of [-3.5, -2.85]) {
+    // Lounge booths east of the DJ (not blocking the stage)
+    for (const zb of [-3.55, -3.0]) {
       const booth = box(1.1, 0.6, 0.55, 0x3a2030);
-      booth.position.set(x + 1.4, 0.38, zb);
+      booth.position.set(x + 1.5, 0.38, zb);
       add(booth);
     }
   }
