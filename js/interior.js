@@ -1326,7 +1326,7 @@ export function createInterior() {
     // One step down — tables sometimes go here for drag shows.
     {
       const gap = 0.25; // ~10 inches from the stage
-      const pitDepth = 0.14; // one step into the ground
+      const pitDepth = 0.28; // deeper step-down (~11") so The Pit really reads as sunken
       const pitLen = stageLen; // same width/length as the stage
       const pitSpan = 2.35; // how far it extends in front of the stage (east)
       // Flush with north wall (cathedral / neon-window wall)
