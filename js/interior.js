@@ -3278,7 +3278,8 @@ export function createInterior() {
   const stageZ = curtainZ - 0.22 - stageDepth * 0.5;
   const stageX = rodX0 + stageLen * 0.5;
   // The Pit — true step-down in front of the stage
-  const pitGap = 0.25;
+  // Smaller gap = pit sits closer to the stage apron
+  const pitGap = 0.1;
   const pitDepth = 0.34; // ~13" drop — clearly a step, not a curb
   const pitLen = stageLen;
   const pitSpan = 2.35;
