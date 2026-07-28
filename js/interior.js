@@ -809,21 +809,204 @@ function buildDiamondNeon(nightMats) {
   return g;
 }
 
-function buildBottle(col, h = 0.28, r = 0.04) {
+/**
+ * Round cartoony liquor bottle (low-poly spheres + fat cylinders).
+ * `kind`: 0 squat whiskey · 1 classic wine · 2 tall spirit · 3 round flask
+ */
+function buildBottle(col, h = 0.28, r = 0.05, kind = 0) {
   const g = new THREE.Group();
-  const body = cyl(r, r * 1.08, h * 0.7, col, { roughness: 0.32, metalness: 0.12 }, 7);
-  body.position.y = h * 0.35;
+  g.name = "bottle";
+  const segs = 12;
+  const glassMat = {
+    roughness: 0.22,
+    metalness: 0.18,
+    transparent: true,
+    opacity: 0.92,
+  };
+  // Soft liquid glow so bottles read as glass, not plastic bricks
+  const emissive = new THREE.Color(col).multiplyScalar(0.22);
+
+  if (kind === 3) {
+    // Round flask — fat sphere body
+    const belly = new THREE.Mesh(
+      new THREE.SphereGeometry(r * 1.35, segs, segs),
+      new THREE.MeshStandardMaterial({
+        color: col,
+        emissive,
+        emissiveIntensity: 0.35,
+        ...glassMat,
+        flatShading: false,
+      })
+    );
+    belly.position.y = r * 1.2;
+    belly.castShadow = true;
+    g.add(belly);
+    const neck = cyl(r * 0.32, r * 0.42, h * 0.28, col, { ...glassMat }, segs);
+    neck.position.y = r * 2.15;
+    g.add(neck);
+    const cork = cyl(r * 0.38, r * 0.4, 0.04, 0xc8a060, { roughness: 0.7 }, 8);
+    cork.position.y = r * 2.35;
+    g.add(cork);
+    return g;
+  }
+
+  // Body: slightly bulged cylinder (cartoony soda-bottle read)
+  const bodyR = kind === 0 ? r * 1.25 : kind === 2 ? r * 0.95 : r * 1.1;
+  const bodyH = h * (kind === 0 ? 0.55 : kind === 2 ? 0.62 : 0.58);
+  const body = cyl(bodyR * 0.92, bodyR, bodyH, col, {
+    ...glassMat,
+    emissive: col,
+    emissiveIntensity: 0.12,
+  }, segs);
+  body.position.y = bodyH * 0.5 + 0.01;
   g.add(body);
-  const neck = cyl(r * 0.42, r * 0.65, h * 0.28, col, { roughness: 0.32 }, 6);
-  neck.position.y = h * 0.78;
+
+  // Round shoulder blob so the silhouette isn't a hard cylinder edge
+  const shoulder = new THREE.Mesh(
+    new THREE.SphereGeometry(bodyR * 0.95, segs, Math.max(6, (segs / 2) | 0)),
+    new THREE.MeshStandardMaterial({
+      color: col,
+      emissive,
+      emissiveIntensity: 0.3,
+      ...glassMat,
+      flatShading: false,
+    })
+  );
+  shoulder.scale.set(1, 0.55, 1);
+  shoulder.position.y = bodyH * 0.92;
+  shoulder.castShadow = true;
+  g.add(shoulder);
+
+  // Fat neck
+  const neckH = h * (kind === 2 ? 0.28 : 0.22);
+  const neck = cyl(bodyR * 0.32, bodyR * 0.48, neckH, col, { ...glassMat }, segs);
+  neck.position.y = bodyH + neckH * 0.35;
   g.add(neck);
-  const cap = cyl(r * 0.48, r * 0.48, 0.035, 0xc8a040, { metalness: 0.45, roughness: 0.38 }, 6);
-  cap.position.y = h * 0.95;
+
+  // Chunky cork / gold cap
+  const capCol = kind === 1 ? 0xc41e3a : kind === 0 ? 0xc8a040 : 0xe8dcc0;
+  const cap = cyl(bodyR * 0.4, bodyR * 0.42, 0.04, capCol, {
+    metalness: kind === 0 ? 0.55 : 0.15,
+    roughness: kind === 0 ? 0.35 : 0.65,
+  }, 8);
+  cap.position.y = bodyH + neckH * 0.7;
   g.add(cap);
-  // Label band
-  const label = box(r * 1.9, h * 0.22, 0.01, 0xf0e8d8, { roughness: 0.7, castShadow: false });
-  label.position.set(0, h * 0.38, r * 0.95);
+  // Little sphere pom on top of cork
+  const pom = new THREE.Mesh(
+    new THREE.SphereGeometry(bodyR * 0.22, 8, 8),
+    new THREE.MeshStandardMaterial({
+      color: capCol,
+      roughness: 0.55,
+      metalness: 0.2,
+      flatShading: false,
+    })
+  );
+  pom.position.y = bodyH + neckH * 0.7 + 0.03;
+  g.add(pom);
+
+  // Soft oval label sticker (not a hard box band)
+  const label = new THREE.Mesh(
+    new THREE.SphereGeometry(bodyR * 0.55, 8, 8),
+    new THREE.MeshStandardMaterial({
+      color: 0xf5efe0,
+      roughness: 0.75,
+      flatShading: false,
+    })
+  );
+  label.scale.set(0.35, 0.7, 0.15);
+  label.position.set(0, bodyH * 0.45, bodyR * 0.85);
   g.add(label);
+
+  return g;
+}
+
+/**
+ * Cartoony bar glassware. Local +Y up; sits on a shelf.
+ * `kind`: 0 wine · 1 rocks · 2 flute · 3 coupe · 4 pint
+ */
+function buildGlass(kind = 0) {
+  const g = new THREE.Group();
+  g.name = "glassware";
+  const segs = 12;
+  const glass = {
+    color: 0xd8e8f0,
+    roughness: 0.12,
+    metalness: 0.15,
+    transparent: true,
+    opacity: 0.42,
+    emissive: 0xa0c8e0,
+    emissiveIntensity: 0.12,
+  };
+
+  if (kind === 1) {
+    // Rocks / tumbler — short fat cup
+    const cup = cyl(0.045, 0.04, 0.09, glass.color, glass, segs);
+    cup.position.y = 0.05;
+    g.add(cup);
+    const rim = cyl(0.048, 0.048, 0.012, 0xe8f4ff, { ...glass, opacity: 0.55 }, segs);
+    rim.position.y = 0.1;
+    g.add(rim);
+    return g;
+  }
+  if (kind === 2) {
+    // Champagne flute
+    const foot = cyl(0.035, 0.035, 0.012, glass.color, glass, segs);
+    foot.position.y = 0.008;
+    g.add(foot);
+    const stem = cyl(0.008, 0.01, 0.1, glass.color, glass, 8);
+    stem.position.y = 0.06;
+    g.add(stem);
+    const bowl = cyl(0.018, 0.032, 0.12, glass.color, glass, segs);
+    bowl.position.y = 0.16;
+    g.add(bowl);
+    return g;
+  }
+  if (kind === 3) {
+    // Coupe — wide shallow bowl
+    const foot = cyl(0.04, 0.04, 0.012, glass.color, glass, segs);
+    foot.position.y = 0.008;
+    g.add(foot);
+    const stem = cyl(0.01, 0.012, 0.07, glass.color, glass, 8);
+    stem.position.y = 0.05;
+    g.add(stem);
+    const bowl = new THREE.Mesh(
+      new THREE.SphereGeometry(0.06, segs, segs),
+      new THREE.MeshStandardMaterial({ ...glass, flatShading: false })
+    );
+    bowl.scale.set(1, 0.45, 1);
+    bowl.position.y = 0.12;
+    g.add(bowl);
+    return g;
+  }
+  if (kind === 4) {
+    // Pint — tall taper
+    const cup = cyl(0.04, 0.05, 0.16, glass.color, glass, segs);
+    cup.position.y = 0.09;
+    g.add(cup);
+    const rim = cyl(0.052, 0.052, 0.012, 0xe8f4ff, { ...glass, opacity: 0.5 }, segs);
+    rim.position.y = 0.17;
+    g.add(rim);
+    return g;
+  }
+
+  // Wine glass (default)
+  const foot = cyl(0.042, 0.042, 0.012, glass.color, glass, segs);
+  foot.position.y = 0.008;
+  g.add(foot);
+  const stem = cyl(0.009, 0.011, 0.09, glass.color, glass, 8);
+  stem.position.y = 0.055;
+  g.add(stem);
+  const bowl = new THREE.Mesh(
+    new THREE.SphereGeometry(0.05, segs, segs),
+    new THREE.MeshStandardMaterial({ ...glass, flatShading: false })
+  );
+  bowl.scale.set(1, 1.15, 1);
+  bowl.position.y = 0.14;
+  g.add(bowl);
+  // Rim ring
+  const rim = cyl(0.048, 0.048, 0.01, 0xe8f4ff, { ...glass, opacity: 0.5 }, segs);
+  rim.position.y = 0.19;
+  g.add(rim);
   return g;
 }
 
@@ -1684,35 +1867,64 @@ function buildBackBar(nightMats, lit, add, nightLights, wallX) {
   add(backKey);
   nightLights.push({ light: backKey, day: 0.7, night: 1.3 });
 
-  // Four shelf tiers, denser bottles
+  // Four shelf tiers. Top shelf is intentionally empty of bottles.
+  // Facing the back bar: RIGHT = −Z (east / patio). Glassware lives there.
   const shelfCols = [
     0xc41e3a, 0x2a5a3a, 0xf0e8d0, 0x3a3a8a, 0xe8a040, 0x1a1a1e,
     0x8b0000, 0x4a7040, 0xd4af37, 0x5a2a6a, 0xc0c0c0, 0x402010,
     0xff6a3a, 0x80c0ff, 0x2a8a5a, 0x6a2a8a,
   ];
+  const shelfZ0 = -2.45; // east / right end
+  const shelfZ1 = 2.55; // west / left end
+  const shelfSpan = shelfZ1 - shelfZ0;
+  // Glassware occupies the right ~30% of each stocked shelf
+  const glassZoneEnd = shelfZ0 + shelfSpan * 0.32;
+
   for (let tier = 0; tier < 4; tier++) {
     const sy = 1.22 + tier * 0.38;
     const shelf = box(0.32, 0.055, 5.2, WOOD_DARK, { roughness: 0.65 });
     shelf.position.set(shelfX, sy, 0.1);
     add(shelf);
-    for (let row = 0; row < 2; row++) {
-      const count = 22;
-      for (let i = 0; i < count; i++) {
-        const h = 0.18 + ((i + tier + row) % 5) * 0.035;
-        const r = 0.028 + ((i + row) % 3) * 0.006;
-        const b = buildBottle(shelfCols[(i + tier * 5 + row * 3) % shelfCols.length], h, r);
-        b.position.set(
-          shelfX + 0.04 - row * 0.1,
-          sy + 0.02,
-          -2.25 + i * (5.0 / (count - 1))
-        );
-        add(b);
-      }
-    }
     const led = neonBox(0.035, 0.028, 5.0, [0xff4fa8, 0x40e0ff, 0x9b6dff, 0x3dd68c][tier], 0.85);
     led.position.set(shelfX - 0.18, sy - 0.04, 0.1);
     lit(led, 1.2, 0.8, { glimmerSpeed: 2.0 + tier * 0.25 });
     add(led);
+
+    // Top shelf (tier 3): no bottles — open space under the neon diamond
+    if (tier === 3) continue;
+
+    // Right side — cartoony glassware (wine, rocks, flutes, coupes, pints)
+    const glassCount = 9;
+    for (let i = 0; i < glassCount; i++) {
+      const kind = [0, 1, 2, 3, 4, 0, 1, 2, 3][i];
+      const gl = buildGlass(kind);
+      const z = shelfZ0 + 0.12 + i * ((glassZoneEnd - shelfZ0 - 0.2) / (glassCount - 1));
+      // Slight stagger front/back row
+      const row = i % 2;
+      gl.position.set(shelfX + 0.02 - row * 0.08, sy + 0.03, z);
+      gl.scale.setScalar(0.95 + (i % 3) * 0.05);
+      add(gl);
+    }
+
+    // Left + center — round cartoony bottles (two staggered rows)
+    for (let row = 0; row < 2; row++) {
+      const count = 14;
+      for (let i = 0; i < count; i++) {
+        const h = 0.2 + ((i + tier + row) % 5) * 0.03;
+        const r = 0.032 + ((i + row) % 3) * 0.007;
+        const kind = (i + tier + row) % 4;
+        const b = buildBottle(
+          shelfCols[(i + tier * 5 + row * 3) % shelfCols.length],
+          h,
+          r,
+          kind
+        );
+        const z =
+          glassZoneEnd + 0.12 + i * ((shelfZ1 - glassZoneEnd - 0.2) / (count - 1));
+        b.position.set(shelfX + 0.04 - row * 0.1, sy + 0.02, z);
+        add(b);
+      }
+    }
   }
 
   // Diamond Stacy's neon on the back bar wall
@@ -1731,7 +1943,12 @@ function buildBackBar(nightMats, lit, add, nightLights, wallX) {
   well.position.set(railX, 1.0, 0.2);
   add(well);
   for (let i = 0; i < 12; i++) {
-    const b = buildBottle(shelfCols[i % shelfCols.length], 0.18 + (i % 3) * 0.03, 0.032);
+    const b = buildBottle(
+      shelfCols[i % shelfCols.length],
+      0.2 + (i % 3) * 0.025,
+      0.038,
+      i % 4
+    );
     b.position.set(railX, 1.18, -0.9 + i * 0.2);
     add(b);
   }
@@ -1772,16 +1989,13 @@ function buildBackBar(nightMats, lit, add, nightLights, wallX) {
     add(handle);
   }
 
-  // Hanging glass rack
-  for (let i = 0; i < 14; i++) {
-    const glass = cyl(0.04, 0.03, 0.12, 0xc0d0e0, {
-      transparent: true,
-      opacity: 0.45,
-      roughness: 0.15,
-      metalness: 0.2,
-    }, 6);
-    glass.position.set(shelfX - 0.2, 2.65, -1.8 + i * 0.2);
-    add(glass);
+  // Hanging stem rack above the glassware end (right / east side of bar)
+  for (let i = 0; i < 8; i++) {
+    const hang = buildGlass(i % 2 === 0 ? 0 : 2); // wine + flutes upside-ish
+    hang.rotation.x = Math.PI; // hang stems-up from the rack
+    hang.position.set(shelfX - 0.18, 2.72, shelfZ0 + 0.2 + i * 0.16);
+    hang.scale.setScalar(0.9);
+    add(hang);
   }
 
   // Rubber floor mat strip in the service aisle (bartender work zone)
