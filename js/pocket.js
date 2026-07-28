@@ -242,48 +242,100 @@ function sampleInteriorSurfaceY(x, z) {
 }
 
 /**
- * Circle (player) vs axis-aligned solids from the interior build.
- * Pushes the player out so you slide along bars/rails instead of tunneling.
+ * Expanded solid AABBs (Minkowski sum with player radius).
+ * Player is treated as a point so sliding along faces stays smooth.
  */
-function resolveColliders(x, z) {
+function getExpandedColliders() {
   const list = interior?.userData?.colliders;
-  if (!list?.length) return { x, z };
-  const r = interior.userData.playerRadius ?? 0.3;
-  // A few iterations so stacked solids (bar + stools, cooler + bay) resolve cleanly
-  for (let iter = 0; iter < 4; iter++) {
-    let pushed = false;
-    for (const c of list) {
-      // Closest point on AABB to player center
-      const qx = THREE.MathUtils.clamp(x, c.xMin, c.xMax);
-      const qz = THREE.MathUtils.clamp(z, c.zMin, c.zMax);
-      let dx = x - qx;
-      let dz = z - qz;
-      if (dx === 0 && dz === 0) {
-        // Center is inside the box — push out on the shallowest face + radius
-        const left = x - c.xMin;
-        const right = c.xMax - x;
-        const bot = z - c.zMin;
-        const top = c.zMax - z;
-        const m = Math.min(left, right, bot, top);
-        if (m === left) x = c.xMin - r;
-        else if (m === right) x = c.xMax + r;
-        else if (m === bot) z = c.zMin - r;
-        else z = c.zMax + r;
-        pushed = true;
-        continue;
-      }
-      const d2 = dx * dx + dz * dz;
-      if (d2 < r * r) {
-        const d = Math.sqrt(d2) || 1e-6;
-        const push = (r - d) / d;
-        x += dx * push;
-        z += dz * push;
-        pushed = true;
-      }
+  if (!list?.length) return null;
+  const r = interior.userData.playerRadius ?? 0.22;
+  // Cache until interior or radius changes
+  const key = list.length + ":" + r;
+  if (interior.userData._colExpKey === key && interior.userData._colExp) {
+    return interior.userData._colExp;
+  }
+  const exp = list.map((c) => ({
+    xMin: c.xMin - r,
+    xMax: c.xMax + r,
+    zMin: c.zMin - r,
+    zMax: c.zMax + r,
+  }));
+  interior.userData._colExp = exp;
+  interior.userData._colExpKey = key;
+  return exp;
+}
+
+/** True if point is inside an expanded solid. */
+function pointInSolid(x, z, b) {
+  return x > b.xMin && x < b.xMax && z > b.zMin && z < b.zMax;
+}
+
+/**
+ * Push a point out of expanded AABBs (nearest face). Used for spawn / clamps.
+ * Prefer shallow axis so you don't get flung across the room.
+ */
+function depenetrate(x, z) {
+  const boxes = getExpandedColliders();
+  if (!boxes) return { x, z };
+  for (let iter = 0; iter < 6; iter++) {
+    let hit = false;
+    for (const b of boxes) {
+      if (!pointInSolid(x, z, b)) continue;
+      const left = x - b.xMin;
+      const right = b.xMax - x;
+      const bot = z - b.zMin;
+      const top = b.zMax - z;
+      const m = Math.min(left, right, bot, top);
+      // Epsilon so we sit just outside and don't re-collide next frame
+      const eps = 1e-4;
+      if (m === left) x = b.xMin - eps;
+      else if (m === right) x = b.xMax + eps;
+      else if (m === bot) z = b.zMin - eps;
+      else z = b.zMax + eps;
+      hit = true;
     }
-    if (!pushed) break;
+    if (!hit) break;
   }
   return { x, z };
+}
+
+/**
+ * Minecraft-style slide: move one axis at a time, block only that axis on hit.
+ * Lets you glide along the bar / rail / cooler without sticking in corners.
+ */
+function moveAndSlide(x, z, dx, dz) {
+  const boxes = getExpandedColliders();
+  if (!boxes) return { x: x + dx, z: z + dz };
+
+  // ── X axis ──
+  if (dx !== 0) {
+    const nx = x + dx;
+    let blocked = false;
+    for (const b of boxes) {
+      if (!pointInSolid(nx, z, b)) continue;
+      blocked = true;
+      // Moving right into a solid → stop at left face; left → right face
+      if (dx > 0) x = Math.min(x, b.xMin);
+      else x = Math.max(x, b.xMax);
+    }
+    if (!blocked) x = nx;
+  }
+
+  // ── Z axis ──
+  if (dz !== 0) {
+    const nz = z + dz;
+    let blocked = false;
+    for (const b of boxes) {
+      if (!pointInSolid(x, nz, b)) continue;
+      blocked = true;
+      if (dz > 0) z = Math.min(z, b.zMin);
+      else z = Math.max(z, b.zMax);
+    }
+    if (!blocked) z = nz;
+  }
+
+  // Safety: if still overlapping (corner case), free the position
+  return depenetrate(x, z);
 }
 
 /** True while teleported into the manager office. */
@@ -312,10 +364,10 @@ function clampFp() {
   } else {
     fp.x = THREE.MathUtils.clamp(fp.x, xMin, xMax);
     fp.z = THREE.MathUtils.clamp(fp.z, zMin, zMax);
-    // Furniture / props — bar, rail, ATM, walk-in, stage, etc.
-    const resolved = resolveColliders(fp.x, fp.z);
-    fp.x = THREE.MathUtils.clamp(resolved.x, xMin, xMax);
-    fp.z = THREE.MathUtils.clamp(resolved.z, zMin, zMax);
+    // Free position if inside a solid (spawn / teleport / float error)
+    const freed = depenetrate(fp.x, fp.z);
+    fp.x = THREE.MathUtils.clamp(freed.x, xMin, xMax);
+    fp.z = THREE.MathUtils.clamp(freed.z, zMin, zMax);
     fp.y = eye + sampleInteriorSurfaceY(fp.x, fp.z);
   }
   fp.pitch = THREE.MathUtils.clamp(fp.pitch, -72, 68);
@@ -432,19 +484,10 @@ function stepFp(dt) {
       (keysDown.has("ShiftLeft") || keysDown.has("ShiftRight") ? 1.55 : 1);
     const stepX = (fx * mz + rx * mx) * sp * dt;
     const stepZ = (fz * mz + rz * mx) * sp * dt;
-    // Axis-separated moves so you slide along walls/bars instead of sticking
-    const ox = fp.x;
-    const oz = fp.z;
-    fp.x = ox + stepX;
-    fp.z = oz;
-    clampFp();
-    const afterX = fp.x;
-    fp.x = ox;
-    fp.z = oz + stepZ;
-    clampFp();
-    const afterZ = fp.z;
-    fp.x = afterX;
-    fp.z = afterZ;
+    // Smooth slide along solids (axis-split); then room bounds + height
+    const slid = moveAndSlide(fp.x, fp.z, stepX, stepZ);
+    fp.x = slid.x;
+    fp.z = slid.z;
     clampFp();
     moved = true;
   }

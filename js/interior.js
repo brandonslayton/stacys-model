@@ -3888,7 +3888,7 @@ export function createInterior() {
     const col = buildTwistedColumn(topY);
     col.position.set(x, 0, z);
     add(col);
-    solidAt(x, z, 0.22, 0.22);
+    solidAt(x, z, 0.16, 0.16);
   }
 
   // Stage curtain rod just EAST (−Z) of the three railing columns — black
@@ -3906,8 +3906,8 @@ export function createInterior() {
     // Two drape panels with a walkable center gap
     {
       const panelW = (stageLen - openGap) * 0.5;
-      solid(rodX0, rodX0 + panelW, curtainZ - 0.12, curtainZ + 0.14);
-      solid(rodX0 + panelW + openGap, rodX0 + stageLen, curtainZ - 0.12, curtainZ + 0.14);
+      solid(rodX0, rodX0 + panelW, curtainZ - 0.08, curtainZ + 0.1);
+      solid(rodX0 + panelW + openGap, rodX0 + stageLen, curtainZ - 0.08, curtainZ + 0.1);
     }
 
     // Performance platform (drag / karaoke) — ~1 ft high, as long as the
@@ -4101,7 +4101,7 @@ export function createInterior() {
       const cabinet = box(0.6 * s, 1.45 * s, 0.3, BLACK);
       cabinet.position.set(x, 0.9 * s, z - 0.15);
       add(cabinet);
-      solidAt(x, z - 0.15, 0.32 * s, 0.22);
+      solidAt(x, z - 0.15, 0.28 * s, 0.16);
       const board = new THREE.Mesh(
         new THREE.CircleGeometry(0.24 * s, 16),
         new THREE.MeshStandardMaterial({
@@ -4139,7 +4139,7 @@ export function createInterior() {
     foliage.rotation.y = Math.PI;
     add(foliage);
     // Thin solid so you can't walk into the green wall
-    solidAt(foliageX, z - 0.12, foliageW * 0.48, 0.22);
+    solidAt(foliageX, z - 0.1, foliageW * 0.46, 0.14);
 
     const diamond = buildDiamondNeon(nightMats);
     diamond.position.set(foliageX, 1.85, z - 0.22);
@@ -4188,7 +4188,7 @@ export function createInterior() {
     atm.rotation.y = Math.PI;
     atm.position.set(atmX, 0, z - 0.28);
     add(atm);
-    solidAt(atmX, z - 0.28, 0.4, 0.32);
+    solidAt(atmX, z - 0.28, 0.36, 0.26);
 
     // 3) Wooden double doors (RIGHT when facing wall)
     const doorFrame = box(totalW + 0.22, 2.55, 0.18, WOOD_DARK);
@@ -4346,17 +4346,17 @@ export function createInterior() {
       railing.position.set(railStartX, 0, railZ);
       add(railing);
       // Thin rail solid — walk around ends, not through pickets
-      solid(railStartX, railEndX, railZ - 0.1, railZ + 0.1);
+      solid(railStartX, railEndX, railZ - 0.06, railZ + 0.06);
       // Short return at the north wall tying into the door frame
       const returnRail = buildWoodRailing(0.55, { picketH: 0.95, spacing: 0.12 });
       returnRail.rotation.y = Math.PI / 2;
       returnRail.position.set(railStartX + 0.08, 0, railZ);
       add(returnRail);
-      solid(railStartX - 0.06, railStartX + 0.18, railZ - 0.55, railZ + 0.08);
+      solid(railStartX - 0.04, railStartX + 0.14, railZ - 0.5, railZ + 0.06);
     }
 
-    // Lot glass door frame (can stand at it, not walk through the wall mass)
-    solidAt(x + 0.08, doorZ, 0.18, 0.62);
+    // Lot glass door frame (stand at it, not walk through the wall mass)
+    solidAt(x + 0.06, doorZ, 0.12, 0.55);
 
     // Cathedral rainbow window (east of the railing / door) — full peak lights up
     const cathed = buildCathedralWindow(nightMats);
@@ -4410,7 +4410,7 @@ export function createInterior() {
     g.userData.djFrontX = djX + 0.68;
     g.userData.djZ = djZ;
     // Booth footprint after Y=π/2: local Z→world X, local X→world −Z
-    solidAt(djX, djZ, 0.72, 0.9);
+    solidAt(djX, djZ, 0.62, 0.78);
 
     // Slim wall jukebox BESIDE the booth (toward cathedral / neon window),
     // not directly behind the DJ — leaves the stand pad clear.
@@ -4420,7 +4420,7 @@ export function createInterior() {
     juke.rotation.y = Math.PI / 2;
     juke.position.set(x + 0.12, 0, jukeZ);
     add(juke);
-    solidAt(x + 0.28, jukeZ, 0.35, 0.42);
+    solidAt(x + 0.28, jukeZ, 0.3, 0.36);
     const jukeWash = new THREE.PointLight(0x40e0ff, 0.5, 4.5, 2);
     jukeWash.position.set(x + 0.7, 1.4, jukeZ);
     add(jukeWash);
@@ -4578,8 +4578,8 @@ export function createInterior() {
         // Open side faces into the room (+Z); wall is at −Z
         booth.position.set(bx, 0, z + 0.72);
         add(booth);
-        // Seat + back + table footprint
-        solidAt(bx, z + 0.55, boothW * 0.48, 0.48);
+        // Seat + back + table footprint (table sticks out a bit)
+        solidAt(bx, z + 0.48, boothW * 0.46, 0.4);
       }
     }
     g.userData.patioDoor = { x: patioX, z: z + 0.35 };
@@ -4620,8 +4620,8 @@ export function createInterior() {
       const cooler = box(coolerLen, wallH, coolerW, 0x2a2234, { roughness: 0.82 });
       cooler.position.set(coolerXc, wallH * 0.5, coolerZc);
       add(cooler);
-      // Full cooler bulk + door face into the room
-      solid(coolerX0 - 0.12, coolerX1 + 0.08, coolerZ0 - 0.05, coolerZ1 + 0.04);
+      // Full cooler bulk (tight to geometry so aisle stays walkable)
+      solid(coolerX0 - 0.06, coolerX1 + 0.04, coolerZ0 - 0.02, coolerZ1 + 0.02);
       // Horizontal insulation score lines
       for (let i = 0; i < 4; i++) {
         const score = box(coolerLen * 0.98, 0.02, 0.02, 0x1e1828, { roughness: 0.75 });
@@ -4707,7 +4707,7 @@ export function createInterior() {
       bay.position.set(bayX, 0, coolerZ1 + 0.02);
       add(bay);
       // Ice chest + taps stick into the aisle
-      solidAt(bayX, coolerZ1 + 0.32, bayW * 0.52, 0.4);
+      solidAt(bayX, coolerZ1 + 0.28, bayW * 0.48, 0.34);
       // Rubber mat under the bay
       const bayMat = box(1.25, 0.025, 0.85, 0x141418, { roughness: 0.95 });
       bayMat.position.set(bayX, 0.05, coolerZ1 + 0.4);
@@ -4742,15 +4742,8 @@ export function createInterior() {
     const barLong = box(barDepth, 1.1, 5.6, BLACK);
     barLong.position.set(barX, 0.58, 0.15);
     add(barLong);
-    // Solid bar + stool rail — matches “can’t walk through the bar”
-    solidAt(barX, 0.15, barDepth * 0.5 + 0.06, 5.6 * 0.5 + 0.08);
-    // Stools as a soft strip (can’t clip through seats)
-    solid(
-      barX - barDepth * 0.5 - 0.78,
-      barX - barDepth * 0.5 - 0.28,
-      -2.0 - 0.22,
-      -2.0 + 8 * 0.55 + 0.22
-    );
+    // Solid bar body only — stools stay walkable so you can sidle up smoothly
+    solidAt(barX, 0.15, barDepth * 0.5 + 0.02, 5.6 * 0.5 + 0.04);
     // Rainbow LED front (toward the room, −X face)
     const bands = [0xff3b3b, 0xff9a1a, 0xffe14a, 0x3dd68c, 0x3ca0ff, 0x9b6dff];
     const panelW = 5.2;
@@ -4803,7 +4796,7 @@ export function createInterior() {
       const actZ = westWallZ - 0.2;
       partyCam.rotation.y = Math.atan2(actX - camX, actZ - camZ);
       add(partyCam);
-      solidAt(camX, camZ, 0.28, 0.28);
+      solidAt(camX, camZ, 0.2, 0.2);
       // Soft spill so the shot looks intentional
       const camFill = new THREE.PointLight(0xfff5ee, 0.35, 3.2, 2);
       camFill.position.set(camX, 1.5, camZ + 0.55);
@@ -5406,7 +5399,8 @@ export function createInterior() {
   g.userData.walk = { ...WALK };
   // First-person solids (bar, rail, ATM, cooler, stage, …)
   g.userData.colliders = colliders;
-  g.userData.playerRadius = 0.3;
+  // Tight radius so you can pass aisles / curtain gap without sticky walls
+  g.userData.playerRadius = 0.22;
   g.userData.subject = {
     center: new THREE.Vector3(0, 1.4, 0),
     radius: 6.5,
