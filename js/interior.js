@@ -834,57 +834,170 @@ function foliageTex() {
   ctx.fillRect(0, 0, S, S);
   let rs = 42;
   const rnd = () => ((rs = (rs * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
-  // Cartoony chunky leaves — big teardrop / oval shapes only (no flowers)
   const greens = [
     "#2ecc71", "#27ae60", "#3dd68c", "#1e8a40", "#48c774",
     "#20b060", "#6ae08a", "#189848", "#50d070", "#0f7030",
+    "#34c759", "#248f45", "#5fd68a",
   ];
-  for (let i = 0; i < 90; i++) {
-    const x = rnd() * S;
-    const y = rnd() * S;
-    const r = 18 + rnd() * 36;
-    const rot = rnd() * Math.PI;
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(rot);
-    ctx.fillStyle = greens[i % greens.length];
-    // Fat teardrop leaf
-    ctx.beginPath();
-    ctx.ellipse(0, 0, r * 0.45, r, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // Light midrib highlight
-    ctx.strokeStyle = "rgba(200,255,180,0.35)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, -r * 0.85);
-    ctx.lineTo(0, r * 0.85);
-    ctx.stroke();
-    ctx.restore();
-  }
-  // Playful vine squiggles
-  ctx.strokeStyle = "rgba(40,140,60,0.65)";
-  ctx.lineWidth = 5;
+  // Vines first (under leaves)
   ctx.lineCap = "round";
-  for (let i = 0; i < 12; i++) {
+  ctx.lineJoin = "round";
+  for (let i = 0; i < 18; i++) {
+    ctx.strokeStyle = i % 2 ? "rgba(30,110,45,0.75)" : "rgba(50,150,70,0.55)";
+    ctx.lineWidth = 3 + rnd() * 5;
     ctx.beginPath();
     let x = rnd() * S;
-    let y = rnd() * S * 0.2;
+    let y = rnd() * S * 0.15;
     ctx.moveTo(x, y);
-    for (let k = 0; k < 10; k++) {
-      x += (rnd() - 0.5) * 50;
-      y += S / 11;
+    for (let k = 0; k < 14; k++) {
+      x += (rnd() - 0.5) * 55;
+      y += S / 15 + rnd() * 8;
       ctx.lineTo(x, y);
     }
     ctx.stroke();
   }
-  // Lime speckles for cartoony pop
-  for (let i = 0; i < 60; i++) {
-    ctx.fillStyle = "rgba(180,255,120,0.35)";
+  // Detailed cartoony leaves — pointed, teardrop, and heart-ish (no flowers)
+  for (let i = 0; i < 140; i++) {
+    const x = rnd() * S;
+    const y = rnd() * S;
+    const r = 12 + rnd() * 38;
+    const rot = rnd() * Math.PI;
+    const kind = i % 3;
+    const col = greens[i % greens.length];
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rot);
+    ctx.fillStyle = col;
     ctx.beginPath();
-    ctx.arc(rnd() * S, rnd() * S, 2 + rnd() * 3, 0, Math.PI * 2);
+    if (kind === 0) {
+      // Pointed leaf (two ellipses + tip)
+      ctx.ellipse(0, 0, r * 0.38, r, 0, 0, Math.PI * 2);
+    } else if (kind === 1) {
+      // Teardrop
+      ctx.moveTo(0, -r);
+      ctx.bezierCurveTo(r * 0.7, -r * 0.4, r * 0.55, r * 0.5, 0, r * 0.9);
+      ctx.bezierCurveTo(-r * 0.55, r * 0.5, -r * 0.7, -r * 0.4, 0, -r);
+    } else {
+      // Broad oval
+      ctx.ellipse(0, r * 0.05, r * 0.55, r * 0.85, 0, 0, Math.PI * 2);
+    }
+    ctx.fill();
+    // Soft highlight edge
+    ctx.fillStyle = "rgba(180,255,140,0.18)";
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.12, -r * 0.15, r * 0.18, r * 0.45, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    // Midrib
+    ctx.strokeStyle = "rgba(220,255,190,0.4)";
+    ctx.lineWidth = 1.5 + rnd() * 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -r * 0.85);
+    ctx.quadraticCurveTo(r * 0.05, 0, 0, r * 0.85);
+    ctx.stroke();
+    // Side veins
+    ctx.strokeStyle = "rgba(160,230,140,0.28)";
+    ctx.lineWidth = 1;
+    for (let v = -2; v <= 2; v++) {
+      if (v === 0) continue;
+      const vy = v * r * 0.22;
+      ctx.beginPath();
+      ctx.moveTo(0, vy);
+      ctx.quadraticCurveTo(r * 0.25 * Math.sign(v || 1), vy + r * 0.08, r * 0.32 * Math.sign(v || 1), vy + r * 0.18);
+      ctx.stroke();
+    }
+    // Tiny stem
+    ctx.strokeStyle = "rgba(40,100,40,0.5)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, r * 0.85);
+    ctx.lineTo(0, r * 1.1);
+    ctx.stroke();
+    ctx.restore();
+  }
+  // Cluster blobs for density in corners
+  for (let i = 0; i < 24; i++) {
+    const x = rnd() * S;
+    const y = rnd() * S;
+    const grd = ctx.createRadialGradient(x, y, 2, x, y, 20 + rnd() * 28);
+    grd.addColorStop(0, "rgba(80,200,100,0.35)");
+    grd.addColorStop(1, "rgba(20,80,40,0)");
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.arc(x, y, 28 + rnd() * 20, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Lime speckles for cartoony pop
+  for (let i = 0; i < 90; i++) {
+    ctx.fillStyle = "rgba(180,255,120,0.32)";
+    ctx.beginPath();
+    ctx.arc(rnd() * S, rnd() * S, 1.5 + rnd() * 3, 0, Math.PI * 2);
     ctx.fill();
   }
   return canvasTexture(c, 2);
+}
+
+/**
+ * One cartoony leaf mesh with midrib + optional stem for depth on the wall.
+ * kind: 0 kite, 1 long, 2 wide oval
+ */
+function makeFoliageLeaf(s, col, kind, rnd) {
+  const leaf = new THREE.Group();
+  const bodyCol = col;
+  const ribCol = 0x8ae0a0;
+  // Main blade
+  const bw = kind === 1 ? s * 0.38 : kind === 2 ? s * 0.72 : s * 0.52;
+  const bh = kind === 2 ? s * 0.72 : s;
+  const bd = 0.04 + rnd() * 0.04;
+  const blade = box(bw, bh, bd, bodyCol, {
+    roughness: 0.82,
+    castShadow: false,
+    emissive: bodyCol,
+    emissiveIntensity: 0.07,
+  });
+  leaf.add(blade);
+  // Midrib highlight (thin lighter strip)
+  const rib = box(bw * 0.12, bh * 0.88, bd + 0.012, ribCol, {
+    roughness: 0.55,
+    castShadow: false,
+    emissive: 0x40a060,
+    emissiveIntensity: 0.12,
+  });
+  rib.position.z = bd * 0.35;
+  leaf.add(rib);
+  // Side vein nubs (reads as leaf detail without heavy cost)
+  for (const side of [-1, 1]) {
+    for (let v = 0; v < 3; v++) {
+      const vein = box(bw * 0.22, bh * 0.06, bd * 0.5, bodyCol, {
+        roughness: 0.8,
+        castShadow: false,
+        emissive: bodyCol,
+        emissiveIntensity: 0.04,
+      });
+      vein.position.set(side * bw * 0.22, -bh * 0.25 + v * bh * 0.22, bd * 0.2);
+      vein.rotation.z = side * (0.35 + v * 0.08);
+      leaf.add(vein);
+    }
+  }
+  // Small stem
+  const stem = box(bw * 0.1, bh * 0.18, bd * 0.6, 0x1a5a28, {
+    roughness: 0.9,
+    castShadow: false,
+  });
+  stem.position.y = -bh * 0.52;
+  leaf.add(stem);
+  // Tip point (extra diamond for kite leaves)
+  if (kind === 0) {
+    const tip = box(bw * 0.35, bh * 0.22, bd * 0.85, bodyCol, {
+      roughness: 0.8,
+      castShadow: false,
+      emissive: bodyCol,
+      emissiveIntensity: 0.08,
+    });
+    tip.position.y = bh * 0.48;
+    tip.rotation.z = Math.PI / 4;
+    leaf.add(tip);
+  }
+  return leaf;
 }
 
 /** Layered cartoony foliage panel for the activation wall (leaves only — no flowers). */
@@ -899,44 +1012,106 @@ function buildFoliageWall(w = 2.4, h = 2.4) {
     })
   );
   g.add(back);
-  // Big proud low-poly leaves for depth (chunky, fun, no flowers)
-  const leafCols = [0x2ecc71, 0x27ae60, 0x3dd68c, 0x1e8a40, 0x48c774, 0x6ae08a, 0x20b060];
+
+  const leafCols = [
+    0x2ecc71, 0x27ae60, 0x3dd68c, 0x1e8a40, 0x48c774,
+    0x6ae08a, 0x20b060, 0x34c759, 0x189848, 0x50d070,
+  ];
   let rs = 99;
   const rnd = () => ((rs = (rs * 16807) % 2147483647) / 2147483647);
-  for (let i = 0; i < 56; i++) {
+
+  // Backing vine snakes (thin dark stems weaving under leaves)
+  for (let i = 0; i < 10; i++) {
+    const segs = 6 + (i % 3);
+    let x = (rnd() - 0.5) * w * 0.85;
+    let y = (rnd() - 0.5) * h * 0.85;
+    for (let k = 0; k < segs; k++) {
+      const vine = box(0.04 + rnd() * 0.03, 0.14 + rnd() * 0.1, 0.04, 0x145028, {
+        roughness: 0.92,
+        castShadow: false,
+      });
+      vine.position.set(x, y, 0.03 + rnd() * 0.04);
+      vine.rotation.z = (rnd() - 0.5) * 0.8;
+      g.add(vine);
+      x += (rnd() - 0.5) * 0.18;
+      y += 0.08 + rnd() * 0.12;
+    }
+  }
+
+  // Main leaf field — mixed shapes with midribs / veins
+  for (let i = 0; i < 72; i++) {
     const lx = (rnd() - 0.5) * w * 0.92;
     const ly = (rnd() - 0.5) * h * 0.92;
-    const s = 0.16 + rnd() * 0.28;
-    // Fat diamond / kite leaf (reads as cartoony foliage, not a brick)
-    const leaf = box(s * 0.55, s, 0.07 + rnd() * 0.06, leafCols[i % leafCols.length], {
-      roughness: 0.85,
-      castShadow: false,
-      emissive: leafCols[i % leafCols.length],
-      emissiveIntensity: 0.06,
-    });
-    leaf.position.set(lx, ly, 0.05 + rnd() * 0.1);
-    leaf.rotation.z = (rnd() - 0.5) * 1.2;
-    leaf.rotation.x = (rnd() - 0.5) * 0.5;
-    leaf.rotation.y = (rnd() - 0.5) * 0.35;
+    const s = 0.14 + rnd() * 0.26;
+    const kind = i % 3;
+    const leaf = makeFoliageLeaf(s, leafCols[i % leafCols.length], kind, rnd);
+    leaf.position.set(lx, ly, 0.05 + rnd() * 0.12);
+    leaf.rotation.z = (rnd() - 0.5) * 1.35;
+    leaf.rotation.x = (rnd() - 0.5) * 0.55;
+    leaf.rotation.y = (rnd() - 0.5) * 0.4;
     g.add(leaf);
   }
-  // A few oversized "hero" leaves for silhouette pop
-  for (let i = 0; i < 8; i++) {
-    const s = 0.38 + rnd() * 0.18;
-    const hero = box(s * 0.4, s, 0.1, leafCols[(i + 3) % leafCols.length], {
-      roughness: 0.82,
-      castShadow: false,
-      emissive: 0x1a6030,
-      emissiveIntensity: 0.08,
-    });
-    hero.position.set(
-      (rnd() - 0.5) * w * 0.7,
-      (rnd() - 0.5) * h * 0.7,
-      0.12 + rnd() * 0.06
-    );
-    hero.rotation.z = (rnd() - 0.5) * 0.9;
-    g.add(hero);
+
+  // Mid-layer clusters (tighter bunches for density)
+  for (let c = 0; c < 8; c++) {
+    const cx = (rnd() - 0.5) * w * 0.7;
+    const cy = (rnd() - 0.5) * h * 0.7;
+    for (let j = 0; j < 5; j++) {
+      const s = 0.12 + rnd() * 0.16;
+      const leaf = makeFoliageLeaf(
+        s,
+        leafCols[(c + j) % leafCols.length],
+        j % 3,
+        rnd
+      );
+      leaf.position.set(
+        cx + (rnd() - 0.5) * 0.28,
+        cy + (rnd() - 0.5) * 0.28,
+        0.1 + rnd() * 0.08
+      );
+      leaf.rotation.z = (rnd() - 0.5) * 1.5;
+      leaf.rotation.x = (rnd() - 0.5) * 0.4;
+      g.add(leaf);
+    }
   }
+
+  // Oversized hero leaves for silhouette pop
+  for (let i = 0; i < 10; i++) {
+    const s = 0.36 + rnd() * 0.2;
+    const leaf = makeFoliageLeaf(s, leafCols[(i + 2) % leafCols.length], i % 3, rnd);
+    leaf.position.set(
+      (rnd() - 0.5) * w * 0.72,
+      (rnd() - 0.5) * h * 0.72,
+      0.14 + rnd() * 0.08
+    );
+    leaf.rotation.z = (rnd() - 0.5) * 1.0;
+    leaf.rotation.x = (rnd() - 0.5) * 0.35;
+    leaf.rotation.y = (rnd() - 0.5) * 0.3;
+    g.add(leaf);
+  }
+
+  // Edge fringe leaves peeking past the panel
+  for (let i = 0; i < 14; i++) {
+    const edge = i % 2 === 0 ? "x" : "y";
+    const s = 0.18 + rnd() * 0.14;
+    const leaf = makeFoliageLeaf(s, leafCols[i % leafCols.length], 1, rnd);
+    if (edge === "x") {
+      leaf.position.set(
+        (rnd() > 0.5 ? 0.5 : -0.5) * w * 0.98,
+        (rnd() - 0.5) * h * 0.9,
+        0.08 + rnd() * 0.06
+      );
+    } else {
+      leaf.position.set(
+        (rnd() - 0.5) * w * 0.9,
+        (rnd() > 0.5 ? 0.5 : -0.5) * h * 0.98,
+        0.08 + rnd() * 0.06
+      );
+    }
+    leaf.rotation.z = (rnd() - 0.5) * 1.8;
+    g.add(leaf);
+  }
+
   return g;
 }
 
