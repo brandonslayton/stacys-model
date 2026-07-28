@@ -1781,15 +1781,15 @@ function buildIceAndTapBay(lit) {
   const lid = box(bayW * 0.88, 0.04, 0.58, 0xa8acb4, { metalness: 0.4, roughness: 0.35 });
   lid.position.set(0, iceH + 0.02, 0.24);
   g.add(lid);
-  // Cool ice glow window
-  const bin = box(bayW * 0.62, 0.32, 0.03, 0x90d0e8, {
-    emissive: 0x50a8c8,
-    emissiveIntensity: 0.35,
-    roughness: 0.3,
-    metalness: 0.1,
+  // Cool ice glow window (subtle — stainless nearby blooms easily)
+  const bin = box(bayW * 0.62, 0.32, 0.03, 0x7ab0c8, {
+    emissive: 0x3a88a8,
+    emissiveIntensity: 0.22,
+    roughness: 0.35,
+    metalness: 0.08,
   });
   bin.position.set(0, 0.48, 0.55);
-  lit(bin, 0.55, 0.3, { glimmerSpeed: 1.4 });
+  lit(bin, 0.35, 0.18, { glimmerSpeed: 1.4 });
   g.add(bin);
   for (let i = 0; i < 4; i++) {
     const cube = box(0.07, 0.07, 0.07, 0xe0f4ff, {
@@ -1809,12 +1809,12 @@ function buildIceAndTapBay(lit) {
   scoop.rotation.z = -0.2;
   g.add(scoop);
 
-  // Soft service lights
-  const iceGlow = new THREE.PointLight(0xa0d8e8, 0.28, 2.2, 2);
-  iceGlow.position.set(0, 0.5, 0.8);
+  // Soft service lights — low so stainless doesn't bloom white
+  const iceGlow = new THREE.PointLight(0xa0d8e8, 0.14, 1.6, 2);
+  iceGlow.position.set(0, 0.5, 0.55);
   g.add(iceGlow);
-  const tapGlow = new THREE.PointLight(0xffe8d0, 0.32, 2.4, 2);
-  tapGlow.position.set(0, 1.55, 0.55);
+  const tapGlow = new THREE.PointLight(0xffe0c8, 0.16, 1.8, 2);
+  tapGlow.position.set(0, 1.45, 0.4);
   g.add(tapGlow);
 
   g.userData.bayW = bayW;
@@ -2949,10 +2949,13 @@ function buildDjBooth(nightMats, lit, nightLights) {
   lit(lapScr, 0.95, 0.55);
   g.add(lapScr);
 
-  // Soft work light
-  const boothLight = new THREE.PointLight(0x80c0ff, 0.55, 3.5, 2);
-  boothLight.position.set(0, 1.7, 0.1);
+  // Soft work light — cool but dim so decks read without a white bloom
+  const boothLight = new THREE.PointLight(0x80c0ff, 0.28, 2.6, 2);
+  boothLight.position.set(0, 1.7, 0.05);
   g.add(boothLight);
+  if (nightLights) {
+    nightLights.push({ light: boothLight, day: 0.14, night: 0.32 });
+  }
 
   return g;
 }
@@ -4222,7 +4225,7 @@ export function createInterior() {
     const doorZ = 3.78;
 
     // Frosted glass lot door — opaque frost that transmits outdoor daylight.
-    // Bright by day (natural room fill), nearly dark after sunset. Driven by
+    // Soft local spill only (not room-wide white floods). Driven by
     // setDayAmbient(nightT), not club neon setNight.
     {
       const dw = 1.15;
@@ -4243,19 +4246,19 @@ export function createInterior() {
       face.position.set(x + 0.07, dh * 0.5 + 0.02, doorZ);
       add(face);
 
-      // Two frosted leaves — milky, rough, soft sky emissive (daylight through glass)
+      // Two frosted leaves — milky, rough; gentle sky emissive (not white-hot)
       const dayMats = [];
       for (const side of [-1, 1]) {
         const paneMat = new THREE.MeshStandardMaterial({
-          color: 0xd0dce6,
+          color: 0xb8c8d4,
           map: frostMap,
-          emissive: 0xc4daf0,
+          emissive: 0x8aacc8,
           emissiveMap: frostMap,
-          emissiveIntensity: 0.85,
-          roughness: 0.82,
-          metalness: 0.04,
+          emissiveIntensity: 0.28,
+          roughness: 0.88,
+          metalness: 0.02,
           transparent: true,
-          opacity: 0.92,
+          opacity: 0.94,
           flatShading: true,
         });
         const pane = new THREE.Mesh(
@@ -4266,28 +4269,8 @@ export function createInterior() {
         pane.castShadow = false;
         pane.receiveShadow = true;
         add(pane);
-        dayMats.push({ mat: paneMat, day: 0.95, night: 0.04 });
-      }
-      // Soft luminous edge strip so frost reads as backlit glass, not plastic
-      for (const side of [-1, 1]) {
-        const edgeMat = new THREE.MeshStandardMaterial({
-          color: 0xe8f2fa,
-          emissive: 0xd0e8ff,
-          emissiveIntensity: 0.55,
-          roughness: 0.55,
-          metalness: 0.08,
-          transparent: true,
-          opacity: 0.75,
-          flatShading: true,
-        });
-        const edge = new THREE.Mesh(
-          new THREE.BoxGeometry(0.03, dh - 0.28, dw * 0.36),
-          edgeMat
-        );
-        edge.position.set(x + 0.11, dh * 0.5 + 0.02, doorZ + side * dw * 0.24);
-        edge.castShadow = false;
-        add(edge);
-        dayMats.push({ mat: edgeMat, day: 0.7, night: 0.02 });
+        // day intensity kept modest so frost glows, not blooms
+        dayMats.push({ mat: paneMat, day: 0.32, night: 0.02 });
       }
 
       // Mid stile + push bar
@@ -4307,22 +4290,19 @@ export function createInterior() {
       lit(exitLite, 1.1, 0.7);
       add(exitLite);
 
-      // Daylight spill into the room (warm sun + cool sky mix)
-      const sunSpill = new THREE.PointLight(0xffe4c0, 1.55, 7.5, 2);
-      sunSpill.position.set(x + 1.35, 1.55, doorZ);
-      add(sunSpill);
-      const skyFill = new THREE.PointLight(0xb8d4f0, 0.75, 9, 2);
-      skyFill.position.set(x + 2.1, 2.1, doorZ);
-      add(skyFill);
-      // Soft pool on the floor just inside the door
-      const floorPool = new THREE.PointLight(0xfff0d8, 0.55, 4.5, 2);
-      floorPool.position.set(x + 1.0, 0.35, doorZ);
-      add(floorPool);
+      // One soft daylight spill — short range so it only warms the door pocket,
+      // not the DJ booth (NE) or walk-in (SE) as white hotspots.
+      const doorSpill = new THREE.PointLight(0xd8e4f0, 0.42, 3.2, 2);
+      doorSpill.position.set(x + 0.85, 1.45, doorZ);
+      add(doorSpill);
+      // Tiny warm floor kiss just inside the threshold
+      const doorPool = new THREE.PointLight(0xf0e4d0, 0.18, 2.0, 2);
+      doorPool.position.set(x + 0.7, 0.28, doorZ);
+      add(doorPool);
 
       const dayLights = [
-        { light: sunSpill, day: 1.65, night: 0.02 },
-        { light: skyFill, day: 0.85, night: 0.01 },
-        { light: floorPool, day: 0.6, night: 0.0 },
+        { light: doorSpill, day: 0.48, night: 0.0 },
+        { light: doorPool, day: 0.2, night: 0.0 },
       ];
       // Publish for setDayAmbient (real outdoor sun time)
       g.userData.dayAmbient = g.userData.dayAmbient || { mats: [], lights: [] };
@@ -4675,10 +4655,10 @@ export function createInterior() {
       wiBadge.position.set(wiFaceX - 0.07, 2.2, wiZ);
       wiBadge.rotation.y = -Math.PI / 2;
       add(wiBadge);
-      const wiGlow = new THREE.PointLight(0xa0d0e8, 0.4, 3.5, 2);
-      wiGlow.position.set(wiFaceX - 0.45, 1.3, wiZ);
+      const wiGlow = new THREE.PointLight(0x90b8d0, 0.22, 2.4, 2);
+      wiGlow.position.set(wiFaceX - 0.4, 1.25, wiZ);
       add(wiGlow);
-      nightLights.push({ light: wiGlow, day: 0.2, night: 0.45 });
+      nightLights.push({ light: wiGlow, day: 0.1, night: 0.24 });
 
       // ── Ice (low) + draft taps (above) on the room face of the cooler ──
       // Flush to the south wall end of the cooler run (no text labels).
@@ -4692,11 +4672,11 @@ export function createInterior() {
       const bayMat = box(1.25, 0.025, 0.85, 0x141418, { roughness: 0.95 });
       bayMat.position.set(bayX, 0.05, coolerZ1 + 0.4);
       add(bayMat);
-      // Soft aisle fill
-      const bayFill = new THREE.PointLight(0xffe8d0, 0.4, 3.5, 2);
-      bayFill.position.set(bayX, 1.6, coolerZ1 + 0.7);
+      // Soft aisle fill — short range, low intensity (no white bloom on stainless)
+      const bayFill = new THREE.PointLight(0xffe0c8, 0.22, 2.2, 2);
+      bayFill.position.set(bayX, 1.45, coolerZ1 + 0.5);
       add(bayFill);
-      nightLights.push({ light: bayFill, day: 0.22, night: 0.5 });
+      nightLights.push({ light: bayFill, day: 0.1, night: 0.26 });
 
       // Runner along the cooler face (stop short of the bay at the south end)
       const runner = box(Math.max(0.8, coolerLen * 0.55), 0.02, 0.55, 0x121218, {
@@ -5040,22 +5020,22 @@ export function createInterior() {
   });
   g.userData.setNight?.(1);
 
-  // Outdoor daylight channel (inverse of club neon): high at noon, off at night.
-  // Used by the frosted lot door so real sun time washes into the room.
+  // Outdoor daylight channel (inverse of club neon): gentle at noon, off at night.
+  // Local to the lot door only — never a room-wide white wash.
   g.userData.setDayAmbient = (nightT) => {
     const t = Math.max(0, Math.min(1, nightT));
-    // Soft sunset curve — full day until late afternoon, then falls off
-    const sun = Math.pow(1 - t, 1.15);
+    // Soft sunset curve
+    const sun = Math.pow(1 - t, 1.2);
     const da = g.userData.dayAmbient;
     if (!da) return;
     for (const e of da.mats || []) {
       if (!e?.mat) continue;
       e.mat.emissiveIntensity = e.night + (e.day - e.night) * sun;
-      // Slightly cooler/darker glass base as night comes on
       if (e.mat.color) {
-        const dayCol = 0xd0dce6;
-        const nightCol = 0x3a4550;
-        e.mat.color.setHex(dayCol).lerp(new THREE.Color(nightCol), t * 0.85);
+        // Dimmer base colors so frost never reads as a white panel
+        const dayCol = 0xb0c0ce;
+        const nightCol = 0x2a323c;
+        e.mat.color.setHex(dayCol).lerp(new THREE.Color(nightCol), t * 0.9);
       }
     }
     for (const e of da.lights || []) {
