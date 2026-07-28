@@ -4813,9 +4813,18 @@ export function createInterior() {
 
     // Bartender ambient AI: clean · restock · serve (when guests order) · idle
     // Guests are lot-style peds driven by interiorLife (enter → bar → mingle…).
+    // No bartender when the doors are closed — empty club, no staff on shift.
     const bt = g.userData.bartender;
+    const venueOpen = g.userData._lifeOpts?.open !== false;
     if (bt?.mesh) {
       const m = bt.mesh;
+      if (!venueOpen) {
+        m.visible = false;
+        bt.patronPresent = false;
+        bt.orderGuest = null;
+        bt.state = "idle";
+      } else {
+      m.visible = true;
       const dt = Math.min(0.05, (nowSec - (bt._lastT || nowSec)));
       bt._lastT = nowSec;
       bt.stateT = (bt.stateT || 0) + dt;
@@ -4954,6 +4963,7 @@ export function createInterior() {
       while (dyaw > Math.PI) dyaw -= Math.PI * 2;
       while (dyaw < -Math.PI) dyaw += Math.PI * 2;
       m.rotation.y += dyaw * blend;
+      } // venueOpen
     }
 
     // Orbiting dance-floor color lights
