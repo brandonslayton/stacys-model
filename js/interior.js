@@ -342,28 +342,27 @@ function buildManagerOffice(lit) {
   frontTop.position.set(-W * 0.5 + fw * 0.5, winY + winH * 0.5 + topH * 0.5, 0);
   g.add(frontTop);
 
-  // True open aperture — hollow frame rails only (no solid fill / no glass slab)
+  // Open aperture only — black/dark-purple lip, no center mullions
+  const frameCol = 0x1a1020;
   const fr = 0.05;
   const fx = -W * 0.5 + 0.03;
-  // Left / right rails of the opening
   for (const sz of [-1, 1]) {
-    const rail = box(fr, winH + fr * 2, fr, 0x3a342c, { roughness: 0.65 });
+    const rail = box(fr, winH + fr * 2, fr, frameCol, { roughness: 0.78 });
     rail.position.set(fx, winY, sz * (winW * 0.5));
     g.add(rail);
   }
-  // Top / bottom rails
   for (const sy of [-1, 1]) {
-    const rail = box(fr, fr, winW + fr * 2, 0x3a342c, { roughness: 0.65 });
+    const rail = box(fr, fr, winW + fr * 2, frameCol, { roughness: 0.78 });
     rail.position.set(fx, winY + sy * (winH * 0.5), 0);
     g.add(rail);
   }
   // Deep sill to lean on while looking out
-  const sill = box(0.28, 0.06, winW + 0.08, 0x4a3a2e, { roughness: 0.7 });
+  const sill = box(0.28, 0.06, winW + 0.08, 0x140e18, { roughness: 0.8 });
   sill.position.set(-W * 0.5 + 0.16, winY - winH * 0.5 - 0.03, 0);
   g.add(sill);
-  // Curtain tie-backs on sides (reads as a real room window)
+  // Curtain tie-backs on sides
   for (const sz of [-1, 1]) {
-    const drape = box(0.08, winH * 0.85, 0.12, 0x3a2040, { roughness: 0.85 });
+    const drape = box(0.08, winH * 0.85, 0.12, 0x2a1438, { roughness: 0.85 });
     drape.position.set(fx + 0.02, winY - 0.05, sz * (winW * 0.5 + 0.1));
     g.add(drape);
   }
@@ -4578,46 +4577,41 @@ export function createInterior() {
         top.position.set(revealX, winTop + topH * 0.5, 0.1);
         add(top);
       }
-      // Inner jamb lips (depth into the wall so the opening feels 3D)
+      // Open hole — black / dark-purple lip only (no center cross / mullions)
+      const frameCol = 0x120c18; // near-black purple
+      const lipCol = 0x1a1024;
       const jambDepth = 0.16;
       const jambX = wallX - 0.01;
       for (const sz of [-1, 1]) {
-        const jamb = box(jambDepth, winH, 0.05, 0x2a1e28, { roughness: 0.82 });
+        const jamb = box(jambDepth, winH, 0.05, frameCol, { roughness: 0.85 });
         jamb.position.set(jambX, winY, winZ + sz * (winW * 0.5 - 0.02));
         add(jamb);
       }
-      const head = box(jambDepth, 0.05, winW, 0x2a1e28, { roughness: 0.82 });
+      const head = box(jambDepth, 0.05, winW, frameCol, { roughness: 0.85 });
       head.position.set(jambX, winTop - 0.02, winZ);
       add(head);
 
-      // Hollow wood window frame — rails only (NOT a solid fill slab)
+      // Outer trim around the hole (posts + rails only — fully open middle)
       const fr = 0.06;
       const fx = wallX - 0.06;
       for (const sz of [-1, 1]) {
-        const post = box(0.1, winH + fr * 2, fr, 0x4a3a2e, {
-          roughness: 0.72,
-          metalness: 0.04,
+        const post = box(0.1, winH + fr * 2, fr, lipCol, {
+          roughness: 0.82,
+          metalness: 0.02,
         });
         post.position.set(fx, winY, winZ + sz * (winW * 0.5));
         add(post);
       }
       for (const sy of [-1, 1]) {
-        const rail = box(0.1, fr, winW + fr * 2, 0x4a3a2e, {
-          roughness: 0.72,
-          metalness: 0.04,
+        const rail = box(0.1, fr, winW + fr * 2, lipCol, {
+          roughness: 0.82,
+          metalness: 0.02,
         });
         rail.position.set(fx, winY + sy * (winH * 0.5), winZ);
         add(rail);
       }
-      // Thin center mullions (keep the open view — not a screen grid)
-      const mullV = box(0.035, winH - 0.06, 0.035, 0x3a2e24, { roughness: 0.7 });
-      mullV.position.set(fx - 0.01, winY, winZ);
-      add(mullV);
-      const mullH = box(0.035, 0.035, winW - 0.06, 0x3a2e24, { roughness: 0.7 });
-      mullH.position.set(fx - 0.01, winY, winZ);
-      add(mullH);
-      // Deep sill / ledge you could lean on
-      const sill = box(0.22, 0.07, winW + 0.14, 0x5a4535, { roughness: 0.7 });
+      // Deep sill / ledge (same dark purple family)
+      const sill = box(0.22, 0.07, winW + 0.14, 0x100c14, { roughness: 0.82 });
       sill.position.set(wallX - 0.14, winBot - 0.04, winZ);
       add(sill);
       // Warm office light THROUGH the open hole (occupied loft, not black void)
