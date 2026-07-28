@@ -143,6 +143,23 @@ export const BIRD_ICON = svg(
   20
 );
 
+/** Doorway — enter the low-poly interior. */
+export const INSIDE_ICON = svg(
+  `<path d="M5 20V5.5A1.5 1.5 0 0 1 6.5 4h7A1.5 1.5 0 0 1 15 5.5V20"/>` +
+    `<path d="M15 20h4v-9.5A1.5 1.5 0 0 0 17.5 9H15"/>` +
+    `<path d="M9.2 12.2h0.1"/>` +
+    `<circle cx="12.2" cy="12.2" r="0.7" fill="currentColor" stroke="none"/>`,
+  20
+);
+
+/** Arrow out — leave the interior back to the lot. */
+export const OUTSIDE_ICON = svg(
+  `<path d="M9 6l-5 6 5 6"/>` +
+    `<path d="M4 12h12.5"/>` +
+    `<path d="M16.5 7v10"/>`,
+  20
+);
+
 // ---------------------------------------------------------------- moon phase
 const SYNODIC = 29.530588853; // mean days between new moons
 /** A known new moon: 2000-01-06 18:14 UTC. */

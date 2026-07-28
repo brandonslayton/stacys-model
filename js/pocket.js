@@ -23,12 +23,14 @@ import {
   CREATIVE_ICON,
   UFO_ICON,
   BIRD_ICON,
+  INSIDE_ICON,
   moonPhase,
   moonName,
   moonIllumination,
   moonIcon,
 } from "./icons.js";
 import { createStacys } from "./stacys.js";
+import { createInterior } from "./interior.js";
 import { createStreet, SIDEWALK_INNER_Z } from "./street.js";
 import { LifeSystem, crowdFactor } from "./life.js";
 import { ChoreSystem } from "./chores.js";
@@ -133,6 +135,12 @@ const SUBJECT_LANDSCAPE = {
   radius: 8.5,
 };
 
+/** Interior orbit target — overwritten once createInterior() runs. */
+const SUBJECT_INSIDE = {
+  center: new THREE.Vector3(0.1, 1.15, 0.1),
+  radius: 3.4,
+};
+
 let SUBJECT = SUBJECT_PORTRAIT;
 
 /**
@@ -149,18 +157,34 @@ const camera = new THREE.PerspectiveCamera(46, 1, 0.5, 400);
 let fitDist = 60;
 /** Set once the mist system exists, so resize() can keep its point scale right. */
 let mistRef = null;
+/** True while the low-poly bar interior is the active scene. */
+let insideMode = false;
+/** Saved exterior view so exit restores where you were. */
+let exteriorViewSnapshot = null;
 
 function computeFit() {
-  SUBJECT = camera.aspect >= 1 ? SUBJECT_LANDSCAPE : SUBJECT_PORTRAIT;
-  view.target.copy(SUBJECT.center);
+  if (insideMode) {
+    SUBJECT = SUBJECT_INSIDE;
+    // Inside: keep the orbit target stable while dragging; only snap on enter.
+    if (view._needsSubjectSnap) {
+      view.target.copy(SUBJECT.center);
+      view._needsSubjectSnap = false;
+    }
+  } else {
+    SUBJECT = camera.aspect >= 1 ? SUBJECT_LANDSCAPE : SUBJECT_PORTRAIT;
+    view.target.copy(SUBJECT.center);
+  }
   const vHalf = THREE.MathUtils.degToRad(camera.fov) / 2;
   const hHalf = Math.atan(Math.tan(vHalf) * camera.aspect);
   // 1.06 leaves a little air around the fitted sphere
-  fitDist = (SUBJECT.radius * 1.06) / Math.sin(Math.min(vHalf, hHalf));
+  const pad = insideMode ? 1.02 : 1.06;
+  fitDist = (SUBJECT.radius * pad) / Math.sin(Math.min(vHalf, hHalf));
 }
 
 function applyCamera() {
-  const dist = THREE.MathUtils.clamp(fitDist * view.zoom, fitDist * 0.22, fitDist * 1.5);
+  const zMin = insideMode ? 0.35 : 0.22;
+  const zMax = insideMode ? 1.35 : 1.5;
+  const dist = THREE.MathUtils.clamp(fitDist * view.zoom, fitDist * zMin, fitDist * zMax);
   const azr = (view.az * Math.PI) / 180;
   const elr = (view.el * Math.PI) / 180;
   camera.position.set(
@@ -168,6 +192,10 @@ function applyCamera() {
     view.target.y + Math.sin(elr) * dist,
     view.target.z + Math.sin(azr) * Math.cos(elr) * dist
   );
+  // Keep the camera out of the floor / ceiling when inside
+  if (insideMode) {
+    camera.position.y = THREE.MathUtils.clamp(camera.position.y, 0.35, 2.45);
+  }
   camera.lookAt(view.target);
 }
 
@@ -361,7 +389,9 @@ canvas.addEventListener("pointermove", (e) => {
     }
   } else {
     view.az -= (cur.x - prev.x) * 0.28;
-    view.el = THREE.MathUtils.clamp(view.el + (cur.y - prev.y) * 0.22, 6, 82);
+    const elMin = insideMode ? 2 : 6;
+    const elMax = insideMode ? 55 : 82;
+    view.el = THREE.MathUtils.clamp(view.el + (cur.y - prev.y) * 0.22, elMin, elMax);
     pointers.set(e.pointerId, cur);
     applyCamera();
   }
@@ -380,7 +410,9 @@ canvas.addEventListener(
   "wheel",
   (e) => {
     e.preventDefault();
-    view.zoom = THREE.MathUtils.clamp(view.zoom * (1 + e.deltaY * 0.0012), 0.22, 1.5);
+    const zMin = insideMode ? 0.35 : 0.22;
+    const zMax = insideMode ? 1.35 : 1.5;
+    view.zoom = THREE.MathUtils.clamp(view.zoom * (1 + e.deltaY * 0.0012), zMin, zMax);
     applyCamera();
     idleAt = performance.now();
   },
@@ -971,11 +1003,113 @@ function paintEvent(ev) {
   $("ev-tags").replaceChildren(...tags);
 }
 
+// ---------------------------------------------------------------- interior / exterior mode
+/** @type {THREE.Group | null} */
+let interior = null;
+/** @type {THREE.Object3D | null} */
+let streetRoot = null;
+/** Handles for outdoor systems we pause while inside. */
+let outdoor = null;
+
+function setOutsideVisible(vis) {
+  if (model) model.visible = vis;
+  if (streetRoot) streetRoot.visible = vis;
+  ground.visible = vis;
+  ambient.visible = vis;
+  hemi.visible = vis;
+  sun.visible = vis;
+  fill.visible = vis;
+  nightGlow.visible = vis;
+  if (outdoor) {
+    for (const sys of outdoor.hideRoots) {
+      if (sys?.root) sys.root.visible = vis;
+    }
+  }
+  if (vis) {
+    scene.fog = new THREE.Fog(0x8ec0e0, 58, 115);
+  } else {
+    scene.fog = new THREE.Fog(0x100818, 6, 14);
+  }
+}
+
+function enterInterior() {
+  if (insideMode || !interior) return;
+  cancelFocus();
+  exteriorViewSnapshot = {
+    az: view.az,
+    el: view.el,
+    zoom: view.zoom,
+  };
+  insideMode = true;
+  setOutsideVisible(false);
+  interior.visible = true;
+  interior.userData.setNight?.(1);
+  if (interior.userData.subject) {
+    SUBJECT_INSIDE.center.copy(interior.userData.subject.center);
+    SUBJECT_INSIDE.radius = interior.userData.subject.radius;
+  }
+  const dv = interior.userData.defaultView || { az: 200, el: 12, zoom: 0.95 };
+  view.az = dv.az;
+  view.el = dv.el;
+  view.zoom = dv.zoom;
+  view._needsSubjectSnap = true;
+  document.body.classList.add("inside-mode");
+  $("inside")?.classList.add("on");
+  $("inside")?.setAttribute("aria-pressed", "true");
+  const exitBtn = $("exit-inside");
+  if (exitBtn) exitBtn.hidden = false;
+  // Softer outdoor sim while you're at the bar
+  if (outdoor?.life) outdoor.life.setCrowd?.(0);
+  computeFit();
+  applyCamera();
+  idleAt = performance.now();
+}
+
+function exitInterior() {
+  if (!insideMode) return;
+  insideMode = false;
+  if (interior) interior.visible = false;
+  setOutsideVisible(true);
+  if (exteriorViewSnapshot) {
+    view.az = exteriorViewSnapshot.az;
+    view.el = exteriorViewSnapshot.el;
+    view.zoom = exteriorViewSnapshot.zoom;
+    exteriorViewSnapshot = null;
+  } else {
+    view.az = 58;
+    view.el = 26;
+    view.zoom = 1;
+  }
+  document.body.classList.remove("inside-mode");
+  $("inside")?.classList.remove("on");
+  $("inside")?.setAttribute("aria-pressed", "false");
+  const exitBtn = $("exit-inside");
+  if (exitBtn) exitBtn.hidden = true;
+  computeFit();
+  applyCamera();
+  idleAt = performance.now();
+}
+
+function wireInsideButton() {
+  const btn = $("inside");
+  if (!btn) return;
+  btn.innerHTML = INSIDE_ICON;
+  btn.onclick = () => {
+    if (insideMode) exitInterior();
+    else enterInterior();
+  };
+  const exitBtn = $("exit-inside");
+  if (exitBtn) {
+    exitBtn.onclick = () => exitInterior();
+  }
+}
+
 // ---------------------------------------------------------------- boot
 async function boot() {
   await ensureSignFonts();
 
-  scene.add(createStreet());
+  streetRoot = createStreet();
+  scene.add(streetRoot);
 
   model = createStacys(null);
   // Seat the lot flush against the sidewalk rather than overlapping it. The pad's
@@ -985,6 +1119,11 @@ async function boot() {
   const pad = model.userData.pad;
   if (pad) model.position.z = SIDEWALK_INNER_Z - pad.zMax;
   scene.add(model);
+
+  // Interior room — hidden until the user steps inside
+  interior = createInterior();
+  interior.visible = false;
+  scene.add(interior);
 
   const life = new LifeSystem(scene, model);
   // Reuses LifeSystem's already-resolved world-space anchors rather than
@@ -1028,6 +1167,11 @@ async function boot() {
   wireRideButton(rideshare);
   wireUfoButton(ufo);
   wireBirdButton(bird);
+  outdoor = {
+    life,
+    hideRoots: [life, chores, incident, rideshare, ufo, bird, taco, mist],
+  };
+  wireInsideButton();
   const boot = venueNow();
   life.setCrowd(crowdFor(boot));
   life.seed();
@@ -1071,6 +1215,12 @@ async function boot() {
     rideshare,
     ufo,
     bird,
+    interior,
+    enterInterior,
+    exitInterior,
+    get insideMode() {
+      return insideMode;
+    },
     get nightMix() {
       return nightMix;
     },
@@ -1113,37 +1263,43 @@ async function boot() {
     last = now;
 
     const vnow = venueNow();
-    nightMix = nightFromSun(vnow, weather?.sunriseMin, weather?.sunsetMin);
-    applyNight(nightMix);
-    model.userData.tickNight?.(now);
-    flicker.update(now / 1000, nightMix);
 
-    life.setCrowd(crowdFor(vnow));
-    life.update(dt);
-    chores.update(dt);
-    incident.update(dt);
-    rideshare.update(dt);
-    ufo.update(dt);
-    bird.update(dt);
-    taco.update(dt);
-    mist.update(dt);
-    paintFloatSms(rideshare);
+    if (insideMode) {
+      // Club neons always on; rainbow window cycles hue
+      interior?.userData.tickInterior?.(now / 1000);
+    } else {
+      nightMix = nightFromSun(vnow, weather?.sunriseMin, weather?.sunsetMin);
+      applyNight(nightMix);
+      model.userData.tickNight?.(now);
+      flicker.update(now / 1000, nightMix);
 
-    stepFocus(
-      dt,
-      chores.busy ||
-        incident.busy ||
-        rideshare.busy ||
-        ufo.busy ||
-        bird.busy ||
-        life.liquorBusy ||
-        taco.busy
-    );
+      life.setCrowd(crowdFor(vnow));
+      life.update(dt);
+      chores.update(dt);
+      incident.update(dt);
+      rideshare.update(dt);
+      ufo.update(dt);
+      bird.update(dt);
+      taco.update(dt);
+      mist.update(dt);
+      paintFloatSms(rideshare);
+
+      stepFocus(
+        dt,
+        chores.busy ||
+          incident.busy ||
+          rideshare.busy ||
+          ufo.busy ||
+          bird.busy ||
+          life.liquorBusy ||
+          taco.busy
+      );
+    }
 
     // Auto-rotate, resuming a few seconds after the last touch. Held off during a
     // focus swing, which would otherwise fight it for the azimuth.
     if (!focusTarget && spin && now - idleAt > IDLE_RESUME_MS) {
-      view.az += dt * 3.2;
+      view.az += dt * (insideMode ? 4.5 : 3.2);
       applyCamera();
     }
 
