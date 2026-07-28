@@ -100,73 +100,70 @@ function calendarTex() {
 
 /**
  * Low-poly bartender — black club kit, white apron, shaker in hand.
+ * Built ~1.8m tall so head/shoulders clear the bar top (~1.18).
  * Local +Z = face direction (point toward customers).
  */
 function buildBartender() {
   const g = new THREE.Group();
   g.name = "bartender";
 
-  // Legs
-  const legs = box(0.24, 0.38, 0.16, 0x1a1a22, { roughness: 0.75 });
-  legs.position.y = 0.2;
+  // Legs (~hip height 0.68)
+  const legs = box(0.26, 0.62, 0.18, 0x1a1a22, { roughness: 0.75 });
+  legs.position.y = 0.34;
   g.add(legs);
   // Shoes
   for (const s of [-1, 1]) {
-    const shoe = box(0.1, 0.06, 0.16, 0x0a0a0c, { roughness: 0.6 });
-    shoe.position.set(s * 0.07, 0.03, 0.02);
+    const shoe = box(0.11, 0.07, 0.18, 0x0a0a0c, { roughness: 0.6 });
+    shoe.position.set(s * 0.08, 0.04, 0.02);
     g.add(shoe);
   }
 
-  // Torso group (for lean / work anim)
+  // Torso group (for lean / work anim) — hips at ~0.68
   const torso = new THREE.Group();
   torso.name = "torso";
-  torso.position.y = 0.4;
+  torso.position.y = 0.68;
   g.add(torso);
 
-  const body = cyl(0.14, 0.17, 0.52, 0x12141a, { roughness: 0.7 }, 8);
-  body.position.y = 0.28;
+  // Torso body — shoulders ~1.3, clears bar top at 1.18
+  const body = cyl(0.15, 0.18, 0.62, 0x12141a, { roughness: 0.7 }, 8);
+  body.position.y = 0.34;
   torso.add(body);
   // White apron
-  const apron = box(0.28, 0.36, 0.06, 0xf2eee6, { roughness: 0.85 });
-  apron.position.set(0, 0.22, 0.12);
+  const apron = box(0.3, 0.42, 0.07, 0xf2eee6, { roughness: 0.85 });
+  apron.position.set(0, 0.22, 0.13);
   torso.add(apron);
-  // Apron strings
-  const strap = box(0.04, 0.28, 0.02, 0xe8e4dc, { roughness: 0.8 });
-  strap.position.set(0, 0.42, 0.08);
+  const strap = box(0.045, 0.32, 0.02, 0xe8e4dc, { roughness: 0.8 });
+  strap.position.set(0, 0.48, 0.09);
   torso.add(strap);
 
-  // Arms — right holds shaker (local +X side when facing +Z is right...)
-  // Facing +Z: +X is left from character view... For bartender facing customers
-  // with +Z forward, +X is left. Put shaker in right hand = -X.
-  const armL = box(0.08, 0.32, 0.08, 0x12141a, { roughness: 0.7 });
-  armL.position.set(0.16, 0.28, 0.02);
+  // Arms — right hand (-X when facing +Z) holds shaker
+  const armL = box(0.09, 0.4, 0.09, 0x12141a, { roughness: 0.7 });
+  armL.position.set(0.18, 0.32, 0.02);
   torso.add(armL);
   const armR = new THREE.Group();
   armR.name = "armR";
-  armR.position.set(-0.16, 0.4, 0.02);
+  armR.position.set(-0.18, 0.48, 0.02);
   torso.add(armR);
-  const armRMesh = box(0.08, 0.32, 0.08, 0x12141a, { roughness: 0.7 });
-  armRMesh.position.y = -0.12;
+  const armRMesh = box(0.09, 0.4, 0.09, 0x12141a, { roughness: 0.7 });
+  armRMesh.position.y = -0.16;
   armR.add(armRMesh);
   // Cocktail shaker
-  const shaker = cyl(0.04, 0.045, 0.14, 0xc8ccd0, { metalness: 0.55, roughness: 0.3 }, 8);
-  shaker.position.set(0, -0.32, 0.06);
+  const shaker = cyl(0.042, 0.048, 0.16, 0xc8ccd0, { metalness: 0.55, roughness: 0.3 }, 8);
+  shaker.position.set(0, -0.4, 0.07);
   armR.add(shaker);
-  const shakerCap = cyl(0.035, 0.035, 0.04, 0xa8acb0, { metalness: 0.5, roughness: 0.35 }, 6);
-  shakerCap.position.set(0, -0.22, 0.06);
+  const shakerCap = cyl(0.038, 0.038, 0.045, 0xa8acb0, { metalness: 0.5, roughness: 0.35 }, 6);
+  shakerCap.position.set(0, -0.28, 0.07);
   armR.add(shakerCap);
 
-  // Head
-  const head = cyl(0.12, 0.12, 0.2, 0xe8c4a8, { roughness: 0.65 }, 8);
-  head.position.y = 0.68;
+  // Head — top of hair ~1.78 (well above bar)
+  const head = cyl(0.13, 0.13, 0.22, 0xe8c4a8, { roughness: 0.65 }, 8);
+  head.position.y = 0.82;
   torso.add(head);
-  // Short dark hair cap
-  const hair = cyl(0.125, 0.12, 0.08, 0x1a1210, { roughness: 0.8 }, 8);
-  hair.position.y = 0.78;
+  const hair = cyl(0.135, 0.13, 0.09, 0x1a1210, { roughness: 0.8 }, 8);
+  hair.position.y = 0.94;
   torso.add(hair);
-  // Simple smile / face mark
-  const face = box(0.08, 0.02, 0.01, 0xc09080, { roughness: 0.7 });
-  face.position.set(0, 0.64, 0.12);
+  const face = box(0.09, 0.025, 0.012, 0xc09080, { roughness: 0.7 });
+  face.position.set(0, 0.78, 0.13);
   torso.add(face);
 
   g.userData.torso = torso;
