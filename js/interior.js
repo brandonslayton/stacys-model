@@ -1439,6 +1439,100 @@ function buildLoungeBooth(lit, accent = 0xff4fa8, opts = {}) {
 }
 
 /**
+ * Sleek modern square POS terminal (Toast / Clover vibe).
+ * Local +Z = screen faces staff. Sit on the bar top.
+ */
+function buildBarPos(lit) {
+  const g = new THREE.Group();
+  g.name = "barPos";
+
+  // Weighted square base
+  const base = box(0.28, 0.04, 0.28, 0x1a1a22, { metalness: 0.45, roughness: 0.35 });
+  base.position.y = 0.02;
+  g.add(base);
+  // Slim chrome stem
+  const stem = cyl(0.03, 0.035, 0.14, 0xc8ccd0, { metalness: 0.65, roughness: 0.22 }, 8);
+  stem.position.y = 0.11;
+  g.add(stem);
+  // Pivot hinge
+  const hinge = box(0.1, 0.05, 0.08, 0x2a2a32, { metalness: 0.5, roughness: 0.3 });
+  hinge.position.set(0, 0.2, 0.02);
+  g.add(hinge);
+
+  // Square tablet body (slightly tilted toward staff)
+  const tab = new THREE.Group();
+  tab.position.set(0, 0.34, 0.04);
+  tab.rotation.x = -0.28;
+  g.add(tab);
+
+  const bezel = box(0.38, 0.38, 0.04, 0x0c0c10, { metalness: 0.35, roughness: 0.35 });
+  tab.add(bezel);
+  // Glass screen — square UI
+  const screen = box(0.33, 0.33, 0.015, 0x0a1828, {
+    emissive: 0x186080,
+    emissiveIntensity: 0.75,
+    roughness: 0.2,
+    metalness: 0.15,
+  });
+  screen.position.z = 0.025;
+  lit(screen, 1.05, 0.6, { glimmerSpeed: 1.4 });
+  tab.add(screen);
+  // Soft UI chrome (order grid)
+  const ui = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.3, 0.3),
+    new THREE.MeshStandardMaterial({
+      map: labelTex("POS", {
+        w: 256,
+        h: 256,
+        bg: "#0a1830",
+        fg: "#60e0ff",
+        size: 42,
+        weight: 800,
+        font: "fun",
+      }),
+      emissive: 0x104060,
+      emissiveIntensity: 0.55,
+      roughness: 0.35,
+      flatShading: true,
+    })
+  );
+  ui.position.z = 0.034;
+  tab.add(ui);
+  // Status LED strip on top edge
+  const led = box(0.2, 0.015, 0.012, 0x3dd68c, {
+    emissive: 0x20c060,
+    emissiveIntensity: 0.7,
+  });
+  led.position.set(0, 0.175, 0.02);
+  lit(led, 0.7, 0.4);
+  tab.add(led);
+
+  // Card reader rail under the tablet
+  const reader = box(0.32, 0.06, 0.08, 0x1a1a22, { metalness: 0.4, roughness: 0.35 });
+  reader.position.set(0, 0.18, 0.12);
+  g.add(reader);
+  const slot = box(0.26, 0.02, 0.02, 0x0a0a0c, { roughness: 0.5 });
+  slot.position.set(0, 0.18, 0.16);
+  g.add(slot);
+  // Contactless pad glow
+  const nfc = cyl(0.04, 0.04, 0.01, 0x2060a0, {
+    emissive: 0x40a0ff,
+    emissiveIntensity: 0.55,
+  }, 10);
+  nfc.rotation.x = Math.PI / 2;
+  nfc.position.set(0.1, 0.2, 0.14);
+  lit(nfc, 0.55, 0.3);
+  g.add(nfc);
+
+  // Soft screen throw
+  const glow = new THREE.PointLight(0x50c0ff, 0.35, 1.8, 2);
+  glow.position.set(0, 0.4, 0.25);
+  g.add(glow);
+
+  return g;
+}
+
+/**
  * Six-tap draft tower for the service alcove.
  * Local origin: floor under tower; +Z = pour face (into the room).
  */
@@ -4417,6 +4511,16 @@ export function createInterior() {
     prideBrick.position.set(barX - 0.1, 1.28, 0.85);
     prideBrick.rotation.y = 0.15;
     add(prideBrick);
+
+    // Sleek square POS on the LEFT end of the bar (east / −Z when facing bar)
+    // Staff side of the top — ring in drinks next to drafts / walk-in.
+    {
+      const pos = buildBarPos(lit);
+      // Sit on bar top; face bartender aisle (+X)
+      pos.rotation.y = Math.PI / 2;
+      pos.position.set(barX + 0.12, 1.22, 0.15 - 5.7 * 0.5 + 0.55);
+      add(pos);
+    }
 
     // Party cam — west end of the bar top (customer corner), aimed at activation wall.
     // Sits just off the bar edge so stools stay clear; ~1.2+ walk gap to the west wall.
