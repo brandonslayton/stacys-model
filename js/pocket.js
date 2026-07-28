@@ -330,8 +330,9 @@ function stepFp(dt) {
   let mz = 0;
   if (keysDown.has("KeyW") || keysDown.has("ArrowUp")) mz += 1;
   if (keysDown.has("KeyS") || keysDown.has("ArrowDown")) mz -= 1;
-  if (keysDown.has("KeyA") || keysDown.has("ArrowLeft")) mx -= 1;
-  if (keysDown.has("KeyD") || keysDown.has("ArrowRight")) mx += 1;
+  // A/D swapped vs standard FPS: feels more natural with this room's look axes
+  if (keysDown.has("KeyA") || keysDown.has("ArrowLeft")) mx += 1;
+  if (keysDown.has("KeyD") || keysDown.has("ArrowRight")) mx -= 1;
   if (stick.active) {
     // Dead-zone so tiny thumb noise doesn't creep
     const sx = Math.abs(stick.x) < 0.12 ? 0 : stick.x;
