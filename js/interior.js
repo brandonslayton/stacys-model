@@ -1363,50 +1363,78 @@ function barAdTex(seed = 0) {
 }
 
 /**
- * Simple cute cartoony banquette + table (under video wall).
+ * Cute cartoony banquette + table (under video wall).
  * Local +Z = open side toward the room.
+ * @param {number} [opts.w] full width along the wall (default ~1.0)
  */
-function buildLoungeBooth(lit, accent = 0xff4fa8) {
+function buildLoungeBooth(lit, accent = 0xff4fa8, opts = {}) {
   const g = new THREE.Group();
   g.name = "loungeBooth";
+  const w = opts.w ?? 1.0;
   const seat = 0x4a2840;
   const seatHi = 0x5a3450;
+  // Taller club banquette proportions
+  const backH = 0.78;
+  const seatY = 0.36;
+  const backY = seatY + 0.14 + backH * 0.5 - 0.02;
 
-  // Backrest against wall
-  const back = box(0.95, 0.55, 0.18, seat, { roughness: 0.8 });
-  back.position.set(0, 0.48, -0.28);
+  // Base plinth
+  const base = box(w * 0.98, 0.16, 0.62, 0x2a1830, { roughness: 0.85 });
+  base.position.set(0, 0.08, 0.02);
+  g.add(base);
+
+  // Backrest against wall (taller)
+  const back = box(w * 0.96, backH, 0.2, seat, { roughness: 0.8 });
+  back.position.set(0, backY, -0.32);
   g.add(back);
-  // Seat
-  const cushion = box(0.9, 0.14, 0.55, seatHi, { roughness: 0.75 });
-  cushion.position.set(0, 0.28, 0.0);
-  g.add(cushion);
-  // One cute pillow
-  const pillow = box(0.22, 0.18, 0.1, accent, {
-    roughness: 0.7,
-    emissive: accent,
-    emissiveIntensity: 0.1,
-  });
-  pillow.position.set(-0.22, 0.48, -0.18);
-  pillow.rotation.z = 0.2;
-  g.add(pillow);
+  // Soft top cap on the backrest
+  const cap = box(w * 0.98, 0.08, 0.22, seatHi, { roughness: 0.75 });
+  cap.position.set(0, backY + backH * 0.5 + 0.02, -0.3);
+  g.add(cap);
 
-  // Simple round table
-  const top = cyl(0.22, 0.22, 0.05, 0x2a1e18, { roughness: 0.5 }, 10);
-  top.position.set(0, 0.68, 0.28);
+  // Seat cushion
+  const cushion = box(w * 0.92, 0.16, 0.62, seatHi, { roughness: 0.75 });
+  cushion.position.set(0, seatY, 0.02);
+  g.add(cushion);
+
+  // Side wings (reads as a full booth bay)
+  for (const sx of [-1, 1]) {
+    const wing = box(0.1, backH * 0.85, 0.7, seat, { roughness: 0.8 });
+    wing.position.set(sx * (w * 0.5 - 0.05), seatY + backH * 0.35, -0.05);
+    g.add(wing);
+  }
+
+  // Two cute pillows
+  for (const sx of [-0.28, 0.22]) {
+    const pillow = box(Math.min(0.28, w * 0.18), 0.2, 0.12, accent, {
+      roughness: 0.7,
+      emissive: accent,
+      emissiveIntensity: 0.1,
+    });
+    pillow.position.set(sx * (w * 0.35), seatY + 0.22, -0.2);
+    pillow.rotation.z = sx > 0 ? -0.18 : 0.18;
+    g.add(pillow);
+  }
+
+  // Round table (scaled a bit with booth width)
+  const tableR = Math.min(0.28, 0.18 + w * 0.05);
+  const top = cyl(tableR, tableR, 0.05, 0x2a1e18, { roughness: 0.5 }, 10);
+  top.position.set(0, 0.78, 0.38);
   g.add(top);
-  const leg = cyl(0.045, 0.055, 0.4, METAL, { metalness: 0.4, roughness: 0.45 }, 6);
-  leg.position.set(0, 0.45, 0.28);
+  const leg = cyl(0.05, 0.06, 0.42, METAL, { metalness: 0.4, roughness: 0.45 }, 6);
+  leg.position.set(0, 0.52, 0.38);
   g.add(leg);
 
-  // Tiny toe neon
-  const kick = box(0.75, 0.03, 0.04, accent, {
+  // Toe neon under the front edge
+  const kick = box(w * 0.88, 0.035, 0.045, accent, {
     emissive: accent,
-    emissiveIntensity: 0.45,
+    emissiveIntensity: 0.5,
   });
-  kick.position.set(0, 0.1, 0.28);
-  lit(kick, 0.55, 0.28, { glimmerSpeed: 2.0 });
+  kick.position.set(0, 0.1, 0.34);
+  lit(kick, 0.6, 0.3, { glimmerSpeed: 2.0 });
   g.add(kick);
 
+  g.userData.width = w;
   return g;
 }
 
@@ -4022,6 +4050,9 @@ export function createInterior() {
     dj.rotation.y = Math.PI / 2;
     dj.position.set(djX, 0, djZ);
     add(dj);
+    // Front facade faces +X into the room (local +Z after rot) — lounge booths start here
+    g.userData.djFrontX = djX + 0.68;
+    g.userData.djZ = djZ;
 
     // Slim wall jukebox BESIDE the booth (toward cathedral / neon window),
     // not directly behind the DJ — leaves the stand pad clear.
@@ -4168,26 +4199,28 @@ export function createInterior() {
       nightLights.push({ light: bankLite, day: 0.3, night: 0.7 });
     }
 
-    // Simple cute banquettes under the video wall —
-    // keep clear of DJ corner (NE, x≲−3.5, z≲−2.5) and patio door.
+    // Patio door (end of the flat east wall / video-wall run)
+    const patioX = 1.55;
+
+    // Taller / wider banquettes under the video wall — one continuous row from
+    // the front of the DJ stand to the patio door (3 bays, almost edge-to-edge).
     {
       const accents = [0xff4fa8, 0x40e0ff, 0x9b6dff];
       const count = 3;
-      // DJ booth occupies roughly x −5.5…−3.6 near this wall; start booths east of that
-      const spanStart = -2.0;
-      const spanEnd = 0.35; // stop before patio door (~1.55)
-      const step = (spanEnd - spanStart) / Math.max(1, count - 1);
+      const patioHalf = 0.52; // leave clear of patio door leaf
+      const spanStart = (g.userData.djFrontX ?? -3.9) + 0.1;
+      const spanEnd = patioX - patioHalf - 0.06;
+      const gap = 0.05;
+      const totalW = Math.max(1.5, spanEnd - spanStart);
+      const boothW = (totalW - gap * (count - 1)) / count;
       for (let i = 0; i < count; i++) {
-        const bx = spanStart + i * step;
-        const booth = buildLoungeBooth(lit, accents[i % accents.length]);
+        const bx = spanStart + boothW * 0.5 + i * (boothW + gap);
+        const booth = buildLoungeBooth(lit, accents[i % accents.length], { w: boothW });
         // Open side faces into the room (+Z); wall is at −Z
-        booth.position.set(bx, 0, z + 0.65);
+        booth.position.set(bx, 0, z + 0.72);
         add(booth);
       }
     }
-
-    // Patio door (end of the flat east wall / video-wall run)
-    const patioX = 1.55;
     g.userData.patioDoor = { x: patioX, z: z + 0.35 };
     g.userData.patioSpot = { x: patioX, z: z + 0.85 }; // just inside, hanging by the door
     const patioDoor = box(1.0, 2.15, 0.12, 0x2a3a2a);
