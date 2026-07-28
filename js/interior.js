@@ -28,10 +28,17 @@ import { makeStacysDiamondLogoTexture } from "./stacys.js";
 // Room shell — bigger than exterior (6.4×4.6) for walkaround comfort
 const RW = 11.5; // N–S (X)
 const RD = 9.0; // E–W depth (Z)
-const RH = 3.35;
+/** Eave / side-wall height (where the roof pitch starts). */
+const EAVE_H = 3.05;
+/** Ridge peak — church-like vault above the dance floor. */
+const PEAK_H = 4.7;
+/** @deprecated alias — wall tops sit at the eave. */
+const RH = EAVE_H;
 const WALL = 0.14;
 const halfW = RW * 0.5;
 const halfD = RD * 0.5;
+const RAFTER_WOOD = 0x2a1e16;
+const RAFTER_DARK = 0x1a120e;
 
 // Walk bounds (inset from walls so the camera never clips furniture hard)
 export const WALK = {
@@ -788,24 +795,120 @@ export function createInterior() {
     add(plank);
   }
 
-  const ceil = box(RW, 0.12, RD, CEIL, { roughness: 0.95 });
-  ceil.position.y = RH;
-  add(ceil);
+  // Side walls stop at the eave; N/S walls get gable triangles under the peak.
+  add(box(RW + WALL * 2, EAVE_H, WALL, BRICK)).position.set(0, EAVE_H * 0.5, halfD);
+  add(box(RW + WALL * 2, EAVE_H, WALL, BRICK_DARK)).position.set(0, EAVE_H * 0.5, -halfD);
+  add(box(WALL, EAVE_H, RD, BRICK)).position.set(-halfW, EAVE_H * 0.5, 0);
+  add(box(WALL, EAVE_H, RD, WOOD_DARK)).position.set(halfW, EAVE_H * 0.5, 0);
 
-  // Walls
-  add(box(RW + WALL * 2, RH, WALL, BRICK)).position.set(0, RH * 0.5, halfD);
-  add(box(RW + WALL * 2, RH, WALL, BRICK_DARK)).position.set(0, RH * 0.5, -halfD);
-  add(box(WALL, RH, RD, BRICK)).position.set(-halfW, RH * 0.5, 0);
-  add(box(WALL, RH, RD, WOOD_DARK)).position.set(halfW, RH * 0.5, 0);
-
-  // Ceiling beams + truss ring over dance floor
-  for (const z of [-2.5, -0.8, 0.9, 2.5]) {
-    const beam = box(RW * 0.96, 0.14, 0.18, BLACK, { roughness: 0.8 });
-    beam.position.set(0, RH - 0.2, z);
-    add(beam);
-  }
-  // Truss ring over dance floor + main disco ball
+  // ── Church vault: pitched roof + exposed rafters ─────────────────
+  // Ridge runs N–S (X). Slopes fall to the east (−Z) and west (+Z) eaves —
+  // same read as the real room’s dark vaulted ceiling.
   {
+    const rise = PEAK_H - EAVE_H;
+    const run = halfD;
+    const slopeLen = Math.hypot(run, rise);
+    const pitch = Math.atan2(rise, run); // angle from horizontal
+
+    // Dark underside sheathing (two big roof planes)
+    for (const side of [-1, 1]) {
+      const plane = box(RW + 0.4, 0.1, slopeLen + 0.08, CEIL, { roughness: 0.92 });
+      // Sit at ridge, extend toward eave along local +Z, then pitch down
+      const grp = new THREE.Group();
+      grp.position.set(0, PEAK_H - 0.02, 0);
+      grp.rotation.x = side > 0 ? pitch : -pitch;
+      plane.position.set(0, -0.02, side * (slopeLen * 0.5));
+      grp.add(plane);
+      add(grp);
+    }
+
+    // Ridge beam (heavy timber along the peak)
+    const ridge = box(RW * 0.98, 0.18, 0.2, RAFTER_WOOD, { roughness: 0.85 });
+    ridge.position.set(0, PEAK_H - 0.08, 0);
+    add(ridge);
+    // Ridge cap plate
+    const ridgeCap = box(RW * 0.98, 0.08, 0.28, RAFTER_DARK, { roughness: 0.88 });
+    ridgeCap.position.set(0, PEAK_H + 0.02, 0);
+    add(ridgeCap);
+
+    // Exposed common rafters — pairs from ridge down each slope
+    const rafterCount = 14;
+    for (let i = 0; i < rafterCount; i++) {
+      const x = -halfW + 0.45 + (i / (rafterCount - 1)) * (RW - 0.9);
+      for (const side of [-1, 1]) {
+        const rafter = box(0.11, 0.16, slopeLen - 0.05, i % 2 ? RAFTER_WOOD : RAFTER_DARK, {
+          roughness: 0.88,
+        });
+        const grp = new THREE.Group();
+        grp.position.set(x, PEAK_H - 0.12, 0);
+        grp.rotation.x = side > 0 ? pitch : -pitch;
+        // Slightly below the sheathing so they read as proud structure
+        rafter.position.set(0, -0.12, side * (slopeLen * 0.5));
+        grp.add(rafter);
+        add(grp);
+      }
+      // Collar tie (horizontal cross-beam under the ridge — church truss read)
+      if (i % 2 === 0) {
+        const collar = box(0.1, 0.1, halfD * 0.9, RAFTER_DARK, { roughness: 0.88 });
+        collar.position.set(x, EAVE_H + rise * 0.42, 0);
+        add(collar);
+      }
+    }
+
+    // Purlins — long members running along each slope (across the rafters)
+    for (const side of [-1, 1]) {
+      for (const t of [0.28, 0.55, 0.78]) {
+        const y = PEAK_H - rise * t;
+        const z = side * run * t;
+        const purlin = box(RW * 0.96, 0.09, 0.11, RAFTER_WOOD, { roughness: 0.86 });
+        purlin.position.set(0, y - 0.14, z);
+        // Align purlin face to the roof pitch a bit
+        purlin.rotation.x = side > 0 ? pitch * 0.35 : -pitch * 0.35;
+        add(purlin);
+      }
+    }
+
+    // Gable triangles on the north & south walls (fill eave → peak)
+    for (const x of [-halfW, halfW]) {
+      const gableCol = x < 0 ? BRICK : WOOD_DARK;
+      const steps = 10;
+      for (let i = 0; i < steps; i++) {
+        const t0 = i / steps;
+        const t1 = (i + 1) / steps;
+        const y0 = EAVE_H + rise * t0;
+        const y1 = EAVE_H + rise * t1;
+        const midY = (y0 + y1) * 0.5;
+        // Full width at eave, tapers to ridge
+        const zW = RD * (1 - (t0 + t1) * 0.5) + 0.15;
+        const slab = box(WALL + 0.02, Math.max(0.08, y1 - y0 + 0.02), zW, gableCol, {
+          roughness: 0.88,
+        });
+        slab.position.set(x, midY, 0);
+        add(slab);
+      }
+      // Decorative gable rafter outline on the inside face
+      for (const side of [-1, 1]) {
+        const outline = box(0.08, 0.1, slopeLen * 0.95, RAFTER_WOOD, { roughness: 0.85 });
+        const grp = new THREE.Group();
+        grp.position.set(x + (x < 0 ? 0.08 : -0.08), PEAK_H - 0.1, 0);
+        grp.rotation.x = side > 0 ? pitch : -pitch;
+        outline.position.set(0, -0.08, side * (slopeLen * 0.48));
+        grp.add(outline);
+        add(grp);
+      }
+    }
+
+    // King post drops under the ridge at a few bays (vertical timber)
+    for (const x of [-3.2, 0, 3.2]) {
+      const king = box(0.12, rise * 0.55, 0.12, RAFTER_WOOD, { roughness: 0.85 });
+      king.position.set(x, EAVE_H + rise * 0.35, 0);
+      add(king);
+    }
+  }
+
+  // Truss ring + disco ball hang from near the ridge (under the vault)
+  {
+    const hangY = PEAK_H - 0.55;
     const ring = new THREE.Group();
     for (let i = 0; i < 16; i++) {
       const a = (i / 16) * Math.PI * 2;
@@ -814,37 +917,35 @@ export function createInterior() {
       seg.rotation.y = -a;
       ring.add(seg);
     }
-    ring.position.set(-1.6, RH - 0.28, -0.9);
+    ring.position.set(-1.6, hangY, -0.9);
     add(ring);
 
-    // Main disco ball center of dance floor
+    // Main disco ball
     const disco = buildDiscoBall(0.28);
-    disco.position.set(-1.6, RH - 1.05, -0.9);
+    disco.position.set(-1.6, hangY - 0.75, -0.9);
     add(disco);
     g.userData.discoBall = disco;
 
-    // Satellite mini-balls on the truss
     for (const [dx, dz] of [
       [0.9, 0.2],
       [-0.75, 0.45],
       [0.2, -0.85],
     ]) {
       const mini = buildDiscoBall(0.12);
-      mini.position.set(-1.6 + dx, RH - 0.85, -0.9 + dz);
+      mini.position.set(-1.6 + dx, hangY - 0.5, -0.9 + dz);
       add(mini);
     }
   }
 
-  // Twisted columns — placed like the photo: framing the raised walk / dance edge
-  // near the front (west) and north rail, plus mid-room anchors.
+  // Twisted columns — reach the eave / lower vault
   for (const [x, z] of [
-    [-2.4, 2.15], // front-left of dance / rail
-    [-2.4, 0.55], // toward dance floor
-    [-0.35, 2.35], // street-side of rail
-    [1.5, 1.6], // near bar aisle
+    [-2.4, 2.15],
+    [-2.4, 0.55],
+    [-0.35, 2.35],
+    [1.5, 1.6],
     [1.5, -1.3],
   ]) {
-    const col = buildTwistedColumn(RH - 0.35);
+    const col = buildTwistedColumn(EAVE_H - 0.2);
     col.position.set(x, 0, z);
     add(col);
   }
@@ -1297,7 +1398,7 @@ export function createInterior() {
   add(pinkWash);
   nightLights.push({ light: pinkWash, day: 0.4, night: 0.85 });
 
-  // Ceiling cans
+  // Ceiling cans — hung under the vault (between eave and ridge)
   for (const [x, z] of [
     [-3, 2],
     [0, 2.5],
@@ -1306,11 +1407,19 @@ export function createInterior() {
     [1.5, 3],
     [3.5, 0.5],
     [-4, -1],
+    [-1.5, -0.9],
   ]) {
-    const can = new THREE.PointLight(0xffe0c0, 0.4, 5.5, 2);
-    can.position.set(x, RH - 0.3, z);
+    // Height follows the roof pitch a bit: higher near the ridge (z≈0)
+    const t = Math.min(1, Math.abs(z) / halfD);
+    const canY = PEAK_H - 0.45 - (PEAK_H - EAVE_H) * t * 0.55;
+    const can = new THREE.PointLight(0xffe0c0, 0.42, 5.5, 2);
+    can.position.set(x, canY, z);
     add(can);
-    nightLights.push({ light: can, day: 0.28, night: 0.48 });
+    nightLights.push({ light: can, day: 0.28, night: 0.5 });
+    // Small can housing
+    const housing = cyl(0.06, 0.08, 0.1, 0x2a2a30, { roughness: 0.7 }, 6);
+    housing.position.set(x, canY + 0.08, z);
+    add(housing);
   }
 
   installVenueNight(g, nightMats, {
