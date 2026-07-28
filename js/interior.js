@@ -99,9 +99,10 @@ function calendarTex() {
 }
 
 /**
- * Low-poly bartender — black club kit, white apron, shaker in hand.
+ * Low-poly bartender — black club kit, white apron, swappable props.
  * Built ~1.8m tall so head/shoulders clear the bar top (~1.18).
- * Local +Z = face direction (point toward customers).
+ * Local +Z = face direction.
+ * Props on right hand: shaker | rag | bottle (visibility toggled by state).
  */
 function buildBartender() {
   const g = new THREE.Group();
@@ -111,24 +112,20 @@ function buildBartender() {
   const legs = box(0.26, 0.62, 0.18, 0x1a1a22, { roughness: 0.75 });
   legs.position.y = 0.34;
   g.add(legs);
-  // Shoes
   for (const s of [-1, 1]) {
     const shoe = box(0.11, 0.07, 0.18, 0x0a0a0c, { roughness: 0.6 });
     shoe.position.set(s * 0.08, 0.04, 0.02);
     g.add(shoe);
   }
 
-  // Torso group (for lean / work anim) — hips at ~0.68
   const torso = new THREE.Group();
   torso.name = "torso";
   torso.position.y = 0.68;
   g.add(torso);
 
-  // Torso body — shoulders ~1.3, clears bar top at 1.18
   const body = cyl(0.15, 0.18, 0.62, 0x12141a, { roughness: 0.7 }, 8);
   body.position.y = 0.34;
   torso.add(body);
-  // White apron
   const apron = box(0.3, 0.42, 0.07, 0xf2eee6, { roughness: 0.85 });
   apron.position.set(0, 0.22, 0.13);
   torso.add(apron);
@@ -136,10 +133,16 @@ function buildBartender() {
   strap.position.set(0, 0.48, 0.09);
   torso.add(strap);
 
-  // Arms — right hand (-X when facing +Z) holds shaker
-  const armL = box(0.09, 0.4, 0.09, 0x12141a, { roughness: 0.7 });
-  armL.position.set(0.18, 0.32, 0.02);
+  // Left arm (group for wipe / reach anims)
+  const armL = new THREE.Group();
+  armL.name = "armL";
+  armL.position.set(0.18, 0.48, 0.02);
   torso.add(armL);
+  const armLMesh = box(0.09, 0.4, 0.09, 0x12141a, { roughness: 0.7 });
+  armLMesh.position.y = -0.16;
+  armL.add(armLMesh);
+
+  // Right arm + prop socket
   const armR = new THREE.Group();
   armR.name = "armR";
   armR.position.set(-0.18, 0.48, 0.02);
@@ -147,15 +150,69 @@ function buildBartender() {
   const armRMesh = box(0.09, 0.4, 0.09, 0x12141a, { roughness: 0.7 });
   armRMesh.position.y = -0.16;
   armR.add(armRMesh);
-  // Cocktail shaker
-  const shaker = cyl(0.042, 0.048, 0.16, 0xc8ccd0, { metalness: 0.55, roughness: 0.3 }, 8);
-  shaker.position.set(0, -0.4, 0.07);
-  armR.add(shaker);
-  const shakerCap = cyl(0.038, 0.038, 0.045, 0xa8acb0, { metalness: 0.5, roughness: 0.35 }, 6);
-  shakerCap.position.set(0, -0.28, 0.07);
-  armR.add(shakerCap);
 
-  // Head — top of hair ~1.78 (well above bar)
+  const propRoot = new THREE.Group();
+  propRoot.name = "propRoot";
+  propRoot.position.set(0, -0.38, 0.06);
+  armR.add(propRoot);
+
+  // Cocktail shaker
+  const shaker = new THREE.Group();
+  shaker.name = "propShaker";
+  const shBody = cyl(0.042, 0.048, 0.16, 0xc8ccd0, { metalness: 0.55, roughness: 0.3 }, 8);
+  shaker.add(shBody);
+  const shakerCap = cyl(0.038, 0.038, 0.045, 0xa8acb0, { metalness: 0.5, roughness: 0.35 }, 6);
+  shakerCap.position.y = 0.1;
+  shaker.add(shakerCap);
+  propRoot.add(shaker);
+
+  // Cleaning rag
+  const rag = new THREE.Group();
+  rag.name = "propRag";
+  const ragMesh = box(0.14, 0.04, 0.12, 0xf0e8d0, { roughness: 0.9 });
+  rag.add(ragMesh);
+  const ragTip = box(0.1, 0.02, 0.08, 0xe0d8c8, { roughness: 0.92 });
+  ragTip.position.set(0.02, -0.02, 0.04);
+  rag.add(ragTip);
+  rag.visible = false;
+  propRoot.add(rag);
+
+  // Restock bottle
+  const bottle = new THREE.Group();
+  bottle.name = "propBottle";
+  const bBody = cyl(0.04, 0.045, 0.18, 0xc41e3a, { roughness: 0.35, metalness: 0.15 }, 8);
+  bBody.position.y = 0.02;
+  bottle.add(bBody);
+  const bNeck = cyl(0.018, 0.028, 0.08, 0xc41e3a, { roughness: 0.35 }, 6);
+  bNeck.position.y = 0.14;
+  bottle.add(bNeck);
+  const bCap = cyl(0.022, 0.022, 0.03, 0xc8a040, { metalness: 0.4, roughness: 0.4 }, 6);
+  bCap.position.y = 0.19;
+  bottle.add(bCap);
+  bottle.visible = false;
+  propRoot.add(bottle);
+
+  // Glass being poured (serve)
+  const glass = new THREE.Group();
+  glass.name = "propGlass";
+  const glassBody = cyl(0.035, 0.04, 0.1, 0xc0d8e8, {
+    transparent: true,
+    opacity: 0.45,
+    roughness: 0.15,
+    metalness: 0.1,
+  }, 8);
+  glass.add(glassBody);
+  const liquid = cyl(0.03, 0.032, 0.05, 0xff6a3a, {
+    emissive: 0xc04020,
+    emissiveIntensity: 0.25,
+    roughness: 0.4,
+  }, 8);
+  liquid.position.y = -0.01;
+  glass.add(liquid);
+  glass.visible = false;
+  propRoot.add(glass);
+
+  // Head
   const head = cyl(0.13, 0.13, 0.22, 0xe8c4a8, { roughness: 0.65 }, 8);
   head.position.y = 0.82;
   torso.add(head);
@@ -168,6 +225,59 @@ function buildBartender() {
 
   g.userData.torso = torso;
   g.userData.armR = armR;
+  g.userData.armL = armL;
+  g.userData.props = { shaker, rag, bottle, glass };
+  g.userData.setProp = (name) => {
+    for (const [k, p] of Object.entries(g.userData.props)) {
+      p.visible = k === name;
+    }
+  };
+  g.userData.setProp("shaker");
+  return g;
+}
+
+/** Simple seated bar patron (stool-height figure). Local +Z = face. */
+function buildBarPatron(shirt = 0x4a6a9a) {
+  const g = new THREE.Group();
+  g.name = "barPatron";
+  // Seated legs (folded)
+  const legs = box(0.28, 0.22, 0.35, 0x2a2a35, { roughness: 0.75 });
+  legs.position.set(0, 0.55, 0.05);
+  g.add(legs);
+  const torso = new THREE.Group();
+  torso.position.y = 0.72;
+  g.add(torso);
+  const body = cyl(0.14, 0.16, 0.42, shirt, { roughness: 0.7 }, 8);
+  body.position.y = 0.22;
+  torso.add(body);
+  const head = cyl(0.12, 0.12, 0.2, 0xe8c4a8, { roughness: 0.65 }, 8);
+  head.position.y = 0.55;
+  torso.add(head);
+  const hair = cyl(0.125, 0.12, 0.07, 0x3a2818, { roughness: 0.8 }, 8);
+  hair.position.y = 0.65;
+  torso.add(hair);
+  // Arms on bar
+  for (const s of [-1, 1]) {
+    const arm = box(0.08, 0.1, 0.28, shirt, { roughness: 0.7 });
+    arm.position.set(s * 0.14, 0.15, 0.18);
+    torso.add(arm);
+  }
+  // Drink on the bar in front of them (world prop parented loosely)
+  const drink = cyl(0.035, 0.04, 0.12, 0x80c0e8, {
+    transparent: true,
+    opacity: 0.5,
+    roughness: 0.2,
+  }, 8);
+  drink.position.set(0.12, 0.95, 0.35);
+  g.add(drink);
+  const drinkLiq = cyl(0.028, 0.03, 0.06, 0x40e0ff, {
+    emissive: 0x2080c0,
+    emissiveIntensity: 0.3,
+  }, 6);
+  drinkLiq.position.set(0.12, 0.93, 0.35);
+  g.add(drinkLiq);
+
+  g.userData.torso = torso;
   return g;
 }
 
@@ -4150,22 +4260,47 @@ export function createInterior() {
 
     buildBackBar(nightMats, lit, add, nightLights, wallX);
 
-    // Bartender working the well (venue is open)
+    // Bartender + ambient tasks (venue is open)
     {
+      const btX = barX + barDepth * 0.5 + 0.38; // service aisle
+      const btZ0 = 0.15;
+      const barFrontX = barX - barDepth * 0.5;
+      // Patron stool positions (match customer stools)
+      const stoolZs = [];
+      for (let i = 0; i < 9; i++) stoolZs.push(-2.0 + i * 0.55);
+
       const bt = buildBartender();
-      // Service aisle between bar rear and speed rail; face customers (−X)
-      const btX = barX + barDepth * 0.5 + 0.38;
-      const btZ0 = 0.15; // home at mid-bar
       bt.position.set(btX, 0, btZ0);
-      // Local +Z = face → aim −X at the room
-      bt.rotation.y = Math.PI / 2;
+      // Face customers (−X): local +Z → −X
+      bt.rotation.y = -Math.PI / 2;
       add(bt);
+
+      // Seated patron (toggles presence over time)
+      const patron = buildBarPatron(0x5a3a7a);
+      const patronZ = stoolZs[4]; // mid-bar seat
+      patron.position.set(barFrontX - 0.55, 0, patronZ);
+      patron.rotation.y = Math.PI / 2; // face bar / +X (bartender)
+      patron.visible = true;
+      add(patron);
+
       g.userData.bartender = {
         mesh: bt,
+        patron,
         homeX: btX,
         homeZ: btZ0,
-        zMin: -1.2,
-        zMax: 1.4,
+        zMin: -1.35,
+        zMax: 1.5,
+        restockX: btX + 0.25, // step toward back bar
+        // State machine
+        state: "serve", // clean | restock | serve | idle
+        stateT: 0,
+        stateDur: 6,
+        patronPresent: true,
+        patronTimer: 0,
+        // Zones along the bar for tasks
+        cleanZ: 0.6,
+        restockZ: -0.8,
+        serveZ: patronZ,
       };
     }
 
@@ -4426,27 +4561,172 @@ export function createInterior() {
     const disco = g.userData.discoBall;
     if (disco) disco.rotation.y = nowSec * 0.7;
 
-    // Bartender: pace the well, shake, lean into pours
+    // Bartender ambient AI: clean · restock · serve (if patron) · idle
     const bt = g.userData.bartender;
     if (bt?.mesh) {
       const m = bt.mesh;
-      const z =
-        bt.homeZ +
-        Math.sin(nowSec * 0.55) * ((bt.zMax - bt.zMin) * 0.35);
-      m.position.z = THREE.MathUtils.clamp(z, bt.zMin, bt.zMax);
-      // Face mostly into the room, slight turn toward motion
-      m.rotation.y = Math.PI / 2 + Math.sin(nowSec * 0.55) * 0.12;
+      const dt = Math.min(0.05, (nowSec - (bt._lastT || nowSec)));
+      bt._lastT = nowSec;
+      bt.stateT = (bt.stateT || 0) + dt;
+
+      // Patron comes and goes every ~18–28s
+      bt.patronTimer = (bt.patronTimer || 0) + dt;
+      if (bt.patronTimer > 12 + (bt.patronPresent ? 16 : 8)) {
+        bt.patronTimer = 0;
+        // Prefer having a patron more often when open
+        bt.patronPresent = !bt.patronPresent || Math.random() < 0.35;
+        if (bt.patron) bt.patron.visible = bt.patronPresent;
+        // If they just sat down, interrupt into serve
+        if (bt.patronPresent && bt.state !== "serve") {
+          bt.state = "serve";
+          bt.stateT = 0;
+          bt.stateDur = 7 + Math.random() * 3;
+        }
+      }
+      if (bt.patron) {
+        bt.patron.visible = !!bt.patronPresent;
+        // Subtle patron fidget
+        const pt = bt.patron.userData.torso;
+        if (pt && bt.patronPresent) {
+          pt.rotation.z = Math.sin(nowSec * 0.8) * 0.04;
+          pt.rotation.x = Math.sin(nowSec * 1.1) * 0.03;
+        }
+      }
+
+      // Pick next task when current ends
+      if (bt.stateT >= (bt.stateDur || 5)) {
+        bt.stateT = 0;
+        const roll = Math.random();
+        if (bt.patronPresent && roll < 0.5) {
+          bt.state = "serve";
+          bt.stateDur = 6 + Math.random() * 4;
+        } else if (roll < 0.72) {
+          bt.state = "clean";
+          bt.stateDur = 5 + Math.random() * 3;
+          bt.cleanZ = THREE.MathUtils.lerp(bt.zMin, bt.zMax, Math.random());
+        } else if (roll < 0.9) {
+          bt.state = "restock";
+          bt.stateDur = 4 + Math.random() * 2.5;
+          bt.restockZ = THREE.MathUtils.lerp(bt.zMin + 0.2, bt.zMax - 0.2, Math.random());
+        } else {
+          bt.state = "idle";
+          bt.stateDur = 2.5 + Math.random() * 2;
+        }
+      }
+
+      const t = bt.stateT;
       const torso = m.userData.torso;
-      if (torso) {
-        torso.rotation.x = -0.06 + Math.sin(nowSec * 2.4) * 0.05;
-        torso.rotation.z = Math.sin(nowSec * 0.55) * 0.04;
+      const armR = m.userData.armR;
+      const armL = m.userData.armL;
+      const setProp = m.userData.setProp;
+      const faceCustomers = -Math.PI / 2; // −X
+      const faceBackBar = Math.PI / 2; // +X
+      let targetZ = bt.homeZ;
+      let targetYaw = faceCustomers;
+      let targetX = bt.homeX;
+
+      if (bt.state === "clean") {
+        targetZ = bt.cleanZ ?? bt.homeZ;
+        targetYaw = faceCustomers;
+        if (setProp) setProp("rag");
+        // Wipe along the bar
+        const wipe = Math.sin(nowSec * 5.5);
+        if (armR) {
+          armR.rotation.x = -0.9 + wipe * 0.35;
+          armR.rotation.z = 0.5 + wipe * 0.45;
+          armR.rotation.y = wipe * 0.3;
+        }
+        if (armL) {
+          armL.rotation.x = -0.5;
+          armL.rotation.z = -0.15;
+        }
+        if (torso) {
+          torso.rotation.x = -0.12 + Math.sin(nowSec * 5.5) * 0.06;
+          torso.rotation.z = wipe * 0.08;
+        }
+        // Slide a bit while wiping
+        targetZ += wipe * 0.12;
+      } else if (bt.state === "restock") {
+        targetZ = bt.restockZ ?? bt.homeZ;
+        targetX = bt.restockX ?? bt.homeX;
+        targetYaw = faceBackBar; // turn to shelves
+        if (setProp) setProp("bottle");
+        if (armR) {
+          // Reach up to shelf
+          armR.rotation.x = -1.6 + Math.sin(nowSec * 2.2) * 0.15;
+          armR.rotation.z = 0.15;
+          armR.rotation.y = 0.1;
+        }
+        if (armL) {
+          armL.rotation.x = -1.1;
+          armL.rotation.z = -0.25;
+        }
+        if (torso) {
+          torso.rotation.x = -0.2 + Math.sin(nowSec * 2.2) * 0.05;
+          torso.rotation.z = 0;
+        }
+      } else if (bt.state === "serve" && bt.patronPresent) {
+        targetZ = bt.serveZ ?? bt.homeZ;
+        targetYaw = faceCustomers;
+        // Shake then pour
+        const phase = t < (bt.stateDur || 7) * 0.55 ? "shake" : "pour";
+        if (phase === "shake") {
+          if (setProp) setProp("shaker");
+          if (armR) {
+            armR.rotation.x = -0.5 + Math.sin(nowSec * 9) * 0.65;
+            armR.rotation.z = 0.25 + Math.sin(nowSec * 8) * 0.2;
+            armR.rotation.y = Math.sin(nowSec * 7) * 0.25;
+          }
+          if (armL) {
+            armL.rotation.x = -0.4 + Math.sin(nowSec * 9 + 1) * 0.2;
+            armL.rotation.z = -0.2;
+          }
+        } else {
+          if (setProp) setProp("glass");
+          if (armR) {
+            armR.rotation.x = -1.15;
+            armR.rotation.z = 0.35;
+            armR.rotation.y = 0.15;
+          }
+          if (armL) {
+            // Steady the glass
+            armL.rotation.x = -0.95;
+            armL.rotation.z = -0.4;
+          }
+        }
+        if (torso) {
+          torso.rotation.x = -0.1 + Math.sin(nowSec * 3) * 0.04;
+          torso.rotation.z = Math.sin(nowSec * 2) * 0.03;
+        }
+      } else {
+        // idle — light pace, shaker ready
+        targetZ = bt.homeZ + Math.sin(nowSec * 0.4) * 0.25;
+        targetYaw = faceCustomers;
+        if (setProp) setProp("shaker");
+        if (armR) {
+          armR.rotation.x = -0.25 + Math.sin(nowSec * 1.2) * 0.08;
+          armR.rotation.z = 0.1;
+          armR.rotation.y = 0;
+        }
+        if (armL) {
+          armL.rotation.x = -0.2;
+          armL.rotation.z = -0.08;
+        }
+        if (torso) {
+          torso.rotation.x = -0.04;
+          torso.rotation.z = Math.sin(nowSec * 0.4) * 0.03;
+        }
       }
-      const arm = m.userData.armR;
-      if (arm) {
-        // Shake the shaker
-        arm.rotation.x = -0.4 + Math.sin(nowSec * 7.5) * 0.55;
-        arm.rotation.z = 0.2 + Math.sin(nowSec * 6.2) * 0.15;
-      }
+
+      // Smooth move / turn toward task target
+      const blend = 1 - Math.exp(-dt * 3.2);
+      m.position.z += (THREE.MathUtils.clamp(targetZ, bt.zMin, bt.zMax) - m.position.z) * blend;
+      m.position.x += (targetX - m.position.x) * blend;
+      // Shortest-angle yaw blend
+      let dyaw = targetYaw - m.rotation.y;
+      while (dyaw > Math.PI) dyaw -= Math.PI * 2;
+      while (dyaw < -Math.PI) dyaw += Math.PI * 2;
+      m.rotation.y += dyaw * blend;
     }
 
     // Orbiting dance-floor color lights
