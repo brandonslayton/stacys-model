@@ -241,6 +241,51 @@ function sampleInteriorSurfaceY(x, z) {
   return 0;
 }
 
+/**
+ * Circle (player) vs axis-aligned solids from the interior build.
+ * Pushes the player out so you slide along bars/rails instead of tunneling.
+ */
+function resolveColliders(x, z) {
+  const list = interior?.userData?.colliders;
+  if (!list?.length) return { x, z };
+  const r = interior.userData.playerRadius ?? 0.3;
+  // A few iterations so stacked solids (bar + stools, cooler + bay) resolve cleanly
+  for (let iter = 0; iter < 4; iter++) {
+    let pushed = false;
+    for (const c of list) {
+      // Closest point on AABB to player center
+      const qx = THREE.MathUtils.clamp(x, c.xMin, c.xMax);
+      const qz = THREE.MathUtils.clamp(z, c.zMin, c.zMax);
+      let dx = x - qx;
+      let dz = z - qz;
+      if (dx === 0 && dz === 0) {
+        // Center is inside the box — push out on the shallowest face + radius
+        const left = x - c.xMin;
+        const right = c.xMax - x;
+        const bot = z - c.zMin;
+        const top = c.zMax - z;
+        const m = Math.min(left, right, bot, top);
+        if (m === left) x = c.xMin - r;
+        else if (m === right) x = c.xMax + r;
+        else if (m === bot) z = c.zMin - r;
+        else z = c.zMax + r;
+        pushed = true;
+        continue;
+      }
+      const d2 = dx * dx + dz * dz;
+      if (d2 < r * r) {
+        const d = Math.sqrt(d2) || 1e-6;
+        const push = (r - d) / d;
+        x += dx * push;
+        z += dz * push;
+        pushed = true;
+      }
+    }
+    if (!pushed) break;
+  }
+  return { x, z };
+}
+
 /** True while teleported into the manager office. */
 let officeMode = false;
 let officeReturn = null;
@@ -267,6 +312,10 @@ function clampFp() {
   } else {
     fp.x = THREE.MathUtils.clamp(fp.x, xMin, xMax);
     fp.z = THREE.MathUtils.clamp(fp.z, zMin, zMax);
+    // Furniture / props — bar, rail, ATM, walk-in, stage, etc.
+    const resolved = resolveColliders(fp.x, fp.z);
+    fp.x = THREE.MathUtils.clamp(resolved.x, xMin, xMax);
+    fp.z = THREE.MathUtils.clamp(resolved.z, zMin, zMax);
     fp.y = eye + sampleInteriorSurfaceY(fp.x, fp.z);
   }
   fp.pitch = THREE.MathUtils.clamp(fp.pitch, -72, 68);
@@ -381,8 +430,21 @@ function stepFp(dt) {
       fp.speed *
       (0.55 + 0.45 * mag) *
       (keysDown.has("ShiftLeft") || keysDown.has("ShiftRight") ? 1.55 : 1);
-    fp.x += (fx * mz + rx * mx) * sp * dt;
-    fp.z += (fz * mz + rz * mx) * sp * dt;
+    const stepX = (fx * mz + rx * mx) * sp * dt;
+    const stepZ = (fz * mz + rz * mx) * sp * dt;
+    // Axis-separated moves so you slide along walls/bars instead of sticking
+    const ox = fp.x;
+    const oz = fp.z;
+    fp.x = ox + stepX;
+    fp.z = oz;
+    clampFp();
+    const afterX = fp.x;
+    fp.x = ox;
+    fp.z = oz + stepZ;
+    clampFp();
+    const afterZ = fp.z;
+    fp.x = afterX;
+    fp.z = afterZ;
     clampFp();
     moved = true;
   }
