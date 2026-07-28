@@ -2056,82 +2056,96 @@ function buildPartyCam(lit) {
   head.position.set(0, 1.58, 0.02);
   g.add(head);
 
-  // Ring light around the iPad (faces +Z toward subject)
+  // Ring light as a true torus (not a solid white disc that washes the view)
   const ringY = 1.58;
   const ringZ = 0.14;
-  const ring = cyl(0.32, 0.32, 0.05, 0xf4f6fa, {
-    emissive: 0xffffff,
-    emissiveIntensity: 0.95,
-    roughness: 0.25,
-    metalness: 0.15,
-  }, 24);
-  ring.rotation.x = Math.PI / 2;
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.22, 0.032, 10, 28),
+    new THREE.MeshStandardMaterial({
+      color: 0xe8eef4,
+      emissive: 0xffe8d0,
+      emissiveIntensity: 0.55,
+      roughness: 0.35,
+      metalness: 0.25,
+      flatShading: false,
+    })
+  );
+  // Torus lies in XY → hole faces ±Z (subject)
   ring.position.set(0, ringY, ringZ);
-  lit(ring, 1.35, 0.9, { glimmerSpeed: 1.8 });
+  lit(ring, 0.75, 0.4, { glimmerSpeed: 1.6 });
   g.add(ring);
-  // Inner dark ring so the light reads as a torus, not a solid disc
-  const ringIn = cyl(0.2, 0.2, 0.055, 0x12141a, { roughness: 0.55 }, 20);
-  ringIn.rotation.x = Math.PI / 2;
-  ringIn.position.set(0, ringY, ringZ - 0.005);
-  g.add(ringIn);
-  // Soft fill from the ring
-  const ringGlow = new THREE.PointLight(0xfff0e8, 0.75, 3.5, 2);
-  ringGlow.position.set(0, ringY, 0.45);
+  // Soft fill toward subject (kept mild so spawn never blows out white)
+  const ringGlow = new THREE.PointLight(0xfff0e8, 0.28, 2.4, 2);
+  ringGlow.position.set(0, ringY, 0.4);
   g.add(ringGlow);
-  const ringPink = new THREE.PointLight(0xff80c0, 0.25, 2.5, 2);
-  ringPink.position.set(0, 1.4, 0.35);
-  g.add(ringPink);
 
-  // iPad in the center — screen faces OUT (+Z) so subjects see themselves / the cam UI
+  // iPad in the center — mirror-like live screen faces subjects (+Z)
   {
     const padW = 0.2;
     const padH = 0.28;
-    const padD = 0.012;
-    // Dark chassis
-    const chassis = box(padW, padH, padD, 0x1a1a1e, { metalness: 0.55, roughness: 0.28 });
-    chassis.position.set(0, ringY, ringZ - 0.01);
+    // Dark chassis / back (faces pole, −Z)
+    const chassis = box(padW, padH, 0.014, 0x0e0e12, { metalness: 0.55, roughness: 0.28 });
+    chassis.position.set(0, ringY, ringZ - 0.012);
     g.add(chassis);
-    // Slightly inset glass / screen body
-    const glass = box(padW * 0.9, padH * 0.92, 0.008, 0x0a1020, {
-      emissive: 0x183050,
-      emissiveIntensity: 0.55,
-      roughness: 0.2,
+    // Bezel frame (thin)
+    const bezel = box(padW * 0.98, padH * 0.98, 0.01, 0x1a1a1e, {
+      metalness: 0.5,
+      roughness: 0.3,
     });
-    glass.position.set(0, ringY, ringZ - 0.002);
-    lit(glass, 0.95, 0.55);
-    g.add(glass);
-    // Live camera UI facing the room
-    const camUi = new THREE.Mesh(
-      new THREE.PlaneGeometry(padW * 0.84, padH * 0.86),
+    bezel.position.set(0, ringY, ringZ - 0.002);
+    g.add(bezel);
+    // Mirror-like glass — high metalness, dark tint (reads as a selfie mirror)
+    const glass = new THREE.Mesh(
+      new THREE.PlaneGeometry(padW * 0.86, padH * 0.88),
       new THREE.MeshStandardMaterial({
-        map: labelTex("PARTY\nCAM", {
+        color: 0x1a2838,
+        metalness: 0.92,
+        roughness: 0.08,
+        emissive: 0x0a1828,
+        emissiveIntensity: 0.35,
+        flatShading: false,
+        side: THREE.FrontSide,
+      })
+    );
+    glass.position.set(0, ringY, ringZ + 0.005);
+    g.add(glass);
+    // Live camera chrome overlay (faces +Z / subject — not the white back)
+    const camUi = new THREE.Mesh(
+      new THREE.PlaneGeometry(padW * 0.86, padH * 0.88),
+      new THREE.MeshStandardMaterial({
+        map: labelTex("● LIVE", {
           w: 256,
           h: 360,
-          bg: "#0c1830",
-          fg: "#80e8ff",
-          size: 42,
+          bg: "#0a1520",
+          fg: "#60e8ff",
+          size: 36,
           weight: 800,
           font: "fun",
         }),
-        emissive: 0x2060a0,
-        emissiveIntensity: 0.55,
-        roughness: 0.35,
+        transparent: true,
+        opacity: 0.72,
+        emissive: 0x184868,
+        emissiveIntensity: 0.4,
+        roughness: 0.45,
+        metalness: 0.15,
         flatShading: true,
+        side: THREE.FrontSide,
+        depthWrite: false,
       })
     );
-    camUi.position.set(0, ringY, ringZ + 0.006);
+    camUi.position.set(0, ringY, ringZ + 0.007);
     g.add(camUi);
-    // Front-camera notch pill at top of bezel
+    // Front-camera notch on the subject-facing bezel
     const notch = box(0.045, 0.012, 0.006, 0x0a0a0c, { metalness: 0.4, roughness: 0.35 });
-    notch.position.set(0, ringY + padH * 0.4, ringZ + 0.004);
+    notch.position.set(0, ringY + padH * 0.4, ringZ + 0.006);
     g.add(notch);
     const frontCam = cyl(0.006, 0.006, 0.008, 0x111118, { metalness: 0.6, roughness: 0.25 }, 8);
     frontCam.rotation.x = Math.PI / 2;
-    frontCam.position.set(0.012, ringY + padH * 0.4, ringZ + 0.008);
+    frontCam.position.set(0.012, ringY + padH * 0.4, ringZ + 0.01);
     g.add(frontCam);
-    // Home indicator bar
-    const home = box(0.06, 0.008, 0.004, 0x808890, { roughness: 0.4 });
-    home.position.set(0, ringY - padH * 0.4, ringZ + 0.005);
+    // Home indicator
+    const home = box(0.06, 0.008, 0.004, 0x608090, { roughness: 0.4 });
+    home.position.set(0, ringY - padH * 0.4, ringZ + 0.007);
     g.add(home);
   }
 
@@ -3774,13 +3788,14 @@ export function createInterior() {
     }
   };
 
-  // Spawn: facing into the room from near the front door
+  // Spawn just inside the wooden front doors, looking into the club —
+  // NOT at the party cam (that washed the load-in view pure white).
   g.userData.spawn = {
-    x: 2.2,
+    x: -0.5,
     y: WALK.eyeY,
-    z: halfD - 1.4,
-    yaw: 200, // look toward dance floor / north-east
-    pitch: -4,
+    z: halfD - 1.85,
+    yaw: 165, // into the room toward dance floor / north
+    pitch: -6,
   };
   g.userData.walk = { ...WALK };
   g.userData.subject = {
