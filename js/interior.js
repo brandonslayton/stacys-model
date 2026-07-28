@@ -51,12 +51,103 @@ export const WALK = {
 
 const WOOD = 0x4a3428;
 const WOOD_DARK = 0x2e2018;
+const WOOD_PANEL = 0x3a2a1e;
 const BRICK = 0xb8a888;
 const BRICK_DARK = 0x8a7a62;
+const BRICK_MORTAR = 0x9a8a78;
+/** Venue purple — same family as exterior patio CMU / sign. */
+const PURPLE = 0x5a3a7a;
+const PURPLE_DARK = 0x3a2450;
+const PURPLE_LITE = 0x6a4a8a;
 const FLOOR = 0x3a2a1e;
 const CEIL = 0x121018;
 const BLACK = 0x121018;
 const METAL = 0x3a3e46;
+
+/** Running-bond exposed brick for interior walls. */
+function brickTex() {
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 256;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#9a8a78";
+  ctx.fillRect(0, 0, 256, 256);
+  const bricks = ["#c4b090", "#b8a888", "#a89878", "#c8b498", "#b0a080", "#d0c0a0"];
+  const bh = 28;
+  const bw = 62;
+  let rs = 17;
+  const rnd = () => ((rs = (rs * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  for (let row = 0; row < 10; row++) {
+    const off = row % 2 ? bw * 0.5 : 0;
+    for (let col = -1; col < 6; col++) {
+      const x = col * (bw + 4) + off;
+      const y = row * (bh + 4) + 3;
+      ctx.fillStyle = bricks[(row * 5 + col + 6) % bricks.length];
+      ctx.fillRect(x, y, bw - 1, bh - 1);
+      // subtle value noise
+      ctx.fillStyle = `rgba(0,0,0,${0.04 + rnd() * 0.08})`;
+      ctx.fillRect(x + 2, y + 2, bw * 0.4, bh * 0.5);
+    }
+  }
+  const tex = canvasTexture(c, 3);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(3.2, 2.4);
+  return tex;
+}
+
+/** Vertical wood planks for bar / south wall. */
+function woodPanelTex() {
+  const c = document.createElement("canvas");
+  c.width = 128;
+  c.height = 256;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#2a1c14";
+  ctx.fillRect(0, 0, 128, 256);
+  const cols = ["#3a2a1e", "#4a3428", "#2e2018", "#5a4030", "#3a2818"];
+  for (let i = 0; i < 8; i++) {
+    ctx.fillStyle = cols[i % cols.length];
+    ctx.fillRect(i * 16, 0, 14, 256);
+    ctx.fillStyle = "rgba(0,0,0,0.2)";
+    ctx.fillRect(i * 16 + 13, 0, 2, 256);
+  }
+  const tex = canvasTexture(c, 2);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(4, 1.6);
+  return tex;
+}
+
+function wallMesh(w, h, d, kind) {
+  // kind: "brick" | "wood" | "purple"
+  // Built with MeshStandardMaterial directly so map/emissive aren't dropped
+  // by kit.mat() (which only forwards a fixed set of fields).
+  let color = BRICK;
+  const matOpts = {
+    roughness: 0.88,
+    metalness: 0.04,
+    flatShading: true,
+  };
+  if (kind === "brick") {
+    color = BRICK;
+    matOpts.roughness = 0.92;
+    matOpts.map = brickTex();
+  } else if (kind === "wood") {
+    color = WOOD_PANEL;
+    matOpts.roughness = 0.84;
+    matOpts.map = woodPanelTex();
+  } else if (kind === "purple") {
+    color = PURPLE;
+    matOpts.roughness = 0.78;
+    matOpts.emissive = new THREE.Color(PURPLE_DARK);
+    matOpts.emissiveIntensity = 0.08;
+  }
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, d),
+    new THREE.MeshStandardMaterial({ color, ...matOpts })
+  );
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
 
 function labelTex(text, {
   w = 256,
@@ -216,47 +307,54 @@ function buildFoliageWall(w = 2.4, h = 2.4) {
   return g;
 }
 
-/** Twisted Solomonic column — smooth-ish cylinder stack with capital (photo match). */
+/**
+ * Twisted Solomonic column — runs floor to ceiling (vault).
+ * `height` is the top of the capital; capital sits under the roof plane.
+ */
 function buildTwistedColumn(height = 2.9) {
   const g = new THREE.Group();
   g.name = "twistedColumn";
   const stone = 0xb8a890;
   const stoneDark = 0x8a7a68;
-  const segs = 28;
-  const segH = (height - 0.35) / segs;
+  const baseH = 0.22;
+  const capH = 0.2;
+  const shaftH = Math.max(0.8, height - baseH - capH);
+  const segs = Math.max(24, Math.round(shaftH / 0.1));
+  const segH = shaftH / segs;
   for (let i = 0; i < segs; i++) {
     const t = i / segs;
-    // Slight radius swell mid-shaft
     const r = 0.11 + Math.sin(t * Math.PI) * 0.025;
-    const seg = cyl(r, r * 0.98, segH + 0.01, i % 3 ? stone : stoneDark, {
+    const seg = cyl(r, r * 0.98, segH + 0.012, i % 3 ? stone : stoneDark, {
       roughness: 0.78,
       metalness: 0.05,
     }, 12);
-    // Smooth-ish: more sides, no flatShading override (kit uses flat by default)
     seg.material.flatShading = false;
     seg.material.needsUpdate = true;
-    seg.position.y = 0.18 + i * segH + segH * 0.5;
-    seg.rotation.y = i * 0.38; // continuous twist
+    seg.position.y = baseH + i * segH + segH * 0.5;
+    seg.rotation.y = i * 0.38;
     g.add(seg);
   }
   // Base plinth
-  const base = box(0.38, 0.16, 0.38, stoneDark, { roughness: 0.85 });
-  base.position.y = 0.08;
+  const base = box(0.4, 0.14, 0.4, stoneDark, { roughness: 0.85 });
+  base.position.y = 0.07;
   g.add(base);
-  const baseRing = cyl(0.16, 0.18, 0.08, stone, { roughness: 0.8 }, 12);
+  const baseRing = cyl(0.17, 0.19, 0.1, stone, { roughness: 0.8 }, 12);
   baseRing.material.flatShading = false;
-  baseRing.position.y = 0.2;
+  baseRing.position.y = 0.18;
   g.add(baseRing);
-  // Corinthian-ish capital (blocky)
-  const capY = height - 0.12;
-  const cap = box(0.36, 0.14, 0.36, stone, { roughness: 0.75 });
+  // Capital tight under the ceiling
+  const capY = height - capH * 0.45;
+  const cap = box(0.4, 0.12, 0.4, stone, { roughness: 0.75 });
   cap.position.y = capY;
   g.add(cap);
+  const capTop = box(0.46, 0.06, 0.46, stoneDark, { roughness: 0.8 });
+  capTop.position.y = height - 0.03;
+  g.add(capTop);
   for (const [ox, oz] of [
-    [-0.12, -0.12],
-    [0.12, -0.12],
-    [-0.12, 0.12],
-    [0.12, 0.12],
+    [-0.13, -0.13],
+    [0.13, -0.13],
+    [-0.13, 0.13],
+    [0.13, 0.13],
   ]) {
     const scroll = cyl(0.05, 0.05, 0.08, stoneDark, { roughness: 0.7 }, 8);
     scroll.material.flatShading = false;
@@ -265,6 +363,12 @@ function buildTwistedColumn(height = 2.9) {
     g.add(scroll);
   }
   return g;
+}
+
+/** Roof underside Y at a given world z (ridge at z=0, eaves at ±halfD). */
+function roofYAt(z) {
+  const t = Math.min(1, Math.abs(z) / halfD);
+  return PEAK_H - (PEAK_H - EAVE_H) * t;
 }
 
 /** Multi-facet disco ball that can spin. */
@@ -795,11 +899,31 @@ export function createInterior() {
     add(plank);
   }
 
-  // Side walls stop at the eave; N/S walls get gable triangles under the peak.
-  add(box(RW + WALL * 2, EAVE_H, WALL, BRICK)).position.set(0, EAVE_H * 0.5, halfD);
-  add(box(RW + WALL * 2, EAVE_H, WALL, BRICK_DARK)).position.set(0, EAVE_H * 0.5, -halfD);
-  add(box(WALL, EAVE_H, RD, BRICK)).position.set(-halfW, EAVE_H * 0.5, 0);
-  add(box(WALL, EAVE_H, RD, WOOD_DARK)).position.set(halfW, EAVE_H * 0.5, 0);
+  // Interior wall finishes (photo-matched materials):
+  //   WEST  (+Z, front)  — exposed brick
+  //   EAST  (−Z, patio)  — purple paint
+  //   NORTH (−X, lot)    — exposed brick
+  //   SOUTH (+X, bar)    — wood paneling
+  {
+    const west = wallMesh(RW + WALL * 2, EAVE_H, WALL, "brick");
+    west.position.set(0, EAVE_H * 0.5, halfD);
+    add(west);
+    const east = wallMesh(RW + WALL * 2, EAVE_H, WALL, "purple");
+    east.position.set(0, EAVE_H * 0.5, -halfD);
+    add(east);
+    // Soft purple wash so the paint wall reads in the dark
+    const purpleWash = new THREE.PointLight(0x8a5ab0, 0.45, 10, 2);
+    purpleWash.position.set(0, 2.2, -halfD + 1.2);
+    add(purpleWash);
+    nightLights.push({ light: purpleWash, day: 0.3, night: 0.55 });
+
+    const north = wallMesh(WALL, EAVE_H, RD, "brick");
+    north.position.set(-halfW, EAVE_H * 0.5, 0);
+    add(north);
+    const south = wallMesh(WALL, EAVE_H, RD, "wood");
+    south.position.set(halfW, EAVE_H * 0.5, 0);
+    add(south);
+  }
 
   // ── Church vault: pitched roof + exposed rafters ─────────────────
   // Ridge runs N–S (X). Slopes fall to the east (−Z) and west (+Z) eaves —
@@ -868,9 +992,9 @@ export function createInterior() {
       }
     }
 
-    // Gable triangles on the north & south walls (fill eave → peak)
+    // Gable triangles — same finishes as the walls below (brick N, wood S)
     for (const x of [-halfW, halfW]) {
-      const gableCol = x < 0 ? BRICK : WOOD_DARK;
+      const gableKind = x < 0 ? "brick" : "wood";
       const steps = 10;
       for (let i = 0; i < steps; i++) {
         const t0 = i / steps;
@@ -878,11 +1002,13 @@ export function createInterior() {
         const y0 = EAVE_H + rise * t0;
         const y1 = EAVE_H + rise * t1;
         const midY = (y0 + y1) * 0.5;
-        // Full width at eave, tapers to ridge
         const zW = RD * (1 - (t0 + t1) * 0.5) + 0.15;
-        const slab = box(WALL + 0.02, Math.max(0.08, y1 - y0 + 0.02), zW, gableCol, {
-          roughness: 0.88,
-        });
+        const slab = wallMesh(WALL + 0.02, Math.max(0.08, y1 - y0 + 0.02), zW, gableKind);
+        // Don't over-repeat brick on thin gable bands
+        if (slab.material?.map) {
+          slab.material.map = slab.material.map.clone();
+          slab.material.map.repeat.set(gableKind === "brick" ? 2.2 : 3, 0.35);
+        }
         slab.position.set(x, midY, 0);
         add(slab);
       }
@@ -937,7 +1063,7 @@ export function createInterior() {
     }
   }
 
-  // Twisted columns — reach the eave / lower vault
+  // Twisted columns — full height to the vault underside at each column's z
   for (const [x, z] of [
     [-2.4, 2.15],
     [-2.4, 0.55],
@@ -945,7 +1071,9 @@ export function createInterior() {
     [1.5, 1.6],
     [1.5, -1.3],
   ]) {
-    const col = buildTwistedColumn(EAVE_H - 0.2);
+    // Capital sits just under the pitched roof plane
+    const topY = roofYAt(z) - 0.12;
+    const col = buildTwistedColumn(topY);
     col.position.set(x, 0, z);
     add(col);
   }
