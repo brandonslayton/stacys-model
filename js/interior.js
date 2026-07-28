@@ -4865,22 +4865,124 @@ export function createInterior() {
     lit(bathSign, 0.95, 0.6);
     add(bathSign);
 
-    // Photobooth (near west end of bar run)
-    const booth = box(1.0, 2.25, 1.0, BLACK);
-    booth.position.set(wallX - 0.55, 1.15, 3.4);
-    add(booth);
-    solidAt(wallX - 0.55, 3.4, 0.55, 0.55);
-    const curtain = box(0.8, 1.6, 0.1, 0x5a1a40, {
-      emissive: 0x401028,
-      emissiveIntensity: 0.22,
-    });
-    curtain.position.set(wallX - 1.0, 1.05, 3.4);
-    add(curtain);
-    solidAt(wallX - 1.0, 3.4, 0.42, 0.12);
-    const photosNeon = neonBox(0.55, 0.16, 0.06, 0x80d0ff, 0.85);
-    photosNeon.position.set(wallX - 1.0, 2.35, 3.4);
-    lit(photosNeon, 1.15, 0.75);
-    add(photosNeon);
+    // ── Side doorway (west end of bar run) — replaces the photobooth.
+    // Opening faces into the club (−X). A short hall turns LEFT (+Z) into
+    // an undeveloped red-glow room (placeholder for later build-out).
+    {
+      const doorZ = 3.4;
+      const doorW = 1.05;
+      const doorH = 2.2;
+      const jambD = 0.16;
+      // Opening sits in the south wall face; hall digs +X behind it
+      const faceX = wallX - 0.02;
+      const hallDepth = 1.35;
+      const hallEndX = faceX + hallDepth;
+      const frameCol = 0x1a1218;
+      const hallCol = 0x100c12;
+      const red = 0xff2040;
+
+      // Outer jambs (left / right when facing the door)
+      for (const sz of [-1, 1]) {
+        const jamb = box(jambD, doorH + 0.12, 0.12, frameCol, { roughness: 0.82 });
+        jamb.position.set(faceX, doorH * 0.5 + 0.02, doorZ + sz * (doorW * 0.5));
+        add(jamb);
+      }
+      // Header / lintel
+      const head = box(jambD + 0.04, 0.12, doorW + 0.18, frameCol, { roughness: 0.8 });
+      head.position.set(faceX, doorH + 0.08, doorZ);
+      add(head);
+      // Threshold
+      const sill = box(0.22, 0.06, doorW + 0.08, 0x141018, { roughness: 0.88 });
+      sill.position.set(faceX - 0.02, 0.03, doorZ);
+      add(sill);
+
+      // Hall floor
+      const hallFloor = box(hallDepth, 0.05, doorW + 0.2, 0x0c0a0e, { roughness: 0.95 });
+      hallFloor.position.set(faceX + hallDepth * 0.5, 0.02, doorZ);
+      add(hallFloor);
+      // Hall ceiling
+      const hallCeil = box(hallDepth, 0.08, doorW + 0.2, hallCol, { roughness: 0.9 });
+      hallCeil.position.set(faceX + hallDepth * 0.5, doorH + 0.02, doorZ);
+      add(hallCeil);
+      // Right wall of short hall (solid — no turn that way)
+      const hallRight = box(hallDepth, doorH, 0.1, hallCol, { roughness: 0.88 });
+      hallRight.position.set(faceX + hallDepth * 0.5, doorH * 0.5, doorZ - doorW * 0.5 - 0.02);
+      add(hallRight);
+      // Left wall only on the first half — opens into the side room
+      const hallLeftFront = box(hallDepth * 0.42, doorH, 0.1, hallCol, { roughness: 0.88 });
+      hallLeftFront.position.set(
+        faceX + hallDepth * 0.21,
+        doorH * 0.5,
+        doorZ + doorW * 0.5 + 0.02
+      );
+      add(hallLeftFront);
+
+      // Back wall of the short hall (dead end straight ahead)
+      const hallBack = box(0.1, doorH, doorW + 0.22, hallCol, { roughness: 0.9 });
+      hallBack.position.set(hallEndX, doorH * 0.5, doorZ);
+      add(hallBack);
+
+      // Left turn: side room stub extending +Z (west), dark with red wash
+      const sideLen = 1.4;
+      const sideZc = doorZ + doorW * 0.5 + sideLen * 0.5;
+      const sideFloor = box(hallDepth * 0.55, 0.05, sideLen, 0x0c0a0e, { roughness: 0.95 });
+      sideFloor.position.set(faceX + hallDepth * 0.72, 0.02, sideZc);
+      add(sideFloor);
+      const sideCeil = box(hallDepth * 0.55, 0.08, sideLen, hallCol, { roughness: 0.9 });
+      sideCeil.position.set(faceX + hallDepth * 0.72, doorH + 0.02, sideZc);
+      add(sideCeil);
+      // Far wall of side room (tease of more space)
+      const sideFar = box(hallDepth * 0.55, doorH, 0.1, 0x0a080c, { roughness: 0.92 });
+      sideFar.position.set(faceX + hallDepth * 0.72, doorH * 0.5, sideZc + sideLen * 0.5);
+      add(sideFar);
+      // Back of side room (closes the L)
+      const sideBack = box(0.1, doorH, sideLen + 0.1, 0x0a080c, { roughness: 0.92 });
+      sideBack.position.set(faceX + hallDepth * 0.72 + hallDepth * 0.28, doorH * 0.5, sideZc);
+      add(sideBack);
+
+      // Red door-frame lip (reads as backlit exit / VIP)
+      const redLip = box(0.04, doorH + 0.06, doorW + 0.1, red, {
+        emissive: red,
+        emissiveIntensity: 0.85,
+        roughness: 0.35,
+      });
+      redLip.position.set(faceX - 0.06, doorH * 0.5, doorZ);
+      lit(redLip, 1.15, 0.7, { glimmerSpeed: 1.6 });
+      add(redLip);
+      // Thin red edge on header
+      const redHead = neonBox(0.05, 0.06, doorW * 0.92, red, 0.95);
+      redHead.position.set(faceX - 0.08, doorH + 0.14, doorZ);
+      lit(redHead, 1.2, 0.75, { glimmerSpeed: 2.0 });
+      add(redHead);
+
+      // Soft red glow from the side room + hall
+      const redHall = new THREE.PointLight(0xff1838, 0.85, 4.5, 2);
+      redHall.position.set(faceX + 0.85, 1.35, doorZ + 0.55);
+      add(redHall);
+      nightLights.push({ light: redHall, day: 0.45, night: 1.0 });
+      const redSpill = new THREE.PointLight(0xff4060, 0.45, 3.8, 2);
+      redSpill.position.set(faceX - 0.55, 1.2, doorZ);
+      add(redSpill);
+      nightLights.push({ light: redSpill, day: 0.22, night: 0.55 });
+      // Floor wash so the L-turn reads as lit space
+      const redFloor = new THREE.PointLight(0xff1028, 0.35, 2.8, 2);
+      redFloor.position.set(faceX + 0.9, 0.25, sideZc);
+      add(redFloor);
+      nightLights.push({ light: redFloor, day: 0.15, night: 0.42 });
+
+      // Block walking deep into undeveloped space; leave a shallow threshold
+      solid(faceX + 0.35, hallEndX + 0.2, doorZ - doorW * 0.55, doorZ + doorW * 0.55 + sideLen);
+      // Frame posts still solid at the sides
+      solidAt(faceX, doorZ - doorW * 0.5, 0.12, 0.1);
+      solidAt(faceX, doorZ + doorW * 0.5, 0.12, 0.1);
+
+      g.userData.sideDoor = {
+        x: faceX,
+        z: doorZ,
+        // Future: build out the left room from this anchor
+        roomHint: "left-turn red hall (undeveloped)",
+      };
+    }
 
     // ══════════════════════════════════════════════════════════════
     // Elevated lookout ABOVE the Stacy's diamond — real open aperture
