@@ -1235,6 +1235,110 @@ function barAdTex(seed = 0) {
 }
 
 /**
+ * Cartoony lounge banquette + table for under the video wall.
+ * Local +Z = open side toward the room (away from wall).
+ */
+function buildLoungeBooth(lit, accent = 0xff4fa8) {
+  const g = new THREE.Group();
+  g.name = "loungeBooth";
+  const seatCol = 0x3a2030;
+  const seatLite = 0x4a2a3a;
+  const wood = 0x2a1e18;
+
+  // Raised platform / plinth
+  const plinth = box(1.15, 0.1, 1.05, 0x1a1218, { roughness: 0.8 });
+  plinth.position.set(0, 0.05, 0.05);
+  g.add(plinth);
+
+  // Back cushion (against wall, −Z)
+  const back = box(1.1, 0.7, 0.22, seatCol, { roughness: 0.78 });
+  back.position.set(0, 0.55, -0.35);
+  g.add(back);
+  const backTop = box(1.05, 0.18, 0.2, seatLite, { roughness: 0.72 });
+  backTop.position.set(0, 0.95, -0.34);
+  g.add(backTop);
+
+  // Side wings (U-banquette)
+  for (const side of [-1, 1]) {
+    const wing = box(0.22, 0.55, 0.85, seatCol, { roughness: 0.78 });
+    wing.position.set(side * 0.44, 0.48, 0.05);
+    g.add(wing);
+    // Arm cap
+    const arm = box(0.24, 0.1, 0.3, seatLite, { roughness: 0.7 });
+    arm.position.set(side * 0.44, 0.8, 0.28);
+    g.add(arm);
+  }
+
+  // Seat cushion
+  const seat = box(0.9, 0.16, 0.7, seatLite, { roughness: 0.7 });
+  seat.position.set(0, 0.28, 0.02);
+  g.add(seat);
+  // Seat stitch lines (cartoon detail)
+  for (const dz of [-0.15, 0.1]) {
+    const stitch = box(0.82, 0.02, 0.03, 0x2a1820, { roughness: 0.85 });
+    stitch.position.set(0, 0.37, dz);
+    g.add(stitch);
+  }
+
+  // Throw pillows
+  for (const [sx, col] of [
+    [-0.28, accent],
+    [0.28, 0x40e0ff],
+  ]) {
+    const pillow = box(0.2, 0.22, 0.12, col, {
+      roughness: 0.65,
+      emissive: col,
+      emissiveIntensity: 0.12,
+    });
+    pillow.position.set(sx, 0.52, -0.22);
+    pillow.rotation.z = sx > 0 ? -0.15 : 0.15;
+    g.add(pillow);
+  }
+
+  // Round cocktail table
+  const top = cyl(0.28, 0.28, 0.06, wood, { roughness: 0.45, metalness: 0.08 }, 12);
+  top.position.set(0, 0.72, 0.22);
+  g.add(top);
+  const rim = cyl(0.29, 0.29, 0.025, 0x1a120e, { roughness: 0.5 }, 12);
+  rim.position.set(0, 0.69, 0.22);
+  g.add(rim);
+  const pedestal = cyl(0.07, 0.1, 0.38, METAL, { metalness: 0.45, roughness: 0.4 }, 8);
+  pedestal.position.set(0, 0.48, 0.22);
+  g.add(pedestal);
+  const base = cyl(0.18, 0.18, 0.04, 0x1a1a22, { metalness: 0.35, roughness: 0.45 }, 10);
+  base.position.set(0, 0.28, 0.22);
+  g.add(base);
+
+  // Tiny candle / LED votive on table
+  const votive = cyl(0.04, 0.045, 0.06, 0x2a1a20, { roughness: 0.6 }, 8);
+  votive.position.set(0.08, 0.78, 0.22);
+  g.add(votive);
+  const flame = cyl(0.025, 0.02, 0.04, accent, {
+    emissive: accent,
+    emissiveIntensity: 0.85,
+  }, 6);
+  flame.position.set(0.08, 0.84, 0.22);
+  lit(flame, 0.75, 0.4, { glimmerSpeed: 4.5 });
+  g.add(flame);
+
+  // Soft under-seat neon toe-kick
+  const kick = box(1.0, 0.04, 0.06, accent, {
+    emissive: accent,
+    emissiveIntensity: 0.55,
+  });
+  kick.position.set(0, 0.12, 0.48);
+  lit(kick, 0.7, 0.35, { glimmerSpeed: 2.2 });
+  g.add(kick);
+
+  // Warm pool light over the booth
+  const pool = new THREE.PointLight(accent, 0.25, 2.2, 2);
+  pool.position.set(0, 1.1, 0.15);
+  g.add(pool);
+
+  return g;
+}
+
+/**
  * Big cartoony commercial ice machine — stainless body, lit bin, ICE badge.
  * Local +Z = front face.
  */
@@ -3836,16 +3940,20 @@ export function createInterior() {
       nightLights.push({ light: bankLite, day: 0.3, night: 0.7 });
     }
 
-    // Booth tables under the video wall
-    for (let i = 0; i < 4; i++) {
-      const bx = -halfW + 0.9 + i * 1.35;
-      if (bx > 0.5) break;
-      const booth = box(0.9, 0.75, 0.85, 0x3a2830);
-      booth.position.set(bx, 0.42, z + 0.65);
-      add(booth);
-      const table = box(0.6, 0.08, 0.6, WOOD);
-      table.position.set(bx, 0.78, z + 0.75);
-      add(table);
+    // Cartoony lounge banquettes under the video wall
+    {
+      const accents = [0xff4fa8, 0x40e0ff, 0x9b6dff, 0x3dd68c];
+      const count = 4;
+      const spanStart = -halfW + 0.85;
+      const spanEnd = 0.55; // stop before patio door
+      const step = (spanEnd - spanStart) / (count - 1);
+      for (let i = 0; i < count; i++) {
+        const bx = spanStart + i * step;
+        const booth = buildLoungeBooth(lit, accents[i % accents.length]);
+        // Open side faces into the room (+Z); wall is at −Z
+        booth.position.set(bx, 0, z + 0.72);
+        add(booth);
+      }
     }
 
     // Patio door (end of the flat east wall / video-wall run)
