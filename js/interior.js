@@ -1273,10 +1273,10 @@ export function createInterior() {
     pull.position.set(doorCx - 0.12, 1.2, z - 0.24);
     add(pull);
     // Iron ring pull accent
-    const ring = cyl(0.07, 0.07, 0.03, 0x2a2a30, { metalness: 0.4, roughness: 0.5 }, 10);
-    ring.rotation.x = Math.PI / 2;
-    ring.position.set(doorCx - 0.12, 1.2, z - 0.26);
-    add(ring);
+    const doorRing = cyl(0.07, 0.07, 0.03, 0x2a2a30, { metalness: 0.4, roughness: 0.5 }, 10);
+    doorRing.rotation.x = Math.PI / 2;
+    doorRing.position.set(doorCx - 0.12, 1.2, z - 0.26);
+    add(doorRing);
   }
 
   // ══════════════════════════════════════════════════════════════════
