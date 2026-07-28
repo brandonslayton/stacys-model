@@ -82,13 +82,20 @@
   <button id="inside" type="button" aria-label="Step inside Stacy's" title="Step inside" aria-pressed="false"></button>
 </div>
 
-<!-- Interior walk HUD — simple: one Move stick + drag screen to look -->
+<!-- Interior walk HUD — dual sticks on mobile (Move L / Look R); desktop = WASD + drag -->
 <div id="inside-hud" hidden aria-hidden="true">
   <!-- Move joystick (bottom-left). Follows thumb origin for easier control. -->
-  <div id="walk-stick" class="hud-stick" aria-label="Move around">
+  <div id="walk-stick" class="hud-stick hud-stick-move" aria-label="Move around">
     <div class="hud-stick-ring" aria-hidden="true"></div>
     <div id="walk-stick-knob" class="hud-stick-knob"></div>
     <span class="hud-stick-label">Move</span>
+  </div>
+
+  <!-- Look joystick (bottom-right, mobile). Aims the camera like a second thumb stick. -->
+  <div id="look-stick" class="hud-stick hud-stick-look" aria-label="Look around">
+    <div class="hud-stick-ring" aria-hidden="true"></div>
+    <div id="look-stick-knob" class="hud-stick-knob"></div>
+    <span class="hud-stick-label">Look</span>
   </div>
 
   <!-- Bottom action bar: Lot / Office -->
@@ -105,7 +112,7 @@
 
   <!-- Coaching tip (fades out) -->
   <p id="inside-tip" class="inside-tip">
-    <span class="tip-mobile">Stick = walk · Drag screen = look</span>
+    <span class="tip-mobile">Left = walk · Right = look</span>
     <span class="tip-desktop">WASD walk · Drag look · Esc = Lot</span>
   </p>
 </div>

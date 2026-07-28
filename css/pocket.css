@@ -470,9 +470,10 @@ body { user-select: none; -webkit-user-select: none; }
 }
 
 /* ---------------------------------------------------------------- Interior HUD
-   Simple walkthrough controls (mobile best practice):
-   · Bottom-left stick = walk (thumb origin follows touch)
-   · Drag anywhere else on the screen = look
+   Mobile dual-stick (console / mobile FPS style):
+   · Bottom-left stick = walk
+   · Bottom-right stick = look (head aim)
+   Desktop keeps WASD + drag look; look stick is hidden there.
    · Bottom-center bar = Lot / Office
 */
 #inside-hud {
@@ -485,10 +486,9 @@ body { user-select: none; -webkit-user-select: none; }
   display: block;
 }
 
-/* Move stick — large, bottom-left, clear of the action bar */
+/* Shared stick chrome */
 .hud-stick {
   position: absolute;
-  left: max(12px, env(safe-area-inset-left));
   bottom: max(88px, calc(env(safe-area-inset-bottom) + 76px));
   width: 140px;
   height: 140px;
@@ -504,6 +504,28 @@ body { user-select: none; -webkit-user-select: none; }
   pointer-events: auto;
   user-select: none;
   -webkit-user-select: none;
+}
+/* Move — bottom-left */
+.hud-stick-move {
+  left: max(12px, env(safe-area-inset-left));
+}
+/* Look — bottom-right (mobile dual-thumb) */
+.hud-stick-look {
+  right: max(12px, env(safe-area-inset-right));
+  left: auto;
+  border-color: rgba(255, 128, 200, 0.28);
+  box-shadow:
+    0 10px 32px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 95, 162, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+.hud-stick-look .hud-stick-knob {
+  background: linear-gradient(
+    160deg,
+    rgba(255, 180, 220, 0.5),
+    rgba(157, 109, 255, 0.28)
+  );
+  border-color: rgba(255, 180, 220, 0.55);
 }
 .hud-stick-ring {
   position: absolute;
@@ -643,11 +665,14 @@ body { user-select: none; -webkit-user-select: none; }
   display: inline;
 }
 @media (hover: hover) and (pointer: fine) {
-  /* Desktop: stick is optional; WASD is primary */
+  /* Desktop: WASD + mouse drag — hide look stick, keep move optional */
   #walk-stick {
     opacity: 0.55;
     width: 110px;
     height: 110px;
+  }
+  #look-stick {
+    display: none;
   }
   .inside-tip .tip-mobile {
     display: none;
@@ -658,8 +683,8 @@ body { user-select: none; -webkit-user-select: none; }
 }
 @media (max-width: 420px) {
   .hud-stick {
-    width: 128px;
-    height: 128px;
+    width: 120px;
+    height: 120px;
     bottom: max(82px, calc(env(safe-area-inset-bottom) + 70px));
   }
   #inside-bar button {

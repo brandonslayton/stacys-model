@@ -158,7 +158,8 @@ let exteriorViewSnapshot = null;
 
 /**
  * First-person walk state while inside. yaw/pitch in degrees; x/z on the floor.
- * Desktop: WASD + drag look. Mobile: virtual stick + drag look.
+ * Desktop: WASD + drag look (Minecraft-style).
+ * Mobile: dual sticks — left = move, right = look (drag still works too).
  */
 const fp = {
   x: 0,
@@ -172,9 +173,14 @@ const fp = {
 const keysDown = new Set();
 /** Virtual move stick vector −1..1 (bottom-left pad). */
 const stick = { x: 0, y: 0, active: false };
+/** Virtual look stick vector −1..1 (bottom-right pad, mobile). */
+const lookStick = { x: 0, y: 0, active: false };
 /** Look sensitivity (deg per pixel of drag) — tuned for thumbs */
 const LOOK_SENS_X = 0.32;
 const LOOK_SENS_Y = 0.26;
+/** Look stick full-throw rate (deg/sec) — dual-thumb FPS feel */
+const LOOK_STICK_YAW = 125;
+const LOOK_STICK_PITCH = 95;
 
 function computeFit() {
   if (insideMode) {
@@ -326,6 +332,25 @@ function toggleOffice() {
 
 function stepFp(dt) {
   if (!insideMode) return;
+  let moved = false;
+  let looked = false;
+
+  // ── Look stick (mobile right thumb) — rate-based yaw/pitch ──
+  if (lookStick.active) {
+    const lx = Math.abs(lookStick.x) < 0.1 ? 0 : lookStick.x;
+    const ly = Math.abs(lookStick.y) < 0.1 ? 0 : lookStick.y;
+    if (lx || ly) {
+      // Match canvas-drag convention: right / down decrease yaw / pitch
+      const mag = Math.min(1, Math.hypot(lookStick.x, lookStick.y));
+      // Mild ease so small deflections are fine-aim, full throw is snappy
+      const gain = 0.35 + 0.65 * mag;
+      fp.yaw -= lx * LOOK_STICK_YAW * gain * dt;
+      fp.pitch -= ly * LOOK_STICK_PITCH * gain * dt;
+      clampFp();
+      looked = true;
+    }
+  }
+
   let mx = 0;
   let mz = 0;
   if (keysDown.has("KeyW") || keysDown.has("ArrowUp")) mz += 1;
@@ -359,8 +384,10 @@ function stepFp(dt) {
     fp.x += (fx * mz + rx * mx) * sp * dt;
     fp.z += (fz * mz + rz * mx) * sp * dt;
     clampFp();
-    applyFpCamera();
+    moved = true;
   }
+
+  if (moved || looked) applyFpCamera();
 }
 
 function resize() {
@@ -554,8 +581,8 @@ canvas.addEventListener("pointermove", (e) => {
       }
     }
   } else if (insideMode) {
-    // Drag anywhere on the canvas to look (not when using the move stick)
-    if (stick.active) {
+    // Drag canvas to look — skip while a stick is owned by a thumb
+    if (stick.active || lookStick.active) {
       pointers.set(e.pointerId, cur);
       return;
     }
@@ -1328,6 +1355,8 @@ function showInsideHud(on) {
   if (!on) {
     stick.x = stick.y = 0;
     stick.active = false;
+    lookStick.x = lookStick.y = 0;
+    lookStick.active = false;
   }
 }
 
@@ -1339,6 +1368,9 @@ function exitInterior() {
   stick.x = 0;
   stick.y = 0;
   stick.active = false;
+  lookStick.x = 0;
+  lookStick.y = 0;
+  lookStick.active = false;
   if (interior) interior.visible = false;
   setOutsideVisible(true);
   if (exteriorViewSnapshot) {
@@ -1383,7 +1415,7 @@ function wireInsideButton() {
   if (officeBtn) {
     officeBtn.onclick = () => toggleOffice();
   }
-  wireMoveStick();
+  wireVirtualSticks();
   window.addEventListener("keydown", (e) => {
     if (!insideMode) return;
     if (e.code === "Escape") {
@@ -1395,12 +1427,12 @@ function wireInsideButton() {
 }
 
 /**
- * Move joystick — dynamic origin (where your thumb first lands),
- * with a forgiving radius and dead-zone handled in stepFp.
+ * Wire a virtual thumb-stick. Dynamic origin (where thumb first lands).
+ * `state` is { x, y, active }; dead-zone is applied by the consumer.
  */
-function wireMoveStick() {
-  const el = $("walk-stick");
-  const knob = $("walk-stick-knob");
+function wireStick(elId, knobId, state) {
+  const el = $(elId);
+  const knob = $(knobId);
   if (!el || !knob) return;
   let pid = null;
   let originX = 0;
@@ -1414,17 +1446,17 @@ function wireMoveStick() {
     const clamp = Math.min(len, maxR) / len;
     dx *= clamp;
     dy *= clamp;
-    stick.x = dx / maxR;
-    stick.y = dy / maxR;
-    stick.active = true;
+    state.x = dx / maxR;
+    state.y = dy / maxR;
+    state.active = true;
     knob.style.transform = `translate(${dx}px, ${dy}px)`;
   };
 
   const end = () => {
     pid = null;
-    stick.x = 0;
-    stick.y = 0;
-    stick.active = false;
+    state.x = 0;
+    state.y = 0;
+    state.active = false;
     knob.style.transform = "translate(0,0)";
   };
 
@@ -1456,6 +1488,12 @@ function wireMoveStick() {
   el.addEventListener("pointerup", end);
   el.addEventListener("pointercancel", end);
   el.addEventListener("lostpointercapture", end);
+}
+
+/** Left = walk, right = look (look pad hidden on desktop via CSS). */
+function wireVirtualSticks() {
+  wireStick("walk-stick", "walk-stick-knob", stick);
+  wireStick("look-stick", "look-stick-knob", lookStick);
 }
 
 // ---------------------------------------------------------------- boot
