@@ -104,28 +104,204 @@ function dartboardTex() {
 }
 
 function foliageTex() {
+  const S = 512;
   const c = document.createElement("canvas");
-  c.width = 256;
-  c.height = 256;
+  c.width = c.height = S;
   const ctx = c.getContext("2d");
-  ctx.fillStyle = "#0e2814";
-  ctx.fillRect(0, 0, 256, 256);
-  for (let i = 0; i < 90; i++) {
-    const x = Math.random() * 256;
-    const y = Math.random() * 256;
-    const r = 8 + Math.random() * 22;
-    ctx.fillStyle = Math.random() > 0.5 ? "#1e5a28" : "#2a7a38";
+  // Deep green base
+  const bg = ctx.createLinearGradient(0, 0, S, S);
+  bg.addColorStop(0, "#0a1e10");
+  bg.addColorStop(0.5, "#123018");
+  bg.addColorStop(1, "#0c2414");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, S, S);
+  // Layered leaf blobs
+  let rs = 42;
+  const rnd = () => ((rs = (rs * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  const greens = ["#1a4a22", "#246030", "#2e7840", "#185028", "#3a8a48", "#0e3818", "#1e5a28"];
+  for (let i = 0; i < 220; i++) {
+    const x = rnd() * S;
+    const y = rnd() * S;
+    const r = 10 + rnd() * 28;
+    ctx.fillStyle = greens[i % greens.length];
     ctx.beginPath();
-    ctx.ellipse(x, y, r, r * 0.7, Math.random(), 0, Math.PI * 2);
+    ctx.ellipse(x, y, r, r * (0.55 + rnd() * 0.5), rnd() * Math.PI, 0, Math.PI * 2);
     ctx.fill();
   }
-  for (let i = 0; i < 14; i++) {
-    ctx.fillStyle = "#c41e3a";
+  // Vine stems
+  ctx.strokeStyle = "rgba(20,60,28,0.55)";
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 18; i++) {
     ctx.beginPath();
-    ctx.arc(Math.random() * 256, Math.random() * 256, 4 + Math.random() * 5, 0, Math.PI * 2);
+    let x = rnd() * S;
+    let y = 0;
+    ctx.moveTo(x, y);
+    for (let k = 0; k < 8; k++) {
+      x += (rnd() - 0.5) * 40;
+      y += S / 8;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  // Red / pink accent flowers (photo has tropical blooms)
+  for (let i = 0; i < 28; i++) {
+    const x = rnd() * S;
+    const y = rnd() * S;
+    ctx.fillStyle = i % 3 ? "#c41e3a" : "#e85a8a";
+    ctx.beginPath();
+    ctx.arc(x, y, 3 + rnd() * 6, 0, Math.PI * 2);
     ctx.fill();
+    // Petal rays
+    for (let p = 0; p < 5; p++) {
+      const a = (p / 5) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.ellipse(x + Math.cos(a) * 5, y + Math.sin(a) * 5, 4, 2.2, a, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  // Speckle highlights
+  for (let i = 0; i < 80; i++) {
+    ctx.fillStyle = "rgba(120,200,100,0.25)";
+    ctx.fillRect(rnd() * S, rnd() * S, 2, 2);
   }
   return canvasTexture(c, 2);
+}
+
+/** Layered 3D foliage panel for the sign wall. */
+function buildFoliageWall(w = 2.4, h = 2.4) {
+  const g = new THREE.Group();
+  const back = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, h),
+    new THREE.MeshStandardMaterial({
+      map: foliageTex(),
+      roughness: 0.9,
+      flatShading: true,
+    })
+  );
+  g.add(back);
+  // Proud leaf clumps for depth
+  const leafCols = [0x1e5a28, 0x2a7a38, 0x246030, 0x3a8a48, 0x185028];
+  let rs = 99;
+  const rnd = () => ((rs = (rs * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < 48; i++) {
+    const lx = (rnd() - 0.5) * w * 0.9;
+    const ly = (rnd() - 0.5) * h * 0.9;
+    const s = 0.12 + rnd() * 0.18;
+    const leaf = box(s, s * 0.55, 0.06 + rnd() * 0.08, leafCols[i % leafCols.length], {
+      roughness: 0.92,
+      castShadow: false,
+    });
+    leaf.position.set(lx, ly, 0.04 + rnd() * 0.08);
+    leaf.rotation.z = rnd() * Math.PI;
+    leaf.rotation.x = (rnd() - 0.5) * 0.4;
+    g.add(leaf);
+  }
+  // Flower accents
+  for (let i = 0; i < 14; i++) {
+    const flower = cyl(0.04, 0.04, 0.03, i % 2 ? 0xc41e3a : 0xe85a8a, {
+      roughness: 0.7,
+      castShadow: false,
+    }, 6);
+    flower.rotation.x = Math.PI / 2;
+    flower.position.set((rnd() - 0.5) * w * 0.8, (rnd() - 0.5) * h * 0.8, 0.1);
+    g.add(flower);
+  }
+  return g;
+}
+
+/** Twisted Solomonic column — smooth-ish cylinder stack with capital (photo match). */
+function buildTwistedColumn(height = 2.9) {
+  const g = new THREE.Group();
+  g.name = "twistedColumn";
+  const stone = 0xb8a890;
+  const stoneDark = 0x8a7a68;
+  const segs = 28;
+  const segH = (height - 0.35) / segs;
+  for (let i = 0; i < segs; i++) {
+    const t = i / segs;
+    // Slight radius swell mid-shaft
+    const r = 0.11 + Math.sin(t * Math.PI) * 0.025;
+    const seg = cyl(r, r * 0.98, segH + 0.01, i % 3 ? stone : stoneDark, {
+      roughness: 0.78,
+      metalness: 0.05,
+    }, 12);
+    // Smooth-ish: more sides, no flatShading override (kit uses flat by default)
+    seg.material.flatShading = false;
+    seg.material.needsUpdate = true;
+    seg.position.y = 0.18 + i * segH + segH * 0.5;
+    seg.rotation.y = i * 0.38; // continuous twist
+    g.add(seg);
+  }
+  // Base plinth
+  const base = box(0.38, 0.16, 0.38, stoneDark, { roughness: 0.85 });
+  base.position.y = 0.08;
+  g.add(base);
+  const baseRing = cyl(0.16, 0.18, 0.08, stone, { roughness: 0.8 }, 12);
+  baseRing.material.flatShading = false;
+  baseRing.position.y = 0.2;
+  g.add(baseRing);
+  // Corinthian-ish capital (blocky)
+  const capY = height - 0.12;
+  const cap = box(0.36, 0.14, 0.36, stone, { roughness: 0.75 });
+  cap.position.y = capY;
+  g.add(cap);
+  for (const [ox, oz] of [
+    [-0.12, -0.12],
+    [0.12, -0.12],
+    [-0.12, 0.12],
+    [0.12, 0.12],
+  ]) {
+    const scroll = cyl(0.05, 0.05, 0.08, stoneDark, { roughness: 0.7 }, 8);
+    scroll.material.flatShading = false;
+    scroll.rotation.z = Math.PI / 2;
+    scroll.position.set(ox, capY + 0.02, oz);
+    g.add(scroll);
+  }
+  return g;
+}
+
+/** Multi-facet disco ball that can spin. */
+function buildDiscoBall(radius = 0.22) {
+  const g = new THREE.Group();
+  g.name = "discoBall";
+  // Faceted icosahedron-ish via many small mirrors
+  const ball = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(radius, 1),
+    new THREE.MeshStandardMaterial({
+      color: 0xd8e0e8,
+      metalness: 0.92,
+      roughness: 0.12,
+      emissive: 0x405060,
+      emissiveIntensity: 0.25,
+      flatShading: true,
+    })
+  );
+  g.add(ball);
+  // Extra bright tile patches
+  for (let i = 0; i < 20; i++) {
+    const a = (i / 20) * Math.PI * 2;
+    const b = ((i * 7) % 10) / 10 * Math.PI - Math.PI / 2;
+    const tile = box(0.05, 0.05, 0.01, 0xf0f4ff, {
+      metalness: 0.95,
+      roughness: 0.08,
+      emissive: 0xa0c0e0,
+      emissiveIntensity: 0.35,
+      castShadow: false,
+    });
+    tile.position.set(
+      Math.cos(a) * Math.cos(b) * radius * 0.98,
+      Math.sin(b) * radius * 0.98,
+      Math.sin(a) * Math.cos(b) * radius * 0.98
+    );
+    tile.lookAt(0, 0, 0);
+    g.add(tile);
+  }
+  // Hanger stem
+  const stem = cyl(0.012, 0.012, 0.55, 0x3a3a42, { metalness: 0.5, roughness: 0.4 }, 6);
+  stem.position.y = radius + 0.28;
+  g.add(stem);
+  g.userData.spinRoot = g;
+  return g;
 }
 
 /** Single TV screen — dark frame + colorful “show” content. */
@@ -173,72 +349,105 @@ function tvScreenTex(seed = 0) {
 }
 
 /**
- * Tall Gothic / cathedral arched window — matches the photo: pointed arch,
- * vertical mullion bars, glowing panes (hue cycles at runtime).
+ * Tall Gothic / cathedral arched window — photo: pointed arch, dense vertical
+ * bars, deep reveal, strong glow that cycles rainbow at runtime.
  */
-function buildCathedralWindow(nightMats, lit) {
+function buildCathedralWindow(nightMats) {
   const g = new THREE.Group();
   g.name = "cathedralWindow";
 
-  const W = 1.35;
-  const H = 2.55;
-  const D = 0.18;
-  // Outer frame
-  const frameCol = 0x2a2a32;
-  // Sill + jambs
-  g.add(box(W + 0.2, 0.12, D + 0.08, frameCol)).position.set(0, 0.06, 0);
-  g.add(box(0.1, H, D, frameCol)).position.set(-W * 0.5, H * 0.5, 0);
-  g.add(box(0.1, H, D, frameCol)).position.set(W * 0.5, H * 0.5, 0);
-  // Flat top bar under the arch
-  g.add(box(W + 0.2, 0.1, D, frameCol)).position.set(0, H - 0.05, 0);
+  const W = 1.55;
+  const H = 2.7;
+  const D = 0.28;
+  const frameCol = 0x1e1e26;
+  const frameLite = 0x2e2e38;
 
-  // Pointed arch crown — stepped blocks (low-poly Gothic)
-  for (let i = 0; i < 5; i++) {
-    const t = i / 4;
-    const ww = W * (1 - t * 0.92);
-    const arch = box(ww + 0.12, 0.12, D, frameCol);
-    arch.position.set(0, H + 0.08 + i * 0.11, 0);
+  // Deep outer reveal (sits proud of brick)
+  const reveal = box(W + 0.35, H + 0.55, 0.12, frameCol);
+  reveal.position.set(0, H * 0.48, -0.08);
+  g.add(reveal);
+
+  // Sill
+  const sill = box(W + 0.28, 0.14, D + 0.1, frameLite);
+  sill.position.set(0, 0.08, 0.02);
+  g.add(sill);
+  // Jambs
+  g.add(box(0.12, H, D, frameCol)).position.set(-W * 0.52, H * 0.5, 0);
+  g.add(box(0.12, H, D, frameCol)).position.set(W * 0.52, H * 0.5, 0);
+  // Spring line under arch
+  g.add(box(W + 0.28, 0.1, D, frameLite)).position.set(0, H - 0.02, 0);
+
+  // Pointed arch crown — finer steps for a smoother Gothic silhouette
+  for (let i = 0; i < 9; i++) {
+    const t = i / 8;
+    // Pointed: linear taper to tip (not circular)
+    const ww = W * (1 - t * 0.95);
+    const arch = box(Math.max(0.14, ww + 0.14), 0.1, D, frameCol);
+    arch.position.set(0, H + 0.06 + i * 0.095, 0);
     g.add(arch);
   }
-  // Finial tip
-  const tip = box(0.18, 0.22, D, frameCol);
-  tip.position.set(0, H + 0.72, 0);
+  // Finial
+  const tip = box(0.16, 0.28, D * 0.9, frameLite);
+  tip.position.set(0, H + 0.95, 0);
   g.add(tip);
+  const tipBall = cyl(0.06, 0.06, 0.08, frameLite, {}, 8);
+  tipBall.position.set(0, H + 1.12, 0);
+  g.add(tipBall);
 
-  // Glowing panes behind bars
+  // Glowing panes — main body + pointed arch fill
   const paneMat = new THREE.MeshStandardMaterial({
-    color: 0x40c8ff,
-    emissive: 0x40c8ff,
-    emissiveIntensity: 1.15,
-    roughness: 0.25,
+    color: 0x40d0ff,
+    emissive: 0x40d0ff,
+    emissiveIntensity: 1.35,
+    roughness: 0.2,
+    metalness: 0.05,
     flatShading: true,
   });
-  trackNightMat(nightMats, paneMat, 1.4, 0.95, { glimmer: true, glimmerSpeed: 1.6 });
-  // Main rectangular glass
-  const glass = new THREE.Mesh(new THREE.BoxGeometry(W * 0.88, H * 0.92, 0.06), paneMat);
-  glass.position.set(0, H * 0.48, -0.02);
+  trackNightMat(nightMats, paneMat, 1.55, 1.05, { glimmer: true, glimmerSpeed: 1.4 });
+  const glass = new THREE.Mesh(new THREE.BoxGeometry(W * 0.86, H * 0.9, 0.07), paneMat);
+  glass.position.set(0, H * 0.48, -0.04);
   g.add(glass);
-  // Arch fill panes
-  for (let i = 0; i < 4; i++) {
-    const t = i / 3;
-    const ww = W * 0.88 * (1 - t * 0.85);
-    const pg = new THREE.Mesh(new THREE.BoxGeometry(ww, 0.1, 0.05), paneMat);
-    pg.position.set(0, H + 0.1 + i * 0.12, -0.02);
+  // Arch glass wedges
+  for (let i = 0; i < 8; i++) {
+    const t = i / 7;
+    const ww = W * 0.86 * (1 - t * 0.92);
+    const pg = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.08, ww), 0.095, 0.06), paneMat);
+    pg.position.set(0, H + 0.08 + i * 0.095, -0.04);
     g.add(pg);
   }
+  // Soft outer halo plane (reads as glow bloom)
+  const halo = new THREE.Mesh(
+    new THREE.PlaneGeometry(W * 1.15, H * 1.15),
+    new THREE.MeshBasicMaterial({
+      color: 0x40c8ff,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    })
+  );
+  halo.position.set(0, H * 0.5, 0.12);
+  g.add(halo);
+  g.userData.haloMat = halo.material;
 
-  // Vertical mullions (the bar look from the photo)
-  const nBars = 7;
+  // Dense vertical mullions (photo has many thin bars)
+  const nBars = 9;
   for (let i = 0; i < nBars; i++) {
     const u = (i / (nBars - 1)) * 2 - 1;
-    const bar = box(0.05, H * 0.9, 0.07, 0x1a1a22);
-    bar.position.set(u * W * 0.4, H * 0.48, 0.04);
+    const bar = box(0.035, H * 0.88, 0.06, 0x121218);
+    bar.position.set(u * W * 0.38, H * 0.48, 0.05);
     g.add(bar);
+    // Extend bars into lower arch
+    if (Math.abs(u) < 0.7) {
+      const bar2 = box(0.035, 0.55, 0.06, 0x121218);
+      bar2.position.set(u * W * 0.28, H + 0.28, 0.05);
+      g.add(bar2);
+    }
   }
   // Horizontal rails
-  for (const y of [0.45, 1.15, 1.85]) {
-    const rail = box(W * 0.88, 0.05, 0.07, 0x1a1a22);
-    rail.position.set(0, y, 0.04);
+  for (const y of [0.55, 1.2, 1.85, 2.4]) {
+    const rail = box(W * 0.86, 0.04, 0.06, 0x121218);
+    rail.position.set(0, y, 0.05);
     g.add(rail);
   }
 
@@ -247,14 +456,14 @@ function buildCathedralWindow(nightMats, lit) {
 }
 
 /**
- * Simplified neon diamond — same silhouette as the outdoor pole sign,
- * scaled for the foliage wall (pink edge + logo face).
+ * Thin neon diamond — outdoor pole-sign silhouette, slim LED edge,
+ * strong emissive pulse + throw light wired in tickInterior.
  */
 function buildDiamondNeon(nightMats) {
   const g = new THREE.Group();
   g.name = "diamondNeon";
-  const faceW = 1.15;
-  const faceH = 0.78;
+  const faceW = 1.05;
+  const faceH = 0.72;
   const baseDiag = Math.min(faceW, faceH);
   const side = baseDiag / Math.SQRT2;
   const stretchX = faceW / baseDiag;
@@ -262,182 +471,285 @@ function buildDiamondNeon(nightMats) {
   const logoMap = makeStacysDiamondLogoTexture();
 
   const body = new THREE.Group();
-  const cabinet = box(side * 0.9, side * 0.9, 0.1, 0x1a1020, {
-    roughness: 0.5,
+  // Slim cabinet (less bulk than outdoor)
+  const cabinet = box(side * 0.82, side * 0.82, 0.05, 0x1a1020, {
+    roughness: 0.45,
     emissive: 0x5a3a7a,
-    emissiveIntensity: 0.25,
+    emissiveIntensity: 0.2,
   });
   cabinet.rotation.z = Math.PI / 4;
   body.add(cabinet);
 
-  const edge = neonBox(side * 1.02, side * 1.02, 0.06, 0xff4fa8, 1.0);
+  // Thin pink neon tube edge
+  const edge = neonBox(side * 0.98, side * 0.98, 0.028, 0xff4fa8, 1.25);
   edge.rotation.z = Math.PI / 4;
-  trackNightMesh(nightMats, edge, 1.35, 0.9, { glimmer: true, glimmerSpeed: 2.4 });
+  trackNightMesh(nightMats, edge, 1.55, 1.05, { glimmer: true, glimmerSpeed: 3.8 });
   body.add(edge);
+  // Inner hairline for tube read
+  const edgeInner = neonBox(side * 0.9, side * 0.9, 0.02, 0xff80c0, 0.9);
+  edgeInner.rotation.z = Math.PI / 4;
+  edgeInner.position.z = 0.01;
+  trackNightMesh(nightMats, edgeInner, 1.2, 0.8, { glimmer: true, glimmerSpeed: 4.2 });
+  body.add(edgeInner);
   body.scale.set(stretchX, stretchY, 1);
   g.add(body);
 
   const face = new THREE.Mesh(
-    new THREE.PlaneGeometry(faceW * 1.05, faceH * 1.05),
+    new THREE.PlaneGeometry(faceW * 0.98, faceH * 0.98),
     new THREE.MeshStandardMaterial({
       map: logoMap,
       transparent: true,
-      roughness: 0.3,
+      roughness: 0.28,
       emissive: 0xffffff,
-      emissiveIntensity: 0.85,
+      emissiveIntensity: 1.0,
       emissiveMap: logoMap,
       flatShading: true,
     })
   );
-  face.position.z = 0.07;
-  trackNightMesh(nightMats, face, 1.2, 0.8, { glimmer: true, glimmerSpeed: 2.0 });
+  face.position.z = 0.04;
+  trackNightMesh(nightMats, face, 1.4, 0.95, { glimmer: true, glimmerSpeed: 3.2 });
   g.add(face);
+  g.userData.faceMat = face.material;
+  g.userData.edgeMat = edge.material;
 
-  // Tip bulbs
+  // Small tip LEDs
   for (const [ox, oy] of [
-    [0, faceH * 0.48],
-    [0, -faceH * 0.48],
-    [faceW * 0.48, 0],
-    [-faceW * 0.48, 0],
+    [0, faceH * 0.46],
+    [0, -faceH * 0.46],
+    [faceW * 0.46, 0],
+    [-faceW * 0.46, 0],
   ]) {
-    const bulb = cyl(0.04, 0.04, 0.05, 0xffe8a0, {
+    const bulb = cyl(0.028, 0.028, 0.035, 0xffe8a0, {
       emissive: 0xffd060,
-      emissiveIntensity: 0.95,
-    }, 6);
-    bulb.position.set(ox, oy, 0.08);
-    trackNightMesh(nightMats, bulb, 1.1, 0.75, { glimmer: true });
+      emissiveIntensity: 1.1,
+    }, 8);
+    bulb.position.set(ox, oy, 0.05);
+    trackNightMesh(nightMats, bulb, 1.25, 0.85, { glimmer: true, glimmerSpeed: 4.5 });
     g.add(bulb);
   }
   return g;
 }
 
-function buildBottle(col, h = 0.28) {
+function buildBottle(col, h = 0.28, r = 0.04) {
   const g = new THREE.Group();
-  const body = cyl(0.04, 0.045, h * 0.7, col, { roughness: 0.35, metalness: 0.1 }, 6);
+  const body = cyl(r, r * 1.08, h * 0.7, col, { roughness: 0.32, metalness: 0.12 }, 7);
   body.position.y = h * 0.35;
   g.add(body);
-  const neck = cyl(0.018, 0.028, h * 0.28, col, { roughness: 0.35 }, 6);
+  const neck = cyl(r * 0.42, r * 0.65, h * 0.28, col, { roughness: 0.32 }, 6);
   neck.position.y = h * 0.78;
   g.add(neck);
-  const cap = cyl(0.02, 0.02, 0.04, 0xc8a040, { metalness: 0.4, roughness: 0.4 }, 6);
+  const cap = cyl(r * 0.48, r * 0.48, 0.035, 0xc8a040, { metalness: 0.45, roughness: 0.38 }, 6);
   cap.position.y = h * 0.95;
   g.add(cap);
+  // Label band
+  const label = box(r * 1.9, h * 0.22, 0.01, 0xf0e8d8, { roughness: 0.7, castShadow: false });
+  label.position.set(0, h * 0.38, r * 0.95);
+  g.add(label);
+  return g;
+}
+
+/** Better freestanding ATM with screen, keypad, card slot, receipt. */
+function buildAtm(nightMats, lit) {
+  const g = new THREE.Group();
+  g.name = "atm";
+  const body = box(0.58, 1.45, 0.38, 0x2a2a34, { roughness: 0.55, metalness: 0.15 });
+  body.position.y = 0.78;
+  g.add(body);
+  // Top bezel
+  const bezel = box(0.6, 0.12, 0.4, 0x1a1a22);
+  bezel.position.y = 1.55;
+  g.add(bezel);
+  // Screen
+  const screen = box(0.42, 0.36, 0.04, 0x0a2030, {
+    emissive: 0x1a80c0,
+    emissiveIntensity: 0.7,
+    roughness: 0.25,
+  });
+  screen.position.set(0, 1.22, 0.2);
+  lit(screen, 0.95, 0.6);
+  g.add(screen);
+  // Screen UI plane
+  const ui = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.36, 0.28),
+    new THREE.MeshStandardMaterial({
+      map: labelTex("ATM", { w: 256, h: 192, bg: "#0a3048", fg: "#80e0ff", size: 48 }),
+      emissive: 0x2080b0,
+      emissiveIntensity: 0.4,
+      roughness: 0.4,
+      flatShading: true,
+    })
+  );
+  ui.position.set(0, 1.22, 0.23);
+  g.add(ui);
+  // Keypad
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < 3; c++) {
+      const key = box(0.07, 0.06, 0.02, 0x3a3a48, { roughness: 0.5 });
+      key.position.set(-0.1 + c * 0.1, 0.72 - r * 0.09, 0.2);
+      g.add(key);
+    }
+  }
+  // Card slot
+  const slot = box(0.28, 0.04, 0.03, 0x0a0a10);
+  slot.position.set(0, 0.95, 0.21);
+  g.add(slot);
+  // Receipt mouth
+  const receipt = box(0.22, 0.03, 0.02, 0x1a1a22);
+  receipt.position.set(0, 0.38, 0.2);
+  g.add(receipt);
+  const paper = box(0.18, 0.08, 0.01, 0xf0f0e8, { roughness: 0.9, castShadow: false });
+  paper.position.set(0, 0.32, 0.22);
+  g.add(paper);
+  // Side stripe branding
+  const stripe = box(0.04, 1.2, 0.02, 0x40a0ff, {
+    emissive: 0x2080d0,
+    emissiveIntensity: 0.45,
+  });
+  stripe.position.set(0.3, 0.8, 0.1);
+  lit(stripe, 0.7, 0.4);
+  g.add(stripe);
+  // Soft screen wash
+  const glow = new THREE.PointLight(0x40a0ff, 0.35, 2.5, 2);
+  glow.position.set(0, 1.2, 0.5);
+  g.add(glow);
   return g;
 }
 
 /**
  * Back bar: multi-tier liquor shelves, mirror, well, POS — bartender workspace.
+ * Brighter + denser bottles so the wall of liquor actually reads.
  */
-function buildBackBar(nightMats, lit, add) {
+function buildBackBar(nightMats, lit, add, nightLights) {
   const x = halfW - 0.12; // along south wall
-  // Mirror backsplash
-  const mirror = box(0.04, 1.6, 5.2, 0x2a3540, {
-    metalness: 0.55,
-    roughness: 0.2,
-    emissive: 0x102028,
-    emissiveIntensity: 0.15,
+  // Brighter mirror backsplash
+  const mirror = box(0.04, 1.85, 5.4, 0x3a5060, {
+    metalness: 0.65,
+    roughness: 0.15,
+    emissive: 0x183040,
+    emissiveIntensity: 0.35,
   });
-  mirror.position.set(x - 0.08, 2.0, 0.1);
+  mirror.position.set(x - 0.08, 2.05, 0.1);
   add(mirror);
 
-  // Three shelf tiers
+  // Warm wash lights along back bar (brighter behind the bar)
+  for (const z of [-1.8, -0.4, 1.0, 2.2]) {
+    const wash = new THREE.PointLight(0xffc090, 0.85, 4.5, 2);
+    wash.position.set(x - 0.5, 2.5, z);
+    add(wash);
+    nightLights.push({ light: wash, day: 0.55, night: 1.0 });
+  }
+  const backKey = new THREE.PointLight(0xffe0c0, 1.15, 7, 2);
+  backKey.position.set(x - 1.0, 2.2, 0.1);
+  add(backKey);
+  nightLights.push({ light: backKey, day: 0.7, night: 1.3 });
+
+  // Four shelf tiers, denser bottles
   const shelfCols = [
     0xc41e3a, 0x2a5a3a, 0xf0e8d0, 0x3a3a8a, 0xe8a040, 0x1a1a1e,
     0x8b0000, 0x4a7040, 0xd4af37, 0x5a2a6a, 0xc0c0c0, 0x402010,
+    0xff6a3a, 0x80c0ff, 0x2a8a5a, 0x6a2a8a,
   ];
-  for (let tier = 0; tier < 3; tier++) {
-    const sy = 1.35 + tier * 0.42;
-    const shelf = box(0.28, 0.06, 5.0, WOOD_DARK, { roughness: 0.7 });
+  for (let tier = 0; tier < 4; tier++) {
+    const sy = 1.22 + tier * 0.38;
+    const shelf = box(0.32, 0.055, 5.2, WOOD_DARK, { roughness: 0.65 });
     shelf.position.set(x - 0.22, sy, 0.1);
     add(shelf);
-    // Bottles along the shelf
-    for (let i = 0; i < 16; i++) {
-      const b = buildBottle(shelfCols[(i + tier * 3) % shelfCols.length], 0.22 + (i % 4) * 0.04);
-      b.position.set(x - 0.22, sy + 0.03, -2.1 + i * 0.28);
-      add(b);
+    // Double row of bottles
+    for (let row = 0; row < 2; row++) {
+      const count = 22;
+      for (let i = 0; i < count; i++) {
+        const h = 0.18 + ((i + tier + row) % 5) * 0.035;
+        const r = 0.028 + ((i + row) % 3) * 0.006;
+        const b = buildBottle(shelfCols[(i + tier * 5 + row * 3) % shelfCols.length], h, r);
+        b.position.set(
+          x - 0.18 - row * 0.1,
+          sy + 0.02,
+          -2.25 + i * (5.0 / (count - 1))
+        );
+        add(b);
+      }
     }
-    // Under-shelf LED strip
-    const led = neonBox(0.04, 0.03, 4.8, [0xff4fa8, 0x40e0ff, 0x9b6dff][tier], 0.75);
-    led.position.set(x - 0.35, sy - 0.05, 0.1);
-    lit(led, 1.1, 0.7, { glimmerSpeed: 2.2 + tier * 0.3 });
+    // Under-shelf LED
+    const led = neonBox(0.035, 0.028, 5.0, [0xff4fa8, 0x40e0ff, 0x9b6dff, 0x3dd68c][tier], 0.85);
+    led.position.set(x - 0.38, sy - 0.04, 0.1);
+    lit(led, 1.2, 0.8, { glimmerSpeed: 2.0 + tier * 0.25 });
     add(led);
   }
 
-  // Top neon “Stacy's” strip behind bottles
-  const topNeon = neonBox(0.08, 0.28, 2.2, 0x40a0ff, 0.95);
-  topNeon.position.set(x - 0.18, 2.75, 0.15);
-  lit(topNeon, 1.25, 0.85, { glimmerSpeed: 2.5 });
+  // Top neon “Stacy's” strip
+  const topNeon = neonBox(0.08, 0.3, 2.4, 0x40a0ff, 1.0);
+  topNeon.position.set(x - 0.18, 2.85, 0.15);
+  lit(topNeon, 1.35, 0.9, { glimmerSpeed: 2.5 });
   add(topNeon);
   const topLabel = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.6, 0.22),
+    new THREE.PlaneGeometry(1.7, 0.24),
     new THREE.MeshStandardMaterial({
       map: labelTex("Stacy's", { w: 320, h: 64, bg: "#0a2040", fg: "#80d0ff", size: 40 }),
       emissive: 0x3060ff,
-      emissiveIntensity: 0.5,
+      emissiveIntensity: 0.6,
       roughness: 0.4,
       flatShading: true,
     })
   );
-  topLabel.position.set(x - 0.28, 2.75, 0.15);
+  topLabel.position.set(x - 0.28, 2.85, 0.15);
   topLabel.rotation.y = -Math.PI / 2;
   add(topLabel);
 
-  // Speed rail / well (bartender side of bar)
-  const well = box(0.55, 0.35, 2.4, 0x2a2a30, { metalness: 0.3, roughness: 0.4 });
+  // Speed rail / well
+  const well = box(0.55, 0.35, 2.6, 0x2a2a30, { metalness: 0.3, roughness: 0.4 });
   well.position.set(x - 0.85, 1.0, 0.2);
   add(well);
-  // Speed rail bottles (open pours)
-  for (let i = 0; i < 8; i++) {
-    const b = buildBottle(shelfCols[i % shelfCols.length], 0.2);
-    b.position.set(x - 0.85, 1.2, -0.7 + i * 0.22);
+  for (let i = 0; i < 12; i++) {
+    const b = buildBottle(shelfCols[i % shelfCols.length], 0.18 + (i % 3) * 0.03, 0.032);
+    b.position.set(x - 0.85, 1.18, -0.9 + i * 0.2);
     add(b);
   }
 
   // Ice bin
-  const ice = box(0.4, 0.28, 0.5, 0xc8d0d8, {
-    metalness: 0.35,
-    roughness: 0.3,
-    emissive: 0x80a0b0,
-    emissiveIntensity: 0.12,
+  const ice = box(0.42, 0.3, 0.52, 0xc8d0d8, {
+    metalness: 0.4,
+    roughness: 0.25,
+    emissive: 0x90b0c0,
+    emissiveIntensity: 0.18,
   });
-  ice.position.set(x - 0.85, 1.0, 1.45);
+  ice.position.set(x - 0.85, 1.0, 1.55);
   add(ice);
 
-  // POS terminal
+  // POS
   const pos = box(0.28, 0.35, 0.22, BLACK);
   pos.position.set(x - 0.7, 1.35, -1.5);
   add(pos);
   const posScreen = box(0.24, 0.18, 0.03, 0x1a3048, {
     emissive: 0x3080c0,
-    emissiveIntensity: 0.55,
+    emissiveIntensity: 0.65,
   });
   posScreen.position.set(x - 0.85, 1.45, -1.5);
-  lit(posScreen, 0.8, 0.5);
+  lit(posScreen, 0.9, 0.55);
   add(posScreen);
 
   // Draft tower
   const draft = box(0.4, 0.6, 0.4, METAL, { metalness: 0.45, roughness: 0.4 });
-  draft.position.set(x - 0.7, 1.45, 1.9);
+  draft.position.set(x - 0.7, 1.45, 2.0);
   add(draft);
   for (const dz of [-0.1, 0, 0.1]) {
     const spout = cyl(0.025, 0.02, 0.22, 0xc8ccd0, { metalness: 0.5 }, 6);
     spout.rotation.x = Math.PI / 2;
-    spout.position.set(x - 0.9, 1.5, 1.9 + dz);
+    spout.position.set(x - 0.9, 1.5, 2.0 + dz);
     add(spout);
-    const handle = box(0.04, 0.14, 0.04, [0xc41e3a, 0xf0c14d, 0x2a5a3a][(dz + 0.1) * 10 | 0] || 0xc41e3a);
-    handle.position.set(x - 0.7, 1.75, 1.9 + dz);
+    const handle = box(0.04, 0.14, 0.04, [0xc41e3a, 0xf0c14d, 0x2a5a3a][Math.round((dz + 0.1) * 10)] || 0xc41e3a);
+    handle.position.set(x - 0.7, 1.75, 2.0 + dz);
     add(handle);
   }
 
-  // Glass rack hanging
-  for (let i = 0; i < 10; i++) {
+  // Hanging glass rack
+  for (let i = 0; i < 14; i++) {
     const glass = cyl(0.04, 0.03, 0.12, 0xc0d0e0, {
       transparent: true,
       opacity: 0.45,
       roughness: 0.15,
       metalness: 0.2,
     }, 6);
-    glass.position.set(x - 0.55, 2.55, -1.6 + i * 0.22);
+    glass.position.set(x - 0.55, 2.65, -1.8 + i * 0.2);
     add(glass);
   }
 }
@@ -492,49 +804,47 @@ export function createInterior() {
     beam.position.set(0, RH - 0.2, z);
     add(beam);
   }
-  // Disco truss circle (blocky ring)
+  // Truss ring over dance floor + main disco ball
   {
     const ring = new THREE.Group();
-    for (let i = 0; i < 12; i++) {
-      const a = (i / 12) * Math.PI * 2;
-      const seg = box(0.5, 0.1, 0.1, METAL, { metalness: 0.4, roughness: 0.45 });
-      seg.position.set(Math.cos(a) * 1.4, 0, Math.sin(a) * 1.4);
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2;
+      const seg = box(0.42, 0.08, 0.08, METAL, { metalness: 0.45, roughness: 0.4 });
+      seg.position.set(Math.cos(a) * 1.55, 0, Math.sin(a) * 1.55);
       seg.rotation.y = -a;
       ring.add(seg);
     }
-    ring.position.set(-1.6, RH - 0.35, -0.8);
+    ring.position.set(-1.6, RH - 0.28, -0.9);
     add(ring);
+
+    // Main disco ball center of dance floor
+    const disco = buildDiscoBall(0.28);
+    disco.position.set(-1.6, RH - 1.05, -0.9);
+    add(disco);
+    g.userData.discoBall = disco;
+
+    // Satellite mini-balls on the truss
     for (const [dx, dz] of [
-      [0, 0],
-      [0.5, 0.3],
-      [-0.4, 0.35],
+      [0.9, 0.2],
+      [-0.75, 0.45],
+      [0.2, -0.85],
     ]) {
-      const ball = cyl(0.12, 0.12, 0.12, 0xd0d8e0, {
-        metalness: 0.7,
-        roughness: 0.2,
-        emissive: 0xa0b0c0,
-        emissiveIntensity: 0.4,
-      }, 10);
-      ball.position.set(-1.6 + dx, RH - 0.7, -0.8 + dz);
-      lit(ball, 0.65, 0.4, { glimmerSpeed: 5 });
-      add(ball);
+      const mini = buildDiscoBall(0.12);
+      mini.position.set(-1.6 + dx, RH - 0.85, -0.9 + dz);
+      add(mini);
     }
   }
 
-  // Columns
+  // Twisted columns — placed like the photo: framing the raised walk / dance edge
+  // near the front (west) and north rail, plus mid-room anchors.
   for (const [x, z] of [
-    [-2.2, 1.6],
-    [-2.2, -1.2],
-    [1.2, 1.4],
-    [1.2, -1.5],
+    [-2.4, 2.15], // front-left of dance / rail
+    [-2.4, 0.55], // toward dance floor
+    [-0.35, 2.35], // street-side of rail
+    [1.5, 1.6], // near bar aisle
+    [1.5, -1.3],
   ]) {
-    const col = new THREE.Group();
-    for (let i = 0; i < 10; i++) {
-      const seg = box(0.18, 0.28, 0.18, 0xb8a890, { roughness: 0.7 });
-      seg.position.y = 0.2 + i * 0.28;
-      seg.rotation.y = i * 0.35;
-      col.add(seg);
-    }
+    const col = buildTwistedColumn(RH - 0.35);
     col.position.set(x, 0, z);
     add(col);
   }
@@ -564,32 +874,33 @@ export function createInterior() {
       add(board);
     }
 
-    // Foliage wall
-    const foliage = new THREE.Mesh(
-      new THREE.PlaneGeometry(2.0, 2.2),
-      new THREE.MeshStandardMaterial({
-        map: foliageTex(),
-        roughness: 0.85,
-        flatShading: true,
-      })
-    );
-    foliage.position.set(-1.2, 1.55, z - 0.02);
+    // Foliage wall (textured + 3D leaf depth)
+    const foliage = buildFoliageWall(2.5, 2.45);
+    foliage.position.set(-1.15, 1.55, z - 0.04);
     foliage.rotation.y = Math.PI;
     add(foliage);
 
-    // Diamond neon (matches outdoor pole sign, simplified)
+    // Thin diamond neon on the green wall — strong pink throw
     const diamond = buildDiamondNeon(nightMats);
-    diamond.position.set(-1.2, 1.75, z - 0.12);
+    diamond.position.set(-1.15, 1.85, z - 0.22);
     diamond.rotation.y = Math.PI;
     add(diamond);
-    const neonWash = new THREE.PointLight(0xff4fa8, 1.2, 6, 2);
-    neonWash.position.set(-1.2, 1.75, z - 1.0);
+    g.userData.diamondNeon = diamond;
+    const neonWash = new THREE.PointLight(0xff4fa8, 1.85, 7.5, 2);
+    neonWash.position.set(-1.15, 1.85, z - 1.15);
     add(neonWash);
-    nightLights.push({ light: neonWash, day: 0.7, night: 1.35 });
+    nightLights.push({ light: neonWash, day: 1.1, night: 2.0 });
+    g.userData.diamondLight = neonWash;
+    // Extra floor/wall bounce
+    const neonBounce = new THREE.PointLight(0xff80c0, 0.7, 5, 2);
+    neonBounce.position.set(-1.15, 0.9, z - 0.9);
+    add(neonBounce);
+    nightLights.push({ light: neonBounce, day: 0.4, night: 0.85 });
+    g.userData.diamondBounce = neonBounce;
 
     // Ring light camera
     const camStand = box(0.12, 1.2, 0.12, METAL);
-    camStand.position.set(0.5, 0.6, z - 0.3);
+    camStand.position.set(0.55, 0.6, z - 0.3);
     add(camStand);
     const ring = cyl(0.26, 0.26, 0.05, 0xf0f0f0, {
       emissive: 0xffffff,
@@ -597,21 +908,14 @@ export function createInterior() {
       roughness: 0.3,
     }, 16);
     ring.rotation.x = Math.PI / 2;
-    ring.position.set(0.5, 1.4, z - 0.42);
+    ring.position.set(0.55, 1.4, z - 0.42);
     lit(ring, 1.0, 0.65);
     add(ring);
 
     // ATM
-    const atm = box(0.5, 1.3, 0.32, 0x2a2a32);
-    atm.position.set(1.3, 0.75, z - 0.2);
+    const atm = buildAtm(nightMats, lit);
+    atm.position.set(1.45, 0, z - 0.28);
     add(atm);
-    const atmScreen = box(0.36, 0.3, 0.04, 0x1a3040, {
-      emissive: 0x2a6080,
-      emissiveIntensity: 0.5,
-    });
-    atmScreen.position.set(1.3, 1.15, z - 0.36);
-    lit(atmScreen, 0.75, 0.45);
-    add(atmScreen);
 
     // Wood front door
     const doorFrame = box(1.15, 2.35, 0.16, WOOD_DARK);
@@ -664,25 +968,25 @@ export function createInterior() {
     rail.position.set(x + 0.25, 0.88, 1.45);
     add(rail);
 
-    // Cathedral rainbow window
-    const cathed = buildCathedralWindow(nightMats, lit);
-    cathed.position.set(x + 0.05, 0.15, -0.3);
+    // Cathedral rainbow window (taller, denser bars, halo glow)
+    const cathed = buildCathedralWindow(nightMats);
+    cathed.position.set(x + 0.08, 0.12, -0.25);
     cathed.rotation.y = Math.PI / 2; // face into room (+X)
     add(cathed);
     g.userData.cathedralPaneMat = cathed.userData.paneMat;
-    const winLight = new THREE.PointLight(0x40e0ff, 1.8, 10, 2);
-    winLight.position.set(x + 1.4, 1.8, -0.3);
+    g.userData.cathedralHalo = cathed.userData.haloMat;
+    const winLight = new THREE.PointLight(0x40e0ff, 2.2, 12, 2);
+    winLight.position.set(x + 1.6, 1.9, -0.25);
     winLight.name = "cathedralLight";
     add(winLight);
-    nightLights.push({ light: winLight, day: 1.1, night: 2.0 });
+    nightLights.push({ light: winLight, day: 1.3, night: 2.4 });
     g.userData.cathedralLight = winLight;
-    // Floor wash from window
-    const winSpot = new THREE.SpotLight(0x40e0ff, 1.4, 12, 0.55, 0.4, 1.5);
-    winSpot.position.set(x + 0.3, 2.4, -0.3);
-    winSpot.target.position.set(x + 2.5, 0, -0.3);
+    const winSpot = new THREE.SpotLight(0x40e0ff, 1.8, 14, 0.6, 0.45, 1.4);
+    winSpot.position.set(x + 0.35, 2.5, -0.25);
+    winSpot.target.position.set(x + 3.0, 0.1, -0.25);
     add(winSpot);
     add(winSpot.target);
-    nightLights.push({ light: winSpot, day: 0.8, night: 1.5 });
+    nightLights.push({ light: winSpot, day: 1.0, night: 1.9 });
     g.userData.cathedralSpot = winSpot;
 
     // DJ booth
@@ -852,7 +1156,7 @@ export function createInterior() {
       add(stool);
     }
 
-    buildBackBar(nightMats, lit, add);
+    buildBackBar(nightMats, lit, add, nightLights);
 
     // Vape
     const vape = box(0.55, 1.6, 0.35, 0x1a1a22);
@@ -891,28 +1195,65 @@ export function createInterior() {
     add(photosNeon);
   }
 
-  // ── Dance floor ───────────────────────────────────────────────────
+  // ── Dance floor — slightly sunken pit (photo has indented hardwood) ──
   {
-    const dance = box(3.2, 0.05, 2.6, 0x1a1220, { roughness: 0.32, metalness: 0.18 });
-    dance.position.set(-1.6, 0.1, -0.8);
+    const pitX = -1.6;
+    const pitZ = -0.9;
+    const pitW = 3.6;
+    const pitD = 3.0;
+    const pitDepth = 0.12;
+
+    // Pit floor (indented)
+    const dance = box(pitW, 0.06, pitD, 0x18101c, { roughness: 0.35, metalness: 0.2 });
+    dance.position.set(pitX, 0.04 - pitDepth, pitZ);
     add(dance);
-    // Tile glow accents
-    for (let i = 0; i < 4; i++) {
-      for (let j = 0; j < 3; j++) {
-        const tile = box(0.7, 0.02, 0.7, 0x201828, {
-          emissive: [0xff4fa8, 0x40e0ff, 0x9b6dff, 0x3dd68c][(i + j) % 4],
-          emissiveIntensity: 0.15,
+    // Pit walls / step edge
+    for (const [dx, dz, ww, dd] of [
+      [0, pitD * 0.5, pitW + 0.12, 0.12],
+      [0, -pitD * 0.5, pitW + 0.12, 0.12],
+      [pitW * 0.5, 0, 0.12, pitD],
+      [-pitW * 0.5, 0, 0.12, pitD],
+    ]) {
+      const edge = box(ww, pitDepth + 0.04, dd, 0x2a1a28, { roughness: 0.7 });
+      edge.position.set(pitX + dx, pitDepth * 0.35, pitZ + dz);
+      add(edge);
+    }
+    // Glow tiles on sunken floor
+    const tileCols = [0xff4fa8, 0x40e0ff, 0x9b6dff, 0x3dd68c, 0xffe14a];
+    for (let i = 0; i < 5; i++) {
+      for (let j = 0; j < 4; j++) {
+        const tile = box(0.58, 0.02, 0.58, 0x201828, {
+          emissive: tileCols[(i + j) % tileCols.length],
+          emissiveIntensity: 0.22,
         });
-        tile.position.set(-2.6 + i * 0.85, 0.12, -1.7 + j * 0.85);
-        lit(tile, 0.35, 0.18, { glimmerSpeed: 1.5 + i * 0.2 });
+        tile.position.set(
+          pitX - 1.4 + i * 0.7,
+          0.08 - pitDepth,
+          pitZ - 1.05 + j * 0.7
+        );
+        lit(tile, 0.45, 0.22, { glimmerSpeed: 1.4 + i * 0.15, phase: i + j });
         add(tile);
       }
     }
-    const danceLight = new THREE.PointLight(0xff80c0, 0.9, 7, 2);
-    danceLight.position.set(-1.6, 2.4, -0.8);
-    add(danceLight);
-    flashLights.push({ light: danceLight });
-    nightLights.push({ light: danceLight, day: 0.5, night: 1.1 });
+    // Ambient dance lights (colored, animated in tick)
+    const danceLights = [];
+    for (let i = 0; i < 4; i++) {
+      const col = [0xff4fa8, 0x40e0ff, 0x9b6dff, 0x3dd68c][i];
+      const dl = new THREE.PointLight(col, 0.7, 6, 2);
+      dl.position.set(pitX, 2.5, pitZ);
+      add(dl);
+      danceLights.push(dl);
+      flashLights.push({ light: dl });
+      nightLights.push({ light: dl, day: 0.4, night: 0.9 });
+    }
+    g.userData.danceLights = danceLights;
+    g.userData.danceCenter = { x: pitX, z: pitZ };
+
+    // Overhead color wash
+    const danceKey = new THREE.PointLight(0xff80c0, 1.0, 8, 2);
+    danceKey.position.set(pitX, 2.6, pitZ);
+    add(danceKey);
+    nightLights.push({ light: danceKey, day: 0.55, night: 1.15 });
   }
 
   // High-tops
@@ -940,34 +1281,36 @@ export function createInterior() {
   const hemi = new THREE.HemisphereLight(0x406080, 0x180c14, 0.32);
   add(hemi);
 
-  const barKey = new THREE.PointLight(0xffa060, 1.0, 12, 2);
-  barKey.position.set(2.2, 2.4, 0.2);
+  const barKey = new THREE.PointLight(0xffb080, 1.25, 13, 2);
+  barKey.position.set(2.4, 2.45, 0.2);
   add(barKey);
-  nightLights.push({ light: barKey, day: 0.65, night: 1.15 });
+  nightLights.push({ light: barKey, day: 0.8, night: 1.4 });
 
-  const cool = new THREE.PointLight(0x60a0ff, 0.75, 11, 2);
+  const cool = new THREE.PointLight(0x60a0ff, 0.85, 11, 2);
   cool.position.set(-2.8, 2.5, -0.5);
   add(cool);
-  nightLights.push({ light: cool, day: 0.45, night: 0.9 });
+  nightLights.push({ light: cool, day: 0.5, night: 1.0 });
 
   // Pink wash near front door / darts
-  const pinkWash = new THREE.PointLight(0xff60a8, 0.55, 8, 2);
+  const pinkWash = new THREE.PointLight(0xff60a8, 0.7, 8, 2);
   pinkWash.position.set(-2.5, 2.2, 3.0);
   add(pinkWash);
-  nightLights.push({ light: pinkWash, day: 0.35, night: 0.7 });
+  nightLights.push({ light: pinkWash, day: 0.4, night: 0.85 });
 
-  // Ceiling cans (small warm spots)
+  // Ceiling cans
   for (const [x, z] of [
     [-3, 2],
     [0, 2.5],
     [2, -1],
     [-2, -2.5],
     [1.5, 3],
+    [3.5, 0.5],
+    [-4, -1],
   ]) {
-    const can = new THREE.PointLight(0xffe0c0, 0.35, 5, 2);
+    const can = new THREE.PointLight(0xffe0c0, 0.4, 5.5, 2);
     can.position.set(x, RH - 0.3, z);
     add(can);
-    nightLights.push({ light: can, day: 0.25, night: 0.4 });
+    nightLights.push({ light: can, day: 0.28, night: 0.48 });
   }
 
   installVenueNight(g, nightMats, {
@@ -977,7 +1320,7 @@ export function createInterior() {
   });
   g.userData.setNight?.(1);
 
-  // Rainbow cathedral + subtle TV flicker
+  // Rainbow cathedral, diamond pulse, disco spin, dance lights, TV flicker
   g.userData.tickInterior = (nowSec) => {
     g.userData.tickNight?.(nowSec * 1000);
     const hue = (nowSec * 0.1) % 1;
@@ -987,18 +1330,53 @@ export function createInterior() {
       pane.emissive.copy(col);
       pane.color.copy(col);
     }
+    const halo = g.userData.cathedralHalo;
+    if (halo) {
+      halo.color.copy(col);
+      halo.opacity = 0.14 + 0.08 * Math.sin(nowSec * 1.8);
+    }
     const pl = g.userData.cathedralLight;
     if (pl) pl.color.copy(col);
     const sp = g.userData.cathedralSpot;
     if (sp) sp.color.copy(col);
 
+    // Diamond neon pulse + throw light
+    const pulse = 0.75 + 0.35 * Math.sin(nowSec * 3.2) + 0.12 * Math.sin(nowSec * 7.1);
+    const dFace = g.userData.diamondNeon?.userData?.faceMat;
+    if (dFace) dFace.emissiveIntensity = 0.85 * pulse;
+    const dEdge = g.userData.diamondNeon?.userData?.edgeMat;
+    if (dEdge) dEdge.emissiveIntensity = 1.1 * pulse;
+    const dL = g.userData.diamondLight;
+    if (dL) dL.intensity = 1.4 * pulse;
+    const dB = g.userData.diamondBounce;
+    if (dB) dB.intensity = 0.55 * pulse;
+
+    // Disco ball spin
+    const disco = g.userData.discoBall;
+    if (disco) disco.rotation.y = nowSec * 0.7;
+
+    // Orbiting dance-floor color lights
+    const dls = g.userData.danceLights;
+    const dc = g.userData.danceCenter;
+    if (dls && dc) {
+      for (let i = 0; i < dls.length; i++) {
+        const a = nowSec * 0.9 + (i / dls.length) * Math.PI * 2;
+        dls[i].position.set(
+          dc.x + Math.cos(a) * 1.4,
+          2.2 + 0.3 * Math.sin(nowSec * 2 + i),
+          dc.z + Math.sin(a) * 1.2
+        );
+        dls[i].intensity = 0.55 + 0.35 * Math.sin(nowSec * 3 + i * 1.7);
+      }
+    }
+
     // Soft TV emissive pulse
     const tvs = g.userData.tvScreens;
     if (tvs) {
-      const pulse = 0.35 + 0.15 * Math.sin(nowSec * 2.4);
+      const tvPulse = 0.4 + 0.18 * Math.sin(nowSec * 2.4);
       for (let i = 0; i < tvs.length; i++) {
         const m = tvs[i].material;
-        if (m) m.emissiveIntensity = pulse + 0.05 * Math.sin(nowSec * 3 + i);
+        if (m) m.emissiveIntensity = tvPulse + 0.06 * Math.sin(nowSec * 3 + i);
       }
     }
   };
