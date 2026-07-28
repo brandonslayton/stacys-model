@@ -372,6 +372,79 @@ function buildTwistedColumn(height = 2.9) {
 }
 
 /**
+ * Stage curtain pair: metal rod + two black drape panels with vertical folds.
+ * Local +X along the rod; curtains hang down −Y from y=0.
+ */
+function buildStageCurtains(rodLen, curtainH = 2.7, {
+  openGap = 0.28,
+  folds = 7,
+} = {}) {
+  const g = new THREE.Group();
+  g.name = "stageCurtains";
+  // Rod + finials
+  const rod = cyl(0.035, 0.035, rodLen + 0.2, 0x3a3a42, {
+    metalness: 0.55,
+    roughness: 0.35,
+  }, 8);
+  rod.rotation.z = Math.PI / 2;
+  rod.position.set(rodLen * 0.5, 0.02, 0);
+  g.add(rod);
+  for (const x of [-0.02, rodLen + 0.02]) {
+    const fin = cyl(0.06, 0.05, 0.08, 0x2a2a30, { metalness: 0.5, roughness: 0.4 }, 8);
+    fin.rotation.z = Math.PI / 2;
+    fin.position.set(x, 0.02, 0);
+    g.add(fin);
+  }
+  // Mount brackets
+  for (const x of [0.15, rodLen * 0.5, rodLen - 0.15]) {
+    const br = box(0.08, 0.12, 0.1, 0x2a2a30, { metalness: 0.4, roughness: 0.45 });
+    br.position.set(x, 0.1, 0);
+    g.add(br);
+  }
+
+  const panelW = (rodLen - openGap) * 0.5;
+  const foldW = panelW / folds;
+  const black = 0x0a0a0c;
+  const blackLite = 0x141418;
+
+  for (const side of [-1, 1]) {
+    // side -1 = left panel (starts at 0), +1 = right panel
+    const baseX = side < 0 ? 0 : panelW + openGap;
+    for (let i = 0; i < folds; i++) {
+      const deep = i % 2 === 0;
+      const strip = box(
+        foldW * (deep ? 0.92 : 0.88),
+        curtainH,
+        deep ? 0.1 : 0.06,
+        deep ? black : blackLite,
+        { roughness: 0.92, metalness: 0.02 }
+      );
+      // Slight outward swell for drape volume
+      const zOff = deep ? 0.06 : 0.02;
+      strip.position.set(
+        baseX + (i + 0.5) * foldW,
+        -curtainH * 0.5 - 0.04,
+        zOff
+      );
+      g.add(strip);
+    }
+    // Soft puddle / hem at bottom
+    const hem = box(panelW * 0.95, 0.08, 0.14, black, { roughness: 0.95 });
+    hem.position.set(baseX + panelW * 0.5, -curtainH - 0.02, 0.05);
+    g.add(hem);
+    // Tie-back hint mid-height
+    const tie = box(0.06, 0.08, 0.12, 0x1a1a1e, { roughness: 0.85 });
+    tie.position.set(
+      baseX + panelW * (side < 0 ? 0.75 : 0.25),
+      -curtainH * 0.45,
+      0.12
+    );
+    g.add(tie);
+  }
+  return g;
+}
+
+/**
  * Dark wood railing segment along +X (south). Pickets + top/bottom rails.
  * Runs through column posts without replacing them.
  */
@@ -1186,10 +1259,11 @@ export function createInterior() {
   // Plus two free columns further into the room (aligned with railing end x).
   const railZ = 2.2;
   const railNearWallX = -halfW + 0.35 + 0.3; // ~1 ft (0.3 units) off the north wall
+  const railColXs = [railNearWallX, -2.4, -0.35];
   for (const [x, z] of [
-    [railNearWallX, railZ], // new: closest to north wall on the rail
-    [-2.4, railZ], // mid railing post
-    [-0.35, railZ], // south end of rail run
+    [railColXs[0], railZ], // closest to north wall on the rail
+    [railColXs[1], railZ], // mid railing post
+    [railColXs[2], railZ], // south end of rail run
     [0.35, 1.55],
     [0.35, -1.25],
   ]) {
@@ -1197,6 +1271,24 @@ export function createInterior() {
     const col = buildTwistedColumn(topY);
     col.position.set(x, 0, z);
     add(col);
+  }
+
+  // Stage curtain rod just EAST (−Z) of the three railing columns — black
+  // drape pair like a proscenium / stage opening onto the dance floor.
+  {
+    const curtainZ = railZ - 0.38; // ~1 ft east of the column line
+    const rodX0 = railColXs[0] - 0.1;
+    const rodX1 = railColXs[2] + 0.15;
+    const rodLen = rodX1 - rodX0;
+    // Hang just under the vault at this z
+    const rodY = roofYAt(curtainZ) - 0.22;
+    const curtainH = rodY - 0.15; // nearly to the floor
+    const curtains = buildStageCurtains(rodLen, curtainH, {
+      openGap: 0.32,
+      folds: 8,
+    });
+    curtains.position.set(rodX0, rodY, curtainZ);
+    add(curtains);
   }
 
   // ══════════════════════════════════════════════════════════════════
