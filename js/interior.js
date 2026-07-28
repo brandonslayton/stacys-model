@@ -1679,27 +1679,6 @@ function buildIceAndTapBay(lit) {
   scoop.position.set(0.32, 0.78, 0.62);
   scoop.rotation.z = -0.25;
   g.add(scoop);
-  // ICE badge
-  const iceBadge = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.36, 0.11),
-    new THREE.MeshStandardMaterial({
-      map: labelTex("ICE", {
-        w: 160,
-        h: 56,
-        bg: "#1a4a8a",
-        fg: "#80e8ff",
-        size: 36,
-        weight: 800,
-        font: "fun",
-      }),
-      emissive: 0x2060a0,
-      emissiveIntensity: 0.45,
-      roughness: 0.4,
-      flatShading: true,
-    })
-  );
-  iceBadge.position.set(0, 0.82, 0.66);
-  g.add(iceBadge);
   // Lid seam / top of chest
   const lid = box(bayW * 0.96, 0.05, 0.7, 0xa8acb4, { metalness: 0.5, roughness: 0.3 });
   lid.position.set(0, iceH + 0.02, 0.28);
@@ -1745,27 +1724,6 @@ function buildIceAndTapBay(lit) {
     knob.position.set(tx, tapY + 0.24, 0.2);
     g.add(knob);
   }
-  // DRAFT badge
-  const draftBadge = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.4, 0.1),
-    new THREE.MeshStandardMaterial({
-      map: labelTex("DRAFT", {
-        w: 160,
-        h: 48,
-        bg: "#1a1a22",
-        fg: "#e8ecf0",
-        size: 26,
-        weight: 800,
-        font: "fun",
-      }),
-      emissive: 0x303840,
-      emissiveIntensity: 0.3,
-      roughness: 0.45,
-      flatShading: true,
-    })
-  );
-  draftBadge.position.set(0, tapY + 0.38, 0.34);
-  g.add(draftBadge);
 
   // Soft service lights
   const iceGlow = new THREE.PointLight(0xa0d8e8, 0.3, 2.4, 2);
@@ -4571,31 +4529,28 @@ export function createInterior() {
       nightLights.push({ light: wiGlow, day: 0.2, night: 0.45 });
 
       // ── Ice (low) + draft taps (above) on the room face of the cooler ──
-      // Stacked bay on the long +Z face, lined up with the bar's service end.
-      const barX = halfW - 0.08 - 2.55;
+      // Flush to the south wall end of the cooler run (no text labels).
       const bay = buildIceAndTapBay(lit);
-      // Face into the room (+Z): local +Z is already the service face
-      const bayX = THREE.MathUtils.clamp(barX + 0.15, coolerX0 + 1.05, coolerX1 - 0.75);
+      const bayW = bay.userData.bayW || 1.15;
+      // Face into the room (+Z); center so the unit kisses the south cap
+      const bayX = coolerX1 - bayW * 0.5 - 0.04;
       bay.position.set(bayX, 0, coolerZ1 + 0.02);
       add(bay);
       // Rubber mat under the bay
       const bayMat = box(1.25, 0.025, 0.85, 0x141418, { roughness: 0.95 });
       bayMat.position.set(bayX, 0.05, coolerZ1 + 0.4);
       add(bayMat);
-      // Small BEER neon above the tap bank
-      const beerNeon = neonBox(0.42, 0.1, 0.05, 0xff80c0, 0.85);
-      beerNeon.position.set(bayX, 2.05, coolerZ1 + 0.2);
-      lit(beerNeon, 1.1, 0.7);
-      add(beerNeon);
       // Soft aisle fill
       const bayFill = new THREE.PointLight(0xffe8d0, 0.4, 3.5, 2);
       bayFill.position.set(bayX, 1.6, coolerZ1 + 0.7);
       add(bayFill);
       nightLights.push({ light: bayFill, day: 0.22, night: 0.5 });
 
-      // Runner along the cooler face
-      const runner = box(coolerLen * 0.7, 0.02, 0.55, 0x121218, { roughness: 0.95 });
-      runner.position.set(coolerXc, 0.04, coolerZ1 + 0.3);
+      // Runner along the cooler face (stop short of the bay at the south end)
+      const runner = box(Math.max(0.8, coolerLen * 0.55), 0.02, 0.55, 0x121218, {
+        roughness: 0.95,
+      });
+      runner.position.set(coolerX0 + coolerLen * 0.32, 0.04, coolerZ1 + 0.3);
       add(runner);
     }
   }
@@ -4725,19 +4680,7 @@ export function createInterior() {
       };
     }
 
-    // Vape (on back-bar wall, end of run)
-    const vape = box(0.55, 1.6, 0.35, 0x1a1a22);
-    vape.position.set(wallX - 0.35, 0.85, -3.2);
-    add(vape);
-    const vapeScreen = box(0.42, 0.6, 0.05, 0x102018, {
-      emissive: 0x20a040,
-      emissiveIntensity: 0.55,
-    });
-    vapeScreen.position.set(wallX - 0.52, 1.25, -3.2);
-    lit(vapeScreen, 0.8, 0.5);
-    add(vapeScreen);
-
-    // Bathroom
+    // Bathroom (SE corner — vape cabinet removed so ice/draft bay can sit flush)
     const bathDoor = box(0.85, 2.15, 0.12, WOOD_DARK);
     bathDoor.position.set(wallX - 0.2, 1.15, -3.9);
     add(bathDoor);
