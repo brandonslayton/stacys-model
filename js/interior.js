@@ -1045,6 +1045,108 @@ function tvScreenTex(seed = 0) {
   return canvasTexture(c, 2);
 }
 
+/**
+ * Synced party vibe graphics for the east video wall (5 flush screens).
+ * `slot` 0..4, `frame` advances over time, center slot gets the logo.
+ */
+function vibeWallTex(slot = 0, frame = 0, isCenter = false) {
+  const c = document.createElement("canvas");
+  c.width = 320;
+  c.height = 240;
+  const ctx = c.getContext("2d");
+  const palettes = [
+    ["#120820", "#ff2a80", "#40e0ff", "#ffe14a"],
+    ["#081828", "#9b6dff", "#3dd68c", "#ff80c0"],
+    ["#1a0820", "#ff6a3a", "#60e8ff", "#c080ff"],
+    ["#0a1028", "#40e0ff", "#ff4fa8", "#80ffb0"],
+  ];
+  const pal = palettes[frame % palettes.length];
+  // Shared background wash so all 5 feel synced
+  const g = ctx.createLinearGradient(0, 0, 320, 240);
+  g.addColorStop(0, pal[0]);
+  g.addColorStop(0.5, pal[1]);
+  g.addColorStop(1, pal[2]);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 320, 240);
+
+  // Diagonal stripe band shared across the bank (offset by slot for pan)
+  const pan = (frame * 40 + slot * 28) % 360;
+  ctx.save();
+  ctx.translate(pan - 40, 0);
+  for (let i = -2; i < 8; i++) {
+    ctx.fillStyle = i % 2 ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.12)";
+    ctx.beginPath();
+    ctx.moveTo(i * 50, 0);
+    ctx.lineTo(i * 50 + 30, 0);
+    ctx.lineTo(i * 50 + 90, 240);
+    ctx.lineTo(i * 50 + 60, 240);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // EQ bars (same beat phase for all slots)
+  const beat = frame % 6;
+  for (let i = 0; i < 10; i++) {
+    const h = 24 + ((i + beat + slot) % 5) * 18 + (i % 2) * 12;
+    ctx.fillStyle = i % 2 ? pal[2] : pal[3];
+    ctx.globalAlpha = 0.65;
+    ctx.fillRect(16 + i * 30, 200 - h, 18, h);
+  }
+  ctx.globalAlpha = 1;
+
+  // Notes / shapes
+  ctx.font = `800 42px ${FUN_FONT}`;
+  ctx.textAlign = "center";
+  ctx.fillStyle = pal[3];
+  const glyphs = ["♪", "♫", "♬", "★", "✦"];
+  ctx.fillText(glyphs[(slot + frame) % glyphs.length], 50 + (slot % 3) * 20, 70);
+  ctx.fillText(glyphs[(slot + frame + 2) % glyphs.length], 260, 90);
+
+  if (isCenter) {
+    // Logo plate in the middle TV
+    ctx.fillStyle = "rgba(10,8,20,0.55)";
+    ctx.beginPath();
+    // Diamond
+    ctx.moveTo(160, 40);
+    ctx.lineTo(230, 110);
+    ctx.lineTo(160, 180);
+    ctx.lineTo(90, 110);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = pal[1];
+    ctx.lineWidth = 6;
+    ctx.stroke();
+    ctx.strokeStyle = pal[2];
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = "#fff";
+    ctx.font = `800 28px ${FUN_FONT}`;
+    ctx.fillText("Stacy's", 160, 105);
+    ctx.font = `700 14px ${FUN_FONT}`;
+    ctx.fillStyle = pal[3];
+    ctx.fillText("@ MELROSE", 160, 128);
+  } else {
+    // Side panels: bold vibe words, same set rotating in sync
+    const words = ["DANCE", "VIBES", "PARTY", "LOVE", "NIGHT", "BASS"];
+    const word = words[(frame + slot) % words.length];
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.fillRect(40, 90, 240, 70);
+    ctx.fillStyle = "#fff";
+    ctx.font = `800 40px ${FUN_FONT}`;
+    ctx.fillText(word, 160, 138);
+  }
+
+  // Shared footer ticker
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
+  ctx.fillRect(0, 210, 320, 30);
+  ctx.fillStyle = pal[3];
+  ctx.font = `800 14px ${FUN_FONT}`;
+  ctx.fillText("STACY'S  ·  LIVE VISUALS  ·  OPEN", 160, 230);
+
+  return canvasTexture(c, 2);
+}
+
 /** Music-video / dance-party graphics for the jukebox TV (landscape). */
 function musicVideoTex(seed = 0) {
   const c = document.createElement("canvas");
@@ -3537,42 +3639,109 @@ export function createInterior() {
   {
     const z = -halfD + 0.1;
 
-    // Video wall — 2×4 screens
-    for (let row = 0; row < 2; row++) {
-      for (let col = 0; col < 4; col++) {
-        const frame = box(1.05, 0.7, 0.08, BLACK);
-        frame.position.set(-3.2 + col * 1.15, 1.55 + row * 0.85, z + 0.05);
-        add(frame);
+    // Single row of 5 thick cartoony TVs — flush, full wall span (leave patio door)
+    {
+      const count = 5;
+      const wallStartX = -halfW + 0.3;
+      const wallEndX = 0.85; // patio door sits further +X
+      const totalW = wallEndX - wallStartX;
+      const tvW = totalW / count; // flush edge-to-edge
+      const tvH = 1.05;
+      const tvD = 0.28; // thick / cartoony depth
+      const tvY = 1.85;
+      const mid = (count / 2) | 0; // center screen = 2
+
+      // Continuous back plate
+      const backplate = box(totalW + 0.08, tvH + 0.2, 0.08, 0x0a0c12, {
+        roughness: 0.55,
+        metalness: 0.2,
+      });
+      backplate.position.set((wallStartX + wallEndX) * 0.5, tvY, z + 0.02);
+      add(backplate);
+
+      // Neon strip above the bank
+      const wallLed = neonBox(totalW + 0.12, 0.07, 0.05, 0x9b6dff, 0.75);
+      wallLed.position.set((wallStartX + wallEndX) * 0.5, tvY + tvH * 0.5 + 0.12, z + 0.14);
+      lit(wallLed, 1.05, 0.65, { glimmerSpeed: 2.8 });
+      add(wallLed);
+      const wallLedBot = neonBox(totalW + 0.12, 0.05, 0.04, 0xff4fa8, 0.65);
+      wallLedBot.position.set((wallStartX + wallEndX) * 0.5, tvY - tvH * 0.5 - 0.1, z + 0.14);
+      lit(wallLedBot, 0.95, 0.55, { glimmerSpeed: 2.5 });
+      add(wallLedBot);
+
+      g.userData.vibeWall = [];
+      g.userData.tvScreens = g.userData.tvScreens || [];
+
+      for (let i = 0; i < count; i++) {
+        const cx = wallStartX + (i + 0.5) * tvW;
+        const isCenter = i === mid;
+        // Fat cartoony chassis
+        const chassis = box(tvW * 0.98, tvH, tvD, 0x12141a, {
+          roughness: 0.45,
+          metalness: 0.25,
+        });
+        chassis.position.set(cx, tvY, z + tvD * 0.5 + 0.04);
+        add(chassis);
+        // Chunky bezel lip
+        const bezel = box(tvW * 0.96, tvH * 0.96, 0.06, 0x1a1a22, {
+          roughness: 0.4,
+          metalness: 0.3,
+        });
+        bezel.position.set(cx, tvY, z + tvD + 0.05);
+        add(bezel);
+        // Glowing screen face
+        const map = vibeWallTex(i, 0, isCenter);
         const screen = new THREE.Mesh(
-          new THREE.PlaneGeometry(0.95, 0.6),
+          new THREE.PlaneGeometry(tvW * 0.88, tvH * 0.88),
           new THREE.MeshStandardMaterial({
-            map: tvScreenTex(row * 4 + col),
-            emissive: 0x204060,
-            emissiveIntensity: 0.45,
-            roughness: 0.4,
+            map,
+            emissive: isCenter ? 0x402060 : 0x204060,
+            emissiveIntensity: 0.65,
+            roughness: 0.3,
             flatShading: true,
           })
         );
-        screen.position.set(-3.2 + col * 1.15, 1.55 + row * 0.85, z + 0.1);
-        lit(screen, 0.65, 0.4);
+        screen.position.set(cx, tvY, z + tvD + 0.09);
+        lit(screen, 1.0, 0.6);
         add(screen);
-        g.userData.tvScreens = g.userData.tvScreens || [];
         g.userData.tvScreens.push(screen);
+        g.userData.vibeWall.push({ screen, slot: i, isCenter });
+        // Corner pips (cartoon TV vibe)
+        for (const [sx, sy] of [
+          [-1, -1],
+          [-1, 1],
+          [1, -1],
+          [1, 1],
+        ]) {
+          const pip = box(0.06, 0.06, 0.04, 0x40e0ff, {
+            emissive: 0x20c0ff,
+            emissiveIntensity: 0.5,
+          });
+          pip.position.set(
+            cx + sx * tvW * 0.42,
+            tvY + sy * tvH * 0.42,
+            z + tvD + 0.08
+          );
+          lit(pip, 0.55, 0.3, { glimmerSpeed: 3 + i * 0.2 });
+          add(pip);
+        }
       }
+      // Soft wash from the bank
+      const bankLite = new THREE.PointLight(0x80a0ff, 0.55, 7, 2);
+      bankLite.position.set((wallStartX + wallEndX) * 0.5, tvY, z + 1.2);
+      add(bankLite);
+      nightLights.push({ light: bankLite, day: 0.3, night: 0.7 });
     }
-    // LED edge around video wall
-    const wallLed = neonBox(4.6, 0.06, 0.05, 0x9b6dff, 0.7);
-    wallLed.position.set(-1.5, 2.5, z + 0.12);
-    lit(wallLed, 1.0, 0.65, { glimmerSpeed: 2.8 });
-    add(wallLed);
 
-    // Booth tables under TVs
-    for (const x of [-3.2, -2.0, -0.8, 0.4]) {
-      const booth = box(0.85, 0.75, 0.85, 0x3a2830);
-      booth.position.set(x, 0.42, z + 0.6);
+    // Booth tables under the video wall
+    for (let i = 0; i < 4; i++) {
+      const bx = -halfW + 0.9 + i * 1.35;
+      if (bx > 0.5) break;
+      const booth = box(0.9, 0.75, 0.85, 0x3a2830);
+      booth.position.set(bx, 0.42, z + 0.65);
       add(booth);
       const table = box(0.6, 0.08, 0.6, WOOD);
-      table.position.set(x, 0.78, z + 0.7);
+      table.position.set(bx, 0.78, z + 0.75);
       add(table);
     }
 
@@ -4014,6 +4183,23 @@ export function createInterior() {
       for (let i = 0; i < tvs.length; i++) {
         const m = tvs[i].material;
         if (m) m.emissiveIntensity = tvPulse + 0.06 * Math.sin(nowSec * 3 + i);
+      }
+    }
+
+    // East video wall — synced vibe frames (all 5 advance together)
+    const vibeWall = g.userData.vibeWall;
+    if (vibeWall?.length) {
+      const frame = Math.floor(nowSec * 0.55) % 12;
+      if (g.userData._vibeFrame !== frame) {
+        g.userData._vibeFrame = frame;
+        for (const entry of vibeWall) {
+          if (!entry.screen?.material) continue;
+          const tex = vibeWallTex(entry.slot, frame, entry.isCenter);
+          const old = entry.screen.material.map;
+          entry.screen.material.map = tex;
+          entry.screen.material.needsUpdate = true;
+          if (old) old.dispose?.();
+        }
       }
     }
 
