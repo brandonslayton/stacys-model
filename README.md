@@ -35,16 +35,22 @@ no lost camera position.
 
 | | |
 |---|---|
-| Orbit | one-finger drag |
-| Zoom | pinch (or wheel) |
-| Auto-rotate | resumes 4s after you let go; icon button, bottom left |
-| Creative mode | sparkle button — pretend the bar is open (crowd + Gaymo), even if real hours say closed |
-| Take out the trash | trash-can button, bottom left |
-| Patio misters | mist button, bottom left — on/off |
-| Sick patron | queasy-face button, bottom left |
-| Gaymo rideshare | car+dome button — tap to pick up, hold or double-tap to drop off |
-| UFO abduction | saucer button — patron walks past the property line and gets beamed up |
-| Pigeon flyby | bird button — one graceful arc over the property |
+| Orbit | one-finger drag (desktop: drag) |
+| Zoom | pinch (desktop: scroll wheel) |
+| Auto-rotate | corner button, bottom left — resumes 4s after you let go |
+| **Dock** | bottom-center glass pill with labels |
+| Creative mode | dock — pretend the bar is open (crowd + Gaymo), even if real hours say closed |
+| Patio misters | dock — on/off; camera swings to patio when on |
+| Inside | dock — step into the low-poly interior |
+| **Play** | dock — opens a labeled sheet of lot scenes |
+| Take out the trash | Play sheet |
+| Sick patron | Play sheet |
+| Liquor delivery | Play sheet |
+| Taco stand | Play sheet — toggle setup/pack |
+| Gaymo pickup | Play sheet — explicit pickup action |
+| Gaymo drop-off | Play sheet — explicit drop-off (no hold/double-tap) |
+| UFO abduction | Play sheet |
+| Pigeon flyby | Play sheet |
 
 Tapping the trash can sends a worker out of the porch with a bag, up the parking
 aisle, and into the dumpster — which reacts with a heart. The camera eases round to
@@ -63,14 +69,18 @@ camera to the patio (the rear face, likewise hidden by default); switching it of
 leaves the camera where it is. `js/mist.js` renders the whole thing as a single
 `THREE.Points` with a custom shader, so it costs **one draw call**.
 
-The rideshare button calls a **Gaymo** — a Waymo-branded hover robotaxi with a
-"Gaymo" door wordmark, cyan status LEDs, roof lidar top-hat, and a pride thruster
-glow under a wheel-less belly that actually floats. Tap while **open**: guests walk
-out to the aisle, it turns in off 7th, they board; it exits past the dumpster.
-Tap while **closed**: no car — a Gaymo text says no passenger is available. Hold or
-double-tap while open: normal drop-off. Hold or double-tap while **closed**: drop-off,
-Gaymo leaves, the guest knocks on the locked door, looks confused, calls another
-Gaymo, and gets rescued. `js/rideshare.js`.
+**Gaymo** (Play sheet) is a Waymo-branded hover robotaxi with a "Gaymo" door
+wordmark, cyan status LEDs, roof lidar top-hat, and a pride thruster glow under a
+wheel-less belly that actually floats. Two labeled actions:
+
+- **Pickup** while **open**: guests walk out to the aisle, it turns in off 7th, they
+  board; it exits past the dumpster. While **closed**: no car — a Gaymo text says no
+  passenger is available.
+- **Drop-off** while open: normal arrival and walk-in. While **closed**: drop-off,
+  Gaymo leaves, the guest knocks on the locked door, looks confused, calls another
+  Gaymo, and gets rescued.
+
+`js/rideshare.js`.
 
 Layout: venue name top-left with tonight's event directly under it, and top-right
 an `Open` / `Opens 4:00 PM` pill over a big weekday and date, the venue clock,

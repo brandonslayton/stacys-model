@@ -160,6 +160,15 @@ export const OUTSIDE_ICON = svg(
   20
 );
 
+/** Sparkle grid / play menu — opens the labeled lot toy sheet. */
+export const PLAY_ICON = svg(
+  `<rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/>` +
+    `<rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/>` +
+    `<rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/>` +
+    `<rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/>`,
+  20
+);
+
 // ---------------------------------------------------------------- moon phase
 const SYNODIC = 29.530588853; // mean days between new moons
 /** A known new moon: 2000-01-06 18:14 UTC. */

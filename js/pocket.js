@@ -24,6 +24,7 @@ import {
   UFO_ICON,
   BIRD_ICON,
   INSIDE_ICON,
+  PLAY_ICON,
   moonPhase,
   moonName,
   moonIllumination,
@@ -52,6 +53,178 @@ import {
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("c");
+
+/** Put an SVG into a button without wiping dock/play labels. */
+function setBtnIcon(btn, html) {
+  if (!btn) return;
+  const slot = btn.querySelector(".dock-ico, .play-ico");
+  if (slot) slot.innerHTML = html;
+  else btn.innerHTML = html;
+}
+
+// ---------------------------------------------------------------- chrome: play sheet, tips, toast
+let playOpen = false;
+
+function setPlayOpen(on) {
+  const next = !!on;
+  const wasOpen = playOpen;
+  playOpen = next;
+  const sheet = $("play-sheet");
+  const veil = $("play-veil");
+  const btn = $("play");
+  if (sheet) {
+    sheet.hidden = !next;
+    sheet.setAttribute("aria-hidden", next ? "false" : "true");
+  }
+  if (veil) veil.hidden = !next;
+  if (btn) {
+    btn.setAttribute("aria-expanded", next ? "true" : "false");
+    btn.classList.toggle("on", next);
+  }
+  document.body.classList.toggle("play-open", next);
+  if (next) {
+    // Focus first available tile for keyboard users
+    const first = sheet?.querySelector(".play-tile:not(:disabled)");
+    first?.focus?.({ preventScroll: true });
+  } else if (wasOpen) {
+    // Only restore focus when the user actually closed the sheet
+    btn?.focus?.({ preventScroll: true });
+  }
+}
+
+function wirePlaySheet() {
+  const btn = $("play");
+  const close = $("play-close");
+  const veil = $("play-veil");
+  if (btn) {
+    setBtnIcon(btn, PLAY_ICON);
+    btn.addEventListener("click", () => setPlayOpen(!playOpen));
+  }
+  close?.addEventListener("click", () => setPlayOpen(false));
+  veil?.addEventListener("click", () => setPlayOpen(false));
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Escape" && playOpen && !insideMode) {
+      e.preventDefault();
+      setPlayOpen(false);
+    }
+  });
+}
+
+const LOT_TIP_KEY = "stacys-pocket-tip-lot-v1";
+
+function showLotTip() {
+  const tip = $("lot-tip");
+  if (!tip) return;
+  try {
+    if (localStorage.getItem(LOT_TIP_KEY) === "1") return;
+  } catch {
+    /* private mode */
+  }
+  tip.hidden = false;
+  tip.classList.remove("fade");
+  const dismiss = () => {
+    tip.classList.add("fade");
+    try {
+      localStorage.setItem(LOT_TIP_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+    setTimeout(() => {
+      tip.hidden = true;
+    }, 700);
+  };
+  const timer = setTimeout(dismiss, 4800);
+  const onInteract = () => {
+    clearTimeout(timer);
+    dismiss();
+    canvas.removeEventListener("pointerdown", onInteract);
+  };
+  canvas.addEventListener("pointerdown", onInteract, { once: true });
+}
+
+let toastTimer = null;
+function showActionToast(msg, ms = 2800) {
+  const el = $("action-toast");
+  if (!el || !msg) return;
+  el.textContent = msg;
+  el.hidden = false;
+  requestAnimationFrame(() => el.classList.add("show"));
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    el.classList.remove("show");
+    setTimeout(() => {
+      el.hidden = true;
+    }, 280);
+    toastTimer = null;
+  }, ms);
+}
+
+/** Desktop hover tip + long-press label for spin on touch. */
+function wireCtrlTips() {
+  const tip = $("ctrl-tip");
+  if (!tip) return;
+  const fine = window.matchMedia("(hover: hover) and (pointer: fine)");
+
+  const place = (el, text) => {
+    tip.textContent = text;
+    tip.hidden = false;
+    const r = el.getBoundingClientRect();
+    const tw = Math.min(240, window.innerWidth - 16);
+    let left = r.left + r.width / 2;
+    let top = r.top - 8;
+    tip.classList.add("show");
+    // Measure after show
+    const tr = tip.getBoundingClientRect();
+    left = Math.min(
+      window.innerWidth - tr.width / 2 - 8,
+      Math.max(tr.width / 2 + 8, left)
+    );
+    top = Math.max(8 + tr.height, top);
+    tip.style.left = `${left}px`;
+    tip.style.top = `${top}px`;
+    tip.style.transform = "translate(-50%, -100%)";
+  };
+  const hide = () => {
+    tip.classList.remove("show");
+    setTimeout(() => {
+      if (!tip.classList.contains("show")) tip.hidden = true;
+    }, 120);
+  };
+
+  const bindHover = (el) => {
+    if (!el) return;
+    const text = el.getAttribute("data-tip") || el.getAttribute("aria-label");
+    if (!text) return;
+    el.addEventListener("pointerenter", (e) => {
+      if (!fine.matches || e.pointerType === "touch") return;
+      place(el, text);
+    });
+    el.addEventListener("pointerleave", hide);
+    el.addEventListener("blur", hide);
+  };
+
+  bindHover($("spin"));
+  for (const el of document.querySelectorAll("#dock .dock-btn")) bindHover(el);
+
+  // Long-press on spin shows the name on touch devices
+  const spin = $("spin");
+  if (spin) {
+    let hold = null;
+    spin.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "mouse") return;
+      clearTimeout(hold);
+      hold = setTimeout(() => place(spin, "Auto-rotate"), 420);
+    });
+    const clear = () => {
+      clearTimeout(hold);
+      hold = null;
+      hide();
+    };
+    spin.addEventListener("pointerup", clear);
+    spin.addEventListener("pointercancel", clear);
+    spin.addEventListener("pointerleave", clear);
+  }
+}
 
 // ---------------------------------------------------------------- renderer
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -650,6 +823,8 @@ $("spin").onclick = () => {
   $("spin").classList.toggle("on", spin);
   if (spin) idleAt = 0;
 };
+wirePlaySheet();
+wireCtrlTips();
 
 const pointers = new Map();
 let pinchStart = 0;
@@ -875,13 +1050,16 @@ function paintHeader(now) {
 
 function wireCreativeButton() {
   const btn = $("creative");
-  btn.innerHTML = CREATIVE_ICON;
+  setBtnIcon(btn, CREATIVE_ICON);
   const sync = () => {
     btn.classList.toggle("on", creativeMode);
     btn.setAttribute("aria-pressed", String(creativeMode));
-    btn.title = creativeMode
-      ? "Creative mode on — bar pretends to be open"
-      : "Creative mode: pretend we're open (crowd + Gaymo)";
+    btn.setAttribute(
+      "data-tip",
+      creativeMode
+        ? "Creative mode on — bar pretends to be open"
+        : "Creative mode: pretend we're open"
+    );
   };
   sync();
   btn.onclick = () => {
@@ -908,9 +1086,11 @@ function wireCreativeButton() {
  */
 function wireTrashButton(chores) {
   const btn = $("trash");
-  btn.innerHTML = TRASH_ICON;
+  setBtnIcon(btn, TRASH_ICON);
   btn.onclick = () => {
     if (!chores.takeOutTrash()) return;
+    setPlayOpen(false);
+    showActionToast("Taking out the trash…");
     beginFocus(CHORE_VIEW);
     btn.disabled = true;
     const release = () => {
@@ -933,14 +1113,15 @@ function wireTrashButton(chores) {
  */
 function wireSickButton(incident) {
   const btn = $("sick");
-  btn.innerHTML = SICK_ICON;
+  setBtnIcon(btn, SICK_ICON);
   if (!incident.enabled) {
     btn.disabled = true;
-    btn.title = "Side door unavailable";
     return;
   }
   btn.onclick = () => {
     if (!incident.start()) return;
+    setPlayOpen(false);
+    showActionToast("Sick patron scene…");
     beginFocus(INCIDENT_VIEW);
     btn.disabled = true;
     const release = () => {
@@ -965,11 +1146,13 @@ function wireSickButton(incident) {
  */
 function wireTacoButton(taco) {
   const btn = $("taco");
-  btn.innerHTML = TACO_ICON;
+  setBtnIcon(btn, TACO_ICON);
   btn.onclick = () => {
     if (taco.busy) return;
     if (taco.open) {
       if (!taco.stop()) return;
+      setPlayOpen(false);
+      showActionToast("Packing up the taco stand…");
       btn.classList.remove("on");
       btn.setAttribute("aria-pressed", "false");
       btn.disabled = true;
@@ -986,6 +1169,8 @@ function wireTacoButton(taco) {
       return;
     }
     if (!taco.start()) return;
+    setPlayOpen(false);
+    showActionToast("Taco stand setting up…");
     beginFocus(taco.focusTarget);
     btn.disabled = true;
     const release = () => {
@@ -1009,9 +1194,11 @@ function wireTacoButton(taco) {
  */
 function wireLiquorButton(life) {
   const btn = $("liquor");
-  btn.innerHTML = LIQUOR_ICON;
+  setBtnIcon(btn, LIQUOR_ICON);
   btn.onclick = () => {
     if (!life.startLiquorDelivery()) return;
+    setPlayOpen(false);
+    showActionToast("Liquor delivery on the way…");
     const view = life.liquorFocusTarget();
     if (view) beginFocus(view);
     btn.disabled = true;
@@ -1036,10 +1223,10 @@ function wireLiquorButton(life) {
  */
 function wireMistButton(mist) {
   const btn = $("mist");
-  btn.innerHTML = MIST_ICON;
+  setBtnIcon(btn, MIST_ICON);
   if (!mist.enabled) {
     btn.disabled = true;
-    btn.title = "Patio bounds unavailable";
+    btn.setAttribute("data-tip", "Patio bounds unavailable");
     return;
   }
   btn.onclick = () => {
@@ -1115,120 +1302,64 @@ function paintFloatSms(rideshare) {
 }
 
 /**
- * Gaymo button (Waymo-branded hover robotaxi).
- *
- *   tap (open)     → guests leave the bar, wait, get picked up
- *   tap (closed)   → Gaymo texts: no passenger available
- *   double-tap / hold (open)   → drop-off, walk in
- *   double-tap / hold (closed) → drop-off, knock, confused, rescue Gaymo
- *
- * A short delay on the single-tap lets a second tap cancel it and run dropoff
- * instead, so double-tap is not racing a pickup start.
+ * Gaymo rideshare — two explicit Play-sheet tiles (pickup vs drop-off).
+ * Hold/double-tap on a single mystery icon was unlearnable on both mobile and desktop.
  */
-function wireRideButton(rideshare) {
-  const btn = $("ride");
-  btn.innerHTML = RIDESHARE_ICON;
+function wireRideButtons(rideshare) {
+  const pickupBtn = $("gaymo-pickup");
+  const dropoffBtn = $("gaymo-dropoff");
+  if (!pickupBtn || !dropoffBtn) return;
 
-  const LONG_MS = 480;
-  const CLICK_GAP_MS = 280;
-  let holdTimer = null;
-  let clickTimer = null;
-  let holdFired = false;
-  let pointerDownAt = 0;
+  setBtnIcon(pickupBtn, RIDESHARE_ICON);
+  setBtnIcon(dropoffBtn, RIDESHARE_ICON);
 
   const lockUntilDone = () => {
-    btn.disabled = true;
+    pickupBtn.disabled = true;
+    dropoffBtn.disabled = true;
     const release = () => {
       if (rideshare.busy) {
         requestAnimationFrame(release);
         return;
       }
-      btn.disabled = false;
-      btn.classList.add("done");
-      setTimeout(() => btn.classList.remove("done"), 900);
+      pickupBtn.disabled = false;
+      dropoffBtn.disabled = false;
+      pickupBtn.classList.add("done");
+      dropoffBtn.classList.add("done");
+      setTimeout(() => {
+        pickupBtn.classList.remove("done");
+        dropoffBtn.classList.remove("done");
+      }, 900);
     };
     requestAnimationFrame(release);
   };
 
-  const runPickup = () => {
+  pickupBtn.onclick = () => {
+    if (pickupBtn.disabled || rideshare.busy) return;
     // Closed (and not creative): nobody inside to pick up — Gaymo texts instead
     if (!isOpenForSim(venueNow())) {
+      setPlayOpen(false);
       showGaymoSms(
         "No passengers available for pickup right now. Try again when Stacy's is open ✨"
       );
       return;
     }
     if (!rideshare.startPickup()) return;
+    setPlayOpen(false);
+    showActionToast("Gaymo pickup…");
     beginFocus(RIDESHARE_VIEW);
     lockUntilDone();
   };
 
-  const runDropoff = () => {
+  dropoffBtn.onclick = () => {
+    if (dropoffBtn.disabled || rideshare.busy) return;
     // Closed drop-off bit only when we're *really* shut and not in creative mode
     const closed = !isOpenForSim(venueNow());
     if (!rideshare.startDropoff({ closed })) return;
+    setPlayOpen(false);
+    showActionToast(closed ? "Gaymo drop-off (closed)…" : "Gaymo drop-off…");
     beginFocus(RIDESHARE_VIEW);
     lockUntilDone();
   };
-
-  const clearHold = () => {
-    if (holdTimer) {
-      clearTimeout(holdTimer);
-      holdTimer = null;
-    }
-  };
-
-  const clearClick = () => {
-    if (clickTimer) {
-      clearTimeout(clickTimer);
-      clickTimer = null;
-    }
-  };
-
-  btn.addEventListener("pointerdown", (e) => {
-    if (btn.disabled || rideshare.busy) return;
-    // Only primary button / finger
-    if (e.button != null && e.button !== 0) return;
-    holdFired = false;
-    pointerDownAt = performance.now();
-    clearHold();
-    holdTimer = setTimeout(() => {
-      holdFired = true;
-      clearClick();
-      runDropoff();
-    }, LONG_MS);
-  });
-
-  btn.addEventListener("pointerup", (e) => {
-    clearHold();
-    if (btn.disabled || rideshare.busy || holdFired) return;
-    if (e.button != null && e.button !== 0) return;
-    // Ignore if this was a very long press that almost-but-not-quite hit the timer
-    if (performance.now() - pointerDownAt >= LONG_MS) return;
-
-    if (clickTimer) {
-      // Second tap inside the gap → dropoff
-      clearClick();
-      runDropoff();
-      return;
-    }
-    clickTimer = setTimeout(() => {
-      clickTimer = null;
-      runPickup();
-    }, CLICK_GAP_MS);
-  });
-
-  btn.addEventListener("pointerleave", () => {
-    clearHold();
-  });
-
-  btn.addEventListener("pointercancel", () => {
-    clearHold();
-    clearClick();
-  });
-
-  // Prevent the 300ms synthetic click / text selection quirks on long-press
-  btn.addEventListener("contextmenu", (e) => e.preventDefault());
 }
 
 /**
@@ -1237,9 +1368,11 @@ function wireRideButton(rideshare) {
  */
 function wireUfoButton(ufo) {
   const btn = $("ufo");
-  btn.innerHTML = UFO_ICON;
+  setBtnIcon(btn, UFO_ICON);
   btn.onclick = () => {
     if (!ufo.start()) return;
+    setPlayOpen(false);
+    showActionToast("UFO abduction…");
     beginFollow(() => ufo.followPoint?.() || ufo.focusTarget?.target, {
       az: 62,
       el: 20,
@@ -1265,9 +1398,11 @@ function wireUfoButton(ufo) {
  */
 function wireBirdButton(bird) {
   const btn = $("bird");
-  btn.innerHTML = BIRD_ICON;
+  setBtnIcon(btn, BIRD_ICON);
   btn.onclick = () => {
     if (!bird.start()) return;
+    setPlayOpen(false);
+    showActionToast("Pigeon flyby…");
     beginFollow(() => bird.followPoint?.(), {
       az: 48,
       el: 28,
@@ -1410,6 +1545,7 @@ function enterInteriorWithLoader() {
 function enterInterior() {
   if (insideMode || !interior) return;
   cancelFocus();
+  setPlayOpen(false);
   exteriorViewSnapshot = {
     az: view.az,
     el: view.el,
@@ -1503,9 +1639,10 @@ function exitInterior() {
 function wireInsideButton() {
   const btn = $("inside");
   if (!btn) return;
-  btn.innerHTML = INSIDE_ICON;
+  setBtnIcon(btn, INSIDE_ICON);
   btn.onclick = () => {
     if (enterLoadPending) return;
+    setPlayOpen(false);
     if (insideMode) exitInterior();
     else enterInteriorWithLoader();
   };
@@ -1661,7 +1798,7 @@ async function boot() {
   wireLiquorButton(life);
   const taco = new TacoSystem(scene, model, life);
   wireTacoButton(taco);
-  wireRideButton(rideshare);
+  wireRideButtons(rideshare);
   wireUfoButton(ufo);
   wireBirdButton(bird);
   outdoor = {
@@ -1669,6 +1806,7 @@ async function boot() {
     hideRoots: [life, chores, incident, rideshare, ufo, bird, taco, mist],
   };
   wireInsideButton();
+  showLotTip();
   const boot = venueNow();
   life.setCrowd(crowdFor(boot));
   life.seed();
