@@ -112,8 +112,11 @@ export function makeCmuBlockTexture(faceHex, mortarHex, liteHex) {
  *
  * IMG_0628 shows each leaf carved with a big X/starburst of radiating slats
  * inside a border of vertical slats, a round boss at each X center, and a
- * barley-twist turned mullion between the leaves. This is the most recognizable
- * piece of joinery on the building and it was a single flat box before.
+ * barley-twist turned mullion between the leaves.
+ *
+ * The **right** leaf (street view, local +X / south) sits on
+ * `streetDoorRightPivot` so life.js can swing it open when guests use the door.
+ * Open rotation.y is negative so the free edge swings into the building (−Z).
  *
  * `x` / `z` = door center on the wall, `baseY` = deck height it stands on.
  */
@@ -144,15 +147,18 @@ export function addCarvedDoubleDoor(g, x, z, totalW, totalH, baseY = 0) {
   g.add(lintel);
 
   const leafW = totalW / 2 - 0.03;
+  /** Depth of leaf face relative to parent origin (parent sits at wall z). */
+  const faceZ = 0.055;
 
-  /** One carved leaf: slat border + radiating X + center boss. */
-  const addLeaf = (cx, flip) => {
-    // Leaf slab
+  /**
+   * Carved leaf as children of `parent`.
+   * `cx` = leaf center X in parent space; `flip` −1 left / +1 right (pull side).
+   */
+  const addLeaf = (parent, cx, flip) => {
     const slab = box(leafW, totalH, 0.06, mid, { roughness: 0.9 });
-    slab.position.set(cx, baseY + totalH / 2, z + 0.055);
-    g.add(slab);
+    slab.position.set(cx, baseY + totalH / 2, faceZ);
+    parent.add(slab);
 
-    // Vertical slat border, top and bottom bands
     const bandH = totalH * 0.14;
     for (const by of [baseY + bandH * 0.6, baseY + totalH - bandH * 0.6]) {
       const nSlat = 9;
@@ -162,25 +168,22 @@ export function addCarvedDoubleDoor(g, x, z, totalW, totalH, baseY = 0) {
           roughness: 0.88,
           castShadow: false,
         });
-        sl.position.set(sx, by, z + 0.088);
-        g.add(sl);
+        sl.position.set(sx, by, faceZ + 0.033);
+        parent.add(sl);
       }
     }
 
-    // Central field with the radiating X
     const fieldY = baseY + totalH / 2;
     const fieldH = totalH * 0.56;
-    // Four diagonal arms out of the center
     for (const [sxg, syg] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
       const armLen = Math.hypot(leafW * 0.42, fieldH * 0.42);
       const arm = box(armLen, 0.055, 0.03, carveHi, {
         roughness: 0.87,
         castShadow: false,
       });
-      arm.position.set(cx + sxg * leafW * 0.2, fieldY + syg * fieldH * 0.2, z + 0.088);
+      arm.position.set(cx + sxg * leafW * 0.2, fieldY + syg * fieldH * 0.2, faceZ + 0.033);
       arm.rotation.z = Math.atan2(syg * fieldH * 0.42, sxg * leafW * 0.42);
-      g.add(arm);
-      // A shorter parallel rib beside each arm — reads as carved relief
+      parent.add(arm);
       const rib = box(armLen * 0.62, 0.04, 0.028, dark, {
         roughness: 0.9,
         castShadow: false,
@@ -188,41 +191,57 @@ export function addCarvedDoubleDoor(g, x, z, totalW, totalH, baseY = 0) {
       rib.position.set(
         cx + sxg * leafW * 0.24,
         fieldY + syg * fieldH * 0.14,
-        z + 0.085
+        faceZ + 0.03
       );
       rib.rotation.z = Math.atan2(syg * fieldH * 0.42, sxg * leafW * 0.42);
-      g.add(rib);
+      parent.add(rib);
     }
-    // Horizontal and vertical cross members through the field
     const hBar = box(leafW * 0.86, 0.055, 0.03, carveHi, {
       roughness: 0.87,
       castShadow: false,
     });
-    hBar.position.set(cx, fieldY, z + 0.086);
-    g.add(hBar);
+    hBar.position.set(cx, fieldY, faceZ + 0.031);
+    parent.add(hBar);
     const vBar = box(0.055, fieldH * 0.9, 0.03, carveHi, {
       roughness: 0.87,
       castShadow: false,
     });
-    vBar.position.set(cx, fieldY, z + 0.086);
-    g.add(vBar);
-    // Round boss at the X center
+    vBar.position.set(cx, fieldY, faceZ + 0.031);
+    parent.add(vBar);
     const boss = cyl(0.075, 0.075, 0.045, carveHi, { roughness: 0.85 }, 8);
     boss.rotation.x = Math.PI / 2;
-    boss.position.set(cx, fieldY, z + 0.105);
-    g.add(boss);
+    boss.position.set(cx, fieldY, faceZ + 0.05);
+    parent.add(boss);
 
-    // Iron ring pull near the meeting stile
     const pull = cyl(0.05, 0.05, 0.022, 0x1d1a16, { metalness: 0.45, roughness: 0.5 }, 8);
     pull.rotation.x = Math.PI / 2;
-    pull.position.set(cx + flip * (leafW / 2 - 0.13), baseY + totalH * 0.46, z + 0.11);
-    g.add(pull);
+    pull.position.set(
+      cx + flip * (leafW / 2 - 0.13),
+      baseY + totalH * 0.46,
+      faceZ + 0.055
+    );
+    parent.add(pull);
   };
 
-  addLeaf(x - totalW / 4 - 0.015, -1);
-  addLeaf(x + totalW / 4 + 0.015, 1);
+  // Left leaf — fixed group at wall plane (street-left / local −X)
+  const leftRoot = new THREE.Group();
+  leftRoot.name = "streetDoorLeft";
+  leftRoot.position.set(0, 0, z);
+  g.add(leftRoot);
+  const leftCx = x - totalW / 4 - 0.015;
+  addLeaf(leftRoot, leftCx, -1);
 
-  // Barley-twist turned mullion between the leaves — stacked rotated blocks
+  // Right leaf — hinged on outer (+X) stile; life.js swings rotation.y
+  const rightHingeX = x + totalW / 2 - 0.02;
+  const rightPivot = new THREE.Group();
+  rightPivot.name = "streetDoorRightPivot";
+  rightPivot.position.set(rightHingeX, 0, z);
+  g.add(rightPivot);
+  // Leaf center relative to hinge (extends toward door center / −X)
+  const rightCxWorld = x + totalW / 4 + 0.015;
+  addLeaf(rightPivot, rightCxWorld - rightHingeX, 1);
+
+  // Barley-twist mullion between the leaves (fixed)
   const twistSegs = 14;
   for (let i = 0; i < twistSegs; i++) {
     const seg = box(0.075, (totalH * 0.94) / twistSegs, 0.075, i % 2 ? carveHi : mid, {
@@ -237,6 +256,13 @@ export function addCarvedDoubleDoor(g, x, z, totalW, totalH, baseY = 0) {
     seg.rotation.y = i * 0.42;
     g.add(seg);
   }
+
+  // Metadata for life.js door animation
+  g.userData.streetDoorAnim = {
+    pivotName: "streetDoorRightPivot",
+    /** Negative Y rotation = free edge swings into the building (−Z). */
+    openAngle: -1.25,
+  };
 }
 
 /**
@@ -3561,7 +3587,8 @@ export function createStacys(parcel) {
   // Patio spots are ground-level hangout points inside the purple walls.
   g.userData.venueAccess = {
     doors: [
-      { x: porchX, z: porchZ + porchD / 2 + 0.35, kind: "street" },
+      // Slightly to the right of center so guests walk through the animated leaf
+      { x: porchX + 0.28, z: porchZ + porchD / 2 + 0.35, kind: "street" },
       { x: -w * 0.18, z: patZ + patD / 2 + 0.15, kind: "patio" },
     ],
     patio: [

@@ -35,7 +35,7 @@ import {
   CAR_STYLES,
   PHX_SUV_COLORS,
   PED_COLORS,
-} from "./agents.js?v=20260728m6";
+} from "./agents.js?v=20260728m7";
 import {
   STREET,
   lanePoint,
@@ -184,6 +184,14 @@ export class LifeSystem {
     const patioDoor = doors.find((d) => d.kind === "patio") || street;
     this.streetDoor = new THREE.Vector3(street.x, 0, street.z).applyMatrix4(m);
     this.patioDoor = new THREE.Vector3(patioDoor.x, 0, patioDoor.z).applyMatrix4(m);
+
+    // Front porch right leaf — swings open when guests use the door
+    this.streetDoorPivot = venue.getObjectByName("streetDoorRightPivot");
+    const anim = ud.streetDoorAnim || {};
+    this.streetDoorOpenAngle = anim.openAngle ?? -1.25;
+    this.streetDoorAngle = 0;
+    this.streetDoorTarget = 0;
+    this.streetDoorHoldUntil = 0;
 
     this.patioSpots = (access.patio || []).map((p, i) => ({
       key: `patio${i}`,
@@ -359,6 +367,7 @@ export class LifeSystem {
       sidewalkPoint(sx),
       ...sidewalkPolyline(sx, this.streetDoor.x),
       this.streetDoor.clone(),
+      this._doorInside(),
     ]);
     ped.mesh.position.copy(path[0]);
     this.walkers.push({
@@ -559,6 +568,8 @@ export class LifeSystem {
       new THREE.Vector3(this.aisle.x, 0, from.z),
       this.yardCorner,
       this.streetDoor,
+      // Step through the open leaf before vanishing inside
+      this._doorInside(),
     ]);
   }
 
@@ -568,6 +579,8 @@ export class LifeSystem {
       sidewalkPoint(spawnX),
       ...sidewalkPolyline(spawnX, this.streetDoor.x),
       this.streetDoor,
+      // Walk through the doorway so the open door reads
+      this._doorInside(),
     ]);
   }
 
@@ -582,6 +595,74 @@ export class LifeSystem {
       0,
       this.streetDoor.z - 0.95
     );
+  }
+
+  /**
+   * Open the right front leaf when someone is near the porch, and ease it shut
+   * after they clear. Mirrors the north-door animation used by incident/ufo.
+   */
+  _tickStreetDoor(dt) {
+    if (!this.streetDoorPivot) return;
+
+    let needOpen = false;
+    const near = (mesh, r = 1.55) => {
+      if (!mesh?.visible) return false;
+      const dx = mesh.position.x - this.streetDoor.x;
+      const dz = mesh.position.z - this.streetDoor.z;
+      return Math.hypot(dx, dz) < r;
+    };
+
+    for (const wk of this.walkers) {
+      if (
+        (wk.state === PS.TO_DOOR ||
+          wk.state === PS.LEAVING ||
+          wk.state === PS.TO_INSIDE) &&
+        near(wk.ped?.mesh)
+      ) {
+        needOpen = true;
+        break;
+      }
+    }
+    if (!needOpen) {
+      for (const t of this.carTrips) {
+        if (
+          (t.state === CS.UNLOAD || t.state === CS.LOAD) &&
+          near(t.ped?.mesh)
+        ) {
+          needOpen = true;
+          break;
+        }
+      }
+    }
+    if (!needOpen) {
+      for (const d of this.deliveries) {
+        if (
+          (d.state === DS.WALK_IN ||
+            d.state === DS.DROP ||
+            d.state === DS.WALK_OUT) &&
+          near(d.driver, 1.9)
+        ) {
+          needOpen = true;
+          break;
+        }
+      }
+    }
+
+    if (needOpen) {
+      this.streetDoorTarget = this.streetDoorOpenAngle;
+      this.streetDoorHoldUntil = this.now + 0.85;
+    } else if (this.now >= this.streetDoorHoldUntil) {
+      this.streetDoorTarget = 0;
+    }
+
+    const da = this.streetDoorTarget - this.streetDoorAngle;
+    if (Math.abs(da) > 1e-4) {
+      this.streetDoorAngle += da * (1 - Math.exp(-dt * 5.5));
+      this.streetDoorPivot.rotation.y = this.streetDoorAngle;
+    } else {
+      this.streetDoorAngle = this.streetDoorTarget;
+      this.streetDoorPivot.rotation.y = this.streetDoorAngle;
+    }
   }
 
   /** Porch door back out to the sidewalk and off-screen. */
@@ -1109,6 +1190,8 @@ export class LifeSystem {
     if (dt <= 0) return;
     const t = Math.min(dt, 0.05);
     this.now += t;
+
+    this._tickStreetDoor(t);
 
     this._spawnAcc += t;
     if (this._spawnAcc >= SPAWN_CHECK_S) {
