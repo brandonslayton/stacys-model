@@ -35,7 +35,7 @@ import {
   CAR_STYLES,
   PHX_SUV_COLORS,
   PED_COLORS,
-} from "./agents.js?v=20260728m7";
+} from "./agents.js?v=20260728m21";
 import {
   STREET,
   lanePoint,

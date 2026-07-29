@@ -4,7 +4,8 @@
  * Low-poly agents for the lot sim. Cars share a common vocabulary (hood/grille
  * toward local +Z, taillights toward −Z) so the front is always readable, with
  * cute toon ambient body styles (bubble cabins, fat wheels), a signature black
- * Ram, Phoenix SUVs, and a liquor delivery fleet (box trucks + semis).
+ * Ram (same cute stance — still crew-cab + crosshair), Phoenix SUVs, and a
+ * liquor delivery fleet (box trucks + semis).
  */
 import * as THREE from "three";
 import { box, cyl, canvasTexture, roundRect } from "./kit.js";
@@ -877,8 +878,10 @@ export function createPhxSuv(color) {
 }
 
 /**
- * Signature four-door black Ram pickup — crew cab + bed, chrome crosshair grille,
- * sky-blue AZ plate BGCPHX on the rear (and a matching front plate).
+ * Signature four-door black Ram pickup — still reads as a Ram (crew cab + short
+ * bed, chrome crosshair grille, BGCPHX AZ plates), but built with the same cute
+ * low-poly vocabulary as the lot cars: fat wheels, fender cheeks, rounded nose
+ * roll, bubble cab, soft neon package.
  */
 export function createRamTruck() {
   const g = new THREE.Group();
@@ -886,210 +889,312 @@ export function createRamTruck() {
   g.userData.carStyle = "ram";
   g.userData.kind = "ram";
 
-  const color = 0x0a0a0c; // near-black
-  const paint = { roughness: 0.32, metalness: 0.38 };
-  const w = 1.28;
+  const color = 0x0c0c10; // near-black, slight blue so it catches neon
+  const paint = { roughness: 0.38, metalness: 0.28 };
+  const cladding = 0x141418;
+  const w = 1.34;
   const halfW = w * 0.5;
-  const stance = 0.08;
-  const bodyY = 0.42 + stance;
+  const stance = 0.06;
+  const wheelR = 0.26; // fat truck tires — dominate the silhouette
+  const wheelW = 0.2;
 
-  // Overall length: crew cab + short bed
-  const cabLen = 1.35;
-  const bedLen = 0.95;
-  const noseLen = 0.55;
-  const totalLen = noseLen + cabLen + bedLen; // ~2.85
+  // Overall: slightly shorter / taller than the old brick Ram
+  const cabLen = 1.18;
+  const bedLen = 0.82;
+  const noseLen = 0.48;
+  const totalLen = noseLen + cabLen + bedLen; // ~2.48
   const noseZ = totalLen * 0.5;
   const tailZ = -totalLen * 0.5;
+  const bh = 0.42;
+  const ch = 0.44;
+  const bodyY = wheelR * 0.95 + bh * 0.42 + stance;
+  const cabZ = noseZ - noseLen - cabLen * 0.5;
+  const bedZ = tailZ + bedLen * 0.5;
+  const wbFront = noseZ - noseLen * 0.42;
+  const wbRear = tailZ + bedLen * 0.38;
 
-  // Rocker / side steps
-  const rocker = box(w + 0.06, 0.14, totalLen * 0.96, 0x121214, DARK);
-  rocker.position.y = 0.22 + stance;
-  g.add(rocker);
+  // Soft black cladding skirt (not a hard rocker slab)
+  const skirt = box(w * 1.04, 0.14, totalLen * 0.88, cladding, DARK);
+  skirt.position.y = wheelR * 0.5 + stance;
+  g.add(skirt);
+
+  // Running boards / side steps under the cab
   for (const side of [-1, 1]) {
-    const step = box(0.08, 0.04, cabLen * 0.85, 0x2a2a30, CHROME);
-    step.position.set(side * (halfW + 0.02), 0.16 + stance, noseZ - noseLen - cabLen * 0.5);
+    const step = box(0.1, 0.045, cabLen * 0.78, 0x2a2c32, CHROME);
+    step.position.set(side * (halfW + 0.01), wheelR * 0.42 + stance, cabZ);
     g.add(step);
   }
 
-  // Hood / front clip
-  const hood = box(w * 0.96, 0.28, noseLen, color, paint);
-  hood.position.set(0, bodyY + 0.02, noseZ - noseLen * 0.5);
+  // Main cab body + shoulder taper (breaks the pure box)
+  const cabBody = box(w, bh, cabLen * 0.96, color, paint);
+  cabBody.position.set(0, bodyY, cabZ);
+  g.add(cabBody);
+  const shoulder = box(w * 0.92, bh * 0.28, cabLen * 0.88, color, paint);
+  shoulder.position.set(0, bodyY + bh * 0.36, cabZ);
+  g.add(shoulder);
+
+  // Rounded nose roll + hood with soft power-bulge
+  const noseRoll = cyl(bh * 0.4, bh * 0.4, w * 0.9, color, paint, 12);
+  noseRoll.rotation.z = Math.PI / 2;
+  noseRoll.position.set(0, bodyY - bh * 0.04, noseZ - noseLen * 0.35);
+  g.add(noseRoll);
+
+  const hood = box(w * 0.9, bh * 0.4, noseLen * 0.92, color, paint);
+  hood.position.set(0, bodyY + bh * 0.1, noseZ - noseLen * 0.52);
+  hood.rotation.x = 0.06;
   g.add(hood);
-  // Power-bulge centre
-  const bulge = box(w * 0.45, 0.06, noseLen * 0.7, color, paint);
-  bulge.position.set(0, bodyY + 0.18, noseZ - noseLen * 0.5);
+  const bulge = box(w * 0.42, 0.055, noseLen * 0.62, color, paint);
+  bulge.position.set(0, bodyY + bh * 0.32, noseZ - noseLen * 0.52);
   g.add(bulge);
 
-  // Crew cab body
-  const cabBody = box(w, 0.4, cabLen, color, paint);
-  cabBody.position.set(0, bodyY + 0.04, noseZ - noseLen - cabLen * 0.5);
-  g.add(cabBody);
+  // Fender cheeks over fat wheels
+  for (const wz of [wbFront, wbRear]) {
+    for (const side of [-1, 1]) {
+      const fender = cyl(wheelR * 0.95, wheelR * 0.95, 0.15, cladding, DARK, 10);
+      fender.rotation.z = Math.PI / 2;
+      fender.position.set(side * (halfW * 0.93), wheelR * 0.95 + stance, wz);
+      g.add(fender);
+    }
+  }
 
-  // Cab greenhouse (taller — truck)
-  const cabGlass = box(w * 0.9, 0.42, cabLen * 0.88, 0x0c141c, GLASS);
-  const cabZ = noseZ - noseLen - cabLen * 0.5;
-  cabGlass.position.set(0, bodyY + 0.42, cabZ);
-  g.add(cabGlass);
+  // Bubble crew-cab greenhouse
+  const cabinY = bodyY + bh * 0.48 + ch * 0.4;
+  const cabin = box(w * 0.84, ch * 0.9, cabLen * 0.88, 0x0e1620, {
+    ...GLASS,
+    emissiveIntensity: 0.08,
+  });
+  cabin.position.set(0, cabinY, cabZ);
+  g.add(cabin);
+  for (const side of [-1, 1]) {
+    const sideWin = box(0.04, ch * 0.62, cabLen * 0.72, 0x0a1218, GLASS);
+    sideWin.position.set(side * (halfW * 0.86), cabinY, cabZ);
+    g.add(sideWin);
+  }
 
-  // Windshield
-  const wind = box(w * 0.86, 0.38, 0.34, 0x0a1218, GLASS);
-  wind.position.set(0, bodyY + 0.4, cabZ + cabLen * 0.38);
-  wind.rotation.x = -0.2;
+  // Raked windshield + rear backlight
+  const wind = box(w * 0.8, ch * 0.72, 0.34, 0x0a1218, GLASS);
+  wind.position.set(0, cabinY + 0.02, cabZ + cabLen * 0.38);
+  wind.rotation.x = -0.24;
   g.add(wind);
-
-  // Rear cab glass (backlight)
-  const backlite = box(w * 0.84, 0.34, 0.12, 0x0a1218, GLASS);
-  backlite.position.set(0, bodyY + 0.4, cabZ - cabLen * 0.42);
+  const backlite = box(w * 0.78, ch * 0.65, 0.22, 0x0a1218, GLASS);
+  backlite.position.set(0, cabinY, cabZ - cabLen * 0.4);
+  backlite.rotation.x = 0.18;
   g.add(backlite);
 
-  // Roof
-  const roof = box(w * 0.88, 0.05, cabLen * 0.82, color, paint);
-  roof.position.set(0, bodyY + 0.64, cabZ);
+  // Domed roof
+  const roofY = bodyY + bh * 0.48 + ch + 0.01;
+  const roof = box(w * 0.78, 0.06, cabLen * 0.78, color, paint);
+  roof.position.set(0, roofY, cabZ);
   g.add(roof);
+  const roofCap = box(w * 0.58, 0.04, cabLen * 0.55, color, paint);
+  roofCap.position.set(0, roofY + 0.04, cabZ);
+  g.add(roofCap);
 
-  // Four-door creases on the cab
-  addDoorCreases(g, halfW, bodyY + 0.05, cabZ + cabLen * 0.38, cabZ - cabLen * 0.38, 4);
-  // Beltline chrome strip
-  const belt = box(w + 0.02, 0.025, cabLen * 0.9, 0xc0c4c8, CHROME);
-  belt.position.set(0, bodyY + 0.22, cabZ);
+  // A-pillar suggestions
+  for (const side of [-1, 1]) {
+    const pillar = box(0.04, ch * 0.7, 0.08, color, paint);
+    pillar.position.set(side * (halfW * 0.78), cabinY, cabZ + cabLen * 0.34);
+    pillar.rotation.x = -0.18;
+    g.add(pillar);
+  }
+
+  // Four-door creases + thin beltline chrome
+  addDoorCreases(
+    g,
+    halfW * 0.96,
+    bodyY - 0.02,
+    cabZ + cabLen * 0.36,
+    cabZ - cabLen * 0.36,
+    4
+  );
+  const belt = box(w + 0.01, 0.022, cabLen * 0.86, 0xb8bcc2, CHROME);
+  belt.position.set(0, bodyY + bh * 0.22, cabZ);
   g.add(belt);
 
-  // Bed
-  const bedZ = tailZ + bedLen * 0.5;
-  const bedFloor = box(w * 0.92, 0.08, bedLen * 0.95, 0x1a1a1e, DARK);
-  bedFloor.position.set(0, bodyY - 0.02, bedZ);
+  // Short bed — soft walls + chrome rails + rounded tailgate lip
+  const bedFloor = box(w * 0.9, 0.07, bedLen * 0.92, 0x1a1a1e, DARK);
+  bedFloor.position.set(0, bodyY - 0.04, bedZ);
   g.add(bedFloor);
-  // Bed walls
   for (const side of [-1, 1]) {
-    const wall = box(0.06, 0.28, bedLen * 0.92, color, paint);
-    wall.position.set(side * (halfW * 0.9), bodyY + 0.12, bedZ);
+    const wall = box(0.07, 0.26, bedLen * 0.88, color, paint);
+    wall.position.set(side * (halfW * 0.88), bodyY + 0.1, bedZ);
     g.add(wall);
-  }
-  // Tailgate
-  const gate = box(w * 0.9, 0.28, 0.08, color, paint);
-  gate.position.set(0, bodyY + 0.1, tailZ + 0.06);
-  g.add(gate);
-  // Bed rails
-  for (const side of [-1, 1]) {
-    const rail = box(0.04, 0.04, bedLen * 0.85, 0xb0b4b8, CHROME);
-    rail.position.set(side * (halfW * 0.88), bodyY + 0.28, bedZ);
+    const rail = box(0.04, 0.035, bedLen * 0.8, 0xc0c4c8, CHROME);
+    rail.position.set(side * (halfW * 0.86), bodyY + 0.26, bedZ);
     g.add(rail);
   }
+  const gate = box(w * 0.86, 0.26, 0.08, color, paint);
+  gate.position.set(0, bodyY + 0.08, tailZ + 0.07);
+  g.add(gate);
+  // Soft bed-end roll so the rear isn't a hard slab
+  const bedRoll = cyl(0.1, 0.1, w * 0.82, color, paint, 10);
+  bedRoll.rotation.z = Math.PI / 2;
+  bedRoll.position.set(0, bodyY + 0.02, tailZ + 0.1);
+  g.add(bedRoll);
 
-  // ── Signature Ram crosshair grille (reads immediately as the front) ──
-  const grilleZ = noseZ - 0.02;
-  const grilleSurround = box(w * 0.88, 0.28, 0.08, 0x1c1c20, DARK);
-  grilleSurround.position.set(0, bodyY - 0.02, grilleZ);
+  // ── Signature Ram crosshair grille ──
+  const grilleZ = noseZ - 0.015;
+  const lightY = bodyY + 0.02;
+  const grilleSurround = box(w * 0.72, 0.22, 0.07, 0x1a1a1e, DARK);
+  grilleSurround.position.set(0, lightY - 0.02, grilleZ);
   g.add(grilleSurround);
-  // Outer chrome ring
-  const grilleChrome = box(w * 0.82, 0.24, 0.05, 0xd0d4d8, CHROME);
-  grilleChrome.position.set(0, bodyY - 0.02, grilleZ + 0.02);
+  const grilleChrome = box(w * 0.66, 0.18, 0.045, 0xd4d8dc, CHROME);
+  grilleChrome.position.set(0, lightY - 0.02, grilleZ + 0.02);
   g.add(grilleChrome);
-  // Black mesh face
-  const meshFace = box(w * 0.72, 0.18, 0.04, 0x0e0e10, DARK);
-  meshFace.position.set(0, bodyY - 0.02, grilleZ + 0.04);
+  const meshFace = box(w * 0.58, 0.14, 0.035, 0x0c0c10, DARK);
+  meshFace.position.set(0, lightY - 0.02, grilleZ + 0.035);
   g.add(meshFace);
-  // Crosshair — vertical
-  const crossV = box(0.06, 0.2, 0.05, 0xe0e4e8, CHROME);
-  crossV.position.set(0, bodyY - 0.02, grilleZ + 0.055);
+  // Crosshair
+  const crossV = box(0.055, 0.16, 0.04, 0xe4e8ec, CHROME);
+  crossV.position.set(0, lightY - 0.02, grilleZ + 0.05);
   g.add(crossV);
-  // Crosshair — horizontal
-  const crossH = box(w * 0.7, 0.05, 0.05, 0xe0e4e8, CHROME);
-  crossH.position.set(0, bodyY - 0.02, grilleZ + 0.055);
+  const crossH = box(w * 0.56, 0.045, 0.04, 0xe4e8ec, CHROME);
+  crossH.position.set(0, lightY - 0.02, grilleZ + 0.05);
   g.add(crossH);
-  // Ram badge puck
-  const badge = cyl(0.05, 0.05, 0.03, 0xc8ccd0, CHROME, 10);
+  // Ram badge puck at the cross
+  const badge = cyl(0.048, 0.048, 0.028, 0xd0d4d8, CHROME, 10);
   badge.rotation.x = Math.PI / 2;
-  badge.position.set(0, bodyY - 0.02, grilleZ + 0.07);
+  badge.position.set(0, lightY - 0.02, grilleZ + 0.065);
   g.add(badge);
 
-  // Quad headlights (C-shaped blocks simplified to stacked pairs)
-  ensureLights(g, { neonHeavy: true, baseHead: 1.1, baseNeon: 1.2, baseTail: 0.9 });
+  // ── Neon truck light package (matches lot cars, still Ram-front) ──
+  ensureLights(g, {
+    neonHeavy: true,
+    baseHead: 1.15,
+    baseNeon: 1.45,
+    baseTail: 0.95,
+    baseMarker: 0.5,
+  });
+
+  // Round projector eyes flanking the crosshair
   for (const side of [-1, 1]) {
-    for (const row of [0.07, -0.05]) {
-      const hl = box(0.16, 0.09, 0.07, 0xf2f6ff, {
-        roughness: 0.16,
+    const hl = cyl(
+      0.09,
+      0.09,
+      0.07,
+      0xf4f8ff,
+      {
+        roughness: 0.14,
         metalness: 0.4,
-        emissive: 0xd0e4ff,
-        emissiveIntensity: 0.95,
-      });
-      hl.position.set(side * (halfW * 0.72), bodyY + row, grilleZ + 0.02);
-      g.add(hl);
-      pushLight(g, hl, "head");
-    }
-    // Amber marker
-    const am = box(0.07, 0.05, 0.04, 0xff9020, {
-      roughness: 0.3,
-      emissive: 0xff7010,
-      emissiveIntensity: 0.45,
+        emissive: 0xe0f0ff,
+        emissiveIntensity: 1.1,
+      },
+      10
+    );
+    hl.rotation.x = Math.PI / 2;
+    hl.position.set(side * (halfW * 0.58), lightY + 0.04, grilleZ + 0.01);
+    g.add(hl);
+    pushLight(g, hl, "head");
+    const ring = cyl(0.105, 0.105, 0.035, 0xc4c8d0, CHROME, 10);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(side * (halfW * 0.58), lightY + 0.04, grilleZ);
+    g.add(ring);
+    // Outer neon C-hook (modern Ram DRL vibe, cute scale)
+    const hook = box(0.05, 0.16, 0.04, 0xa0f4ff, {
+      roughness: 0.14,
+      metalness: 0.5,
+      emissive: 0x48e8ff,
+      emissiveIntensity: 1.35,
     });
-    am.position.set(side * (halfW * 0.88), bodyY - 0.1, grilleZ);
+    hook.position.set(side * (halfW * 0.8), lightY + 0.01, grilleZ);
+    g.add(hook);
+    pushLight(g, hook, "neon");
+    const am = cyl(
+      0.035,
+      0.035,
+      0.04,
+      0xffa030,
+      { roughness: 0.3, emissive: 0xff8010, emissiveIntensity: 0.5 },
+      8
+    );
+    am.rotation.x = Math.PI / 2;
+    am.position.set(side * (halfW * 0.9), lightY - 0.1, grilleZ);
     g.add(am);
     pushLight(g, am, "marker");
   }
-  // Thin neon DRL under the crosshair
-  const ramDrl = box(w * 0.7, 0.03, 0.04, 0xb0f0ff, {
-    roughness: 0.14,
+
+  // Smile DRL under the crosshair
+  const ramDrl = box(w * 0.62, 0.032, 0.04, 0xb0f8ff, {
+    roughness: 0.12,
     metalness: 0.5,
-    emissive: 0x50e8ff,
-    emissiveIntensity: 1.2,
+    emissive: 0x50f0ff,
+    emissiveIntensity: 1.4,
   });
-  ramDrl.position.set(0, bodyY - 0.14, grilleZ + 0.05);
+  ramDrl.position.set(0, lightY - 0.14, grilleZ + 0.04);
   g.add(ramDrl);
   pushLight(g, ramDrl, "neon");
 
-  // Front bumper / chin
-  const fBump = box(w * 1.02, 0.14, 0.18, 0x1a1a1e, DARK);
-  fBump.position.set(0, 0.2 + stance, noseZ - 0.04);
+  // Rounded front bumper + chrome skid
+  const fBump = cyl(0.085, 0.085, w * 1.0, cladding, DARK, 10);
+  fBump.rotation.z = Math.PI / 2;
+  fBump.position.set(0, 0.17 + stance, noseZ - 0.02);
   g.add(fBump);
-  const fBar = box(w * 0.7, 0.04, 0.06, 0xc8ccd0, CHROME);
-  fBar.position.set(0, 0.22 + stance, noseZ + 0.02);
+  const fBar = box(w * 0.48, 0.035, 0.07, 0xb8bcc4, CHROME);
+  fBar.position.set(0, 0.14 + stance, noseZ + 0.02);
   g.add(fBar);
 
-  // Rear taillights (vertical truck style)
+  // Vertical-ish truck tails (stacked rounds so they still read pickup, not sedan)
   for (const side of [-1, 1]) {
-    const tl = box(0.1, 0.22, 0.06, 0xff1828, {
-      roughness: 0.28,
-      metalness: 0.2,
-      emissive: 0xff1020,
-      emissiveIntensity: 0.85,
-    });
-    tl.position.set(side * (halfW * 0.85), bodyY + 0.08, tailZ + 0.04);
-    g.add(tl);
-    pushLight(g, tl, "tail");
+    for (const row of [0.08, -0.04]) {
+      const tl = cyl(
+        0.065,
+        0.065,
+        0.055,
+        0xff1840,
+        {
+          roughness: 0.22,
+          metalness: 0.3,
+          emissive: 0xff1040,
+          emissiveIntensity: 1.0,
+        },
+        10
+      );
+      tl.rotation.x = Math.PI / 2;
+      tl.position.set(side * (halfW * 0.78), bodyY + row, tailZ + 0.03);
+      g.add(tl);
+      pushLight(g, tl, "tail");
+    }
   }
-  const rBump = box(w * 0.98, 0.12, 0.12, 0x1a1a1e, DARK);
-  rBump.position.set(0, 0.2 + stance, tailZ + 0.04);
+  const rearBar = box(w * 0.42, 0.03, 0.035, 0xff2850, {
+    roughness: 0.2,
+    metalness: 0.35,
+    emissive: 0xff1848,
+    emissiveIntensity: 1.05,
+  });
+  rearBar.position.set(0, bodyY + 0.02, tailZ + 0.03);
+  g.add(rearBar);
+  pushLight(g, rearBar, "neon");
+
+  const rBump = cyl(0.075, 0.075, w * 0.95, cladding, DARK, 10);
+  rBump.rotation.z = Math.PI / 2;
+  rBump.position.set(0, 0.16 + stance, tailZ + 0.04);
   g.add(rBump);
 
-  // Mirrors
+  // Cute stubby mirrors
   for (const side of [-1, 1]) {
-    const arm = box(0.12, 0.04, 0.04, 0x1a1a1e, DARK);
-    arm.position.set(side * (halfW + 0.06), bodyY + 0.28, cabZ + cabLen * 0.3);
+    const arm = box(0.07, 0.035, 0.05, cladding, DARK);
+    arm.position.set(side * (halfW * 0.96), bodyY + bh * 0.32, cabZ + cabLen * 0.28);
     g.add(arm);
-    const mir = box(0.1, 0.1, 0.06, 0x1a1a1e, DARK);
-    mir.position.set(side * (halfW + 0.14), bodyY + 0.28, cabZ + cabLen * 0.3);
+    const mir = cyl(0.05, 0.05, 0.045, cladding, DARK, 8);
+    mir.rotation.z = Math.PI / 2;
+    mir.position.set(side * (halfW + 0.07), bodyY + bh * 0.32, cabZ + cabLen * 0.28);
     g.add(mir);
   }
 
-  // Sky-blue plates — BGCPHX
-  attachRearPlate(g, makePlate("BGCPHX", { skyBlue: true }), tailZ - 0.02, 0.34);
-  attachFrontPlate(g, makePlate("BGCPHX", { skyBlue: true }), noseZ + 0.01, 0.28);
+  // Sky-blue AZ plates — BGCPHX (front + rear)
+  attachRearPlate(g, makePlate("BGCPHX", { skyBlue: true }), tailZ - 0.015, 0.3);
+  attachFrontPlate(g, makePlate("BGCPHX", { skyBlue: true }), noseZ + 0.015, 0.26);
 
-  // Bigger off-road-ish wheels
-  const wheelR = 0.22;
-  const wbFront = noseZ - noseLen * 0.55;
-  const wbRear = tailZ + bedLen * 0.35;
   addCarWheels(
     g,
     [
-      [-halfW * 0.85, wbFront],
-      [halfW * 0.85, wbFront],
-      [-halfW * 0.85, wbRear],
-      [halfW * 0.85, wbRear],
+      [-halfW * 0.88, wbFront],
+      [halfW * 0.88, wbFront],
+      [-halfW * 0.88, wbRear],
+      [halfW * 0.88, wbRear],
     ],
     wheelR,
-    0.18
+    wheelW
   );
 
   return g;

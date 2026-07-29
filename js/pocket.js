@@ -33,7 +33,7 @@ import {
 import { createStacys } from "./stacys.js?v=20260728m20";
 import { createInterior, WALK as INTERIOR_WALK } from "./interior.js?v=20260728m20";
 import { createStreet, SIDEWALK_INNER_Z } from "./street.js?v=20260728m20";
-import { LifeSystem, crowdFactor } from "./life.js?v=20260728m20";
+import { LifeSystem, crowdFactor } from "./life.js?v=20260728m21";
 import { ChoreSystem } from "./chores.js?v=20260728m20";
 import { MistSystem } from "./mist.js?v=20260728m20";
 import { IncidentSystem } from "./incident.js?v=20260728m20";
