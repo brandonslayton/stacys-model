@@ -11,10 +11,9 @@
  */
 import * as THREE from "three";
 /* Cache-bust local modules so mobile Safari can't serve a half-updated graph. */
-import { ensureSignFonts } from "./kit.js?v=20260728m3";
+import { ensureSignFonts } from "./kit.js?v=20260728m4";
 import {
   WX_ICONS,
-  ROTATE_ICON,
   TRASH_ICON,
   MIST_ICON,
   SICK_ICON,
@@ -30,19 +29,19 @@ import {
   moonName,
   moonIllumination,
   moonIcon,
-} from "./icons.js?v=20260728m3";
-import { createStacys } from "./stacys.js?v=20260728m3";
-import { createInterior, WALK as INTERIOR_WALK } from "./interior.js?v=20260728m3";
-import { createStreet, SIDEWALK_INNER_Z } from "./street.js?v=20260728m3";
-import { LifeSystem, crowdFactor } from "./life.js?v=20260728m3";
-import { ChoreSystem } from "./chores.js?v=20260728m3";
-import { MistSystem } from "./mist.js?v=20260728m3";
-import { IncidentSystem } from "./incident.js?v=20260728m3";
-import { RideshareSystem } from "./rideshare.js?v=20260728m3";
-import { UfoSystem } from "./ufo.js?v=20260728m3";
-import { BirdSystem } from "./bird.js?v=20260728m3";
-import { TacoSystem } from "./taco.js?v=20260728m3";
-import { FlickerSystem } from "./flicker.js?v=20260728m3";
+} from "./icons.js?v=20260728m4";
+import { createStacys } from "./stacys.js?v=20260728m4";
+import { createInterior, WALK as INTERIOR_WALK } from "./interior.js?v=20260728m4";
+import { createStreet, SIDEWALK_INNER_Z } from "./street.js?v=20260728m4";
+import { LifeSystem, crowdFactor } from "./life.js?v=20260728m4";
+import { ChoreSystem } from "./chores.js?v=20260728m4";
+import { MistSystem } from "./mist.js?v=20260728m4";
+import { IncidentSystem } from "./incident.js?v=20260728m4";
+import { RideshareSystem } from "./rideshare.js?v=20260728m4";
+import { UfoSystem } from "./ufo.js?v=20260728m4";
+import { BirdSystem } from "./bird.js?v=20260728m4";
+import { TacoSystem } from "./taco.js?v=20260728m4";
+import { FlickerSystem } from "./flicker.js?v=20260728m4";
 import {
   venueNow,
   loadEvents,
@@ -50,7 +49,7 @@ import {
   venueState,
   isOpenNow,
   fetchWeather,
-} from "./venue.js?v=20260728m3";
+} from "./venue.js?v=20260728m4";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("c");
@@ -160,7 +159,7 @@ function showActionToast(msg, ms = 2800) {
   }, ms);
 }
 
-/** Desktop hover tip + long-press label for spin on touch. */
+/** Desktop hover tip for dock buttons. */
 function wireCtrlTips() {
   const tip = $("ctrl-tip");
   if (!tip) return;
@@ -170,11 +169,9 @@ function wireCtrlTips() {
     tip.textContent = text;
     tip.hidden = false;
     const r = el.getBoundingClientRect();
-    const tw = Math.min(240, window.innerWidth - 16);
     let left = r.left + r.width / 2;
     let top = r.top - 8;
     tip.classList.add("show");
-    // Measure after show
     const tr = tip.getBoundingClientRect();
     left = Math.min(
       window.innerWidth - tr.width / 2 - 8,
@@ -204,27 +201,7 @@ function wireCtrlTips() {
     el.addEventListener("blur", hide);
   };
 
-  bindHover($("spin"));
   for (const el of document.querySelectorAll("#dock .dock-btn")) bindHover(el);
-
-  // Long-press on spin shows the name on touch devices
-  const spin = $("spin");
-  if (spin) {
-    let hold = null;
-    spin.addEventListener("pointerdown", (e) => {
-      if (e.pointerType === "mouse") return;
-      clearTimeout(hold);
-      hold = setTimeout(() => place(spin, "Auto-rotate"), 420);
-    });
-    const clear = () => {
-      clearTimeout(hold);
-      hold = null;
-      hide();
-    };
-    spin.addEventListener("pointerup", clear);
-    spin.addEventListener("pointercancel", clear);
-    spin.addEventListener("pointerleave", clear);
-  }
 }
 
 // ---------------------------------------------------------------- renderer
@@ -858,16 +835,13 @@ function stepFocus(dt, choreBusy) {
 }
 
 // ---------------------------------------------------------------- touch + mouse
-let spin = true;
+// Auto-rotate is always on outdoors. Any canvas interaction stamps idleAt so
+// rotation pauses; after IDLE_RESUME_MS of no input it continues.
+// `spinEnabled` is only for headless capture (pocket-shot) — no UI toggle.
+let spinEnabled = true;
 let idleAt = 0;
 const IDLE_RESUME_MS = 4000;
 
-$("spin").innerHTML = ROTATE_ICON;
-$("spin").onclick = () => {
-  spin = !spin;
-  $("spin").classList.toggle("on", spin);
-  if (spin) idleAt = 0;
-};
 wirePlaySheet();
 wireCtrlTips();
 
@@ -1612,8 +1586,6 @@ function enterInterior() {
   fp.yaw = sp.yaw ?? 200;
   fp.pitch = sp.pitch ?? -4;
   clampFp();
-  spin = false;
-  $("spin")?.classList.remove("on");
   document.body.classList.add("inside-mode");
   $("inside")?.classList.add("on");
   $("inside")?.setAttribute("aria-pressed", "true");
@@ -1669,8 +1641,6 @@ function exitInterior() {
     view.el = 26;
     view.zoom = 1;
   }
-  spin = true;
-  $("spin")?.classList.add("on");
   document.body.classList.remove("inside-mode");
   document.body.classList.remove("office-mode");
   $("inside")?.classList.remove("on");
@@ -1909,9 +1879,10 @@ async function boot() {
     },
     applyCamera,
     applyNight,
+    /** Capture helper only — no UI button. */
     setSpin: (v) => {
-      spin = v;
-      $("spin").classList.toggle("on", spin);
+      spinEnabled = !!v;
+      if (spinEnabled) idleAt = 0;
     },
   };
 
@@ -1989,8 +1960,14 @@ async function boot() {
       );
     }
 
-    // Auto-rotate outdoors only — inside is first-person walk.
-    if (!insideMode && !focusTarget && spin && now - idleAt > IDLE_RESUME_MS) {
+    // Auto-rotate outdoors only — pauses while the user is dragging/pinching,
+    // resumes a few seconds after the last touch (idleAt stamped on pointer/wheel).
+    if (
+      spinEnabled &&
+      !insideMode &&
+      !focusTarget &&
+      now - idleAt > IDLE_RESUME_MS
+    ) {
       view.az += dt * 3.2;
       applyCamera();
     }

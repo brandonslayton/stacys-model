@@ -37,7 +37,7 @@ no lost camera position.
 |---|---|
 | Orbit | one-finger drag (desktop: drag) |
 | Zoom | pinch (desktop: scroll wheel) |
-| Auto-rotate | corner button, bottom left — resumes 4s after you let go |
+| Auto-rotate | always on outdoors; pauses while you drag/pinch, resumes ~4s after you let go |
 | **Dock** | bottom-center glass pill with labels |
 | Creative mode | dock — pretend the bar is open (crowd + Gaymo), even if real hours say closed |
 | Patio misters | dock — on/off; camera swings to patio when on |

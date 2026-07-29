@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/pocket.css?v=20260728m3">
+<link rel="stylesheet" href="css/pocket.css?v=20260728m4">
 <script type="importmap">
 {
   "imports": {
@@ -71,10 +71,8 @@
   </div>
 </header>
 
-<!-- View control: auto-rotate lives outside the dock (camera state, not a scene). -->
-<button id="spin" class="on" type="button" aria-label="Toggle auto-rotate" data-tip="Auto-rotate"></button>
-
-<!-- Primary lot dock: high-meaning controls with visible labels. -->
+<!-- Primary lot dock: high-meaning controls with visible labels.
+     Auto-rotate is always on outdoors; pauses while touching, resumes after idle. -->
 <nav id="dock" aria-label="Lot controls">
   <button id="creative" class="dock-btn" type="button" aria-pressed="false"
     aria-label="Creative mode — pretend the bar is open" data-tip="Creative mode">
@@ -175,7 +173,7 @@
 <!-- Quiet status line for running one-shots -->
 <div id="action-toast" hidden aria-live="polite"></div>
 
-<!-- Glass hover tip (desktop); also used for long-press name on spin -->
+<!-- Glass hover tip (desktop) -->
 <div id="ctrl-tip" hidden></div>
 
 <!-- Interior walk HUD — dual sticks on mobile (Move L / Look R); desktop = WASD + drag -->
@@ -239,6 +237,6 @@
   </div>
 </div>
 
-<script type="module" src="js/pocket.js?v=20260728m3"></script>
+<script type="module" src="js/pocket.js?v=20260728m4"></script>
 </body>
 </html>
