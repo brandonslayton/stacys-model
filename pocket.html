@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/pocket.css?v=20260728m18">
+<link rel="stylesheet" href="css/pocket.css?v=20260728m19">
 <script type="importmap">
 {
   "imports": {
@@ -206,24 +206,33 @@
   <div class="play-handle" aria-hidden="true"></div>
   <header class="jb-head">
     <div class="jb-logo">
-      <img class="jb-logo-img" src="images/juke-boxx-logo.jpg" width="56" height="56" alt="" />
+      <img class="jb-logo-img" src="images/juke-boxx-logo.jpg" width="44" height="44" alt="" />
       <div class="jb-logo-word">
         <span class="jb-logo-juke">Juke</span><span class="jb-logo-boxx">Boxx</span>
-        <span class="jb-logo-sub">STACY'S · PRIDE POWERED</span>
+        <span class="jb-logo-sub">$1 · TAP TO PLAY OR QUEUE</span>
       </div>
     </div>
     <button id="jukebox-close" type="button" aria-label="Close Juke Boxx">&times;</button>
   </header>
-  <div class="jb-credit">$1 · MAKE A SELECTION · QUEUES LIKE A REAL JUKE</div>
+
+  <div class="juke-now-strip" id="juke-now-strip" hidden>
+    <span class="juke-now-dot" aria-hidden="true"></span>
+    <span class="juke-now-strip-txt" id="juke-now-strip-txt">—</span>
+  </div>
+
   <div class="juke-queue-panel" id="juke-queue-panel" hidden>
     <div class="juke-queue-head">
-      <span>UP NEXT</span>
+      <span id="juke-queue-label">UP NEXT · 0</span>
       <button type="button" id="juke-queue-clear" class="juke-queue-clear">Clear</button>
     </div>
-    <ol class="juke-queue-list" id="juke-queue-list" aria-label="Queued songs"></ol>
+    <div class="juke-queue-chips" id="juke-queue-list" aria-label="Queued songs"></div>
   </div>
-  <ul class="juke-list" id="juke-list" aria-label="Song selections"></ul>
-  <p class="juke-hint" id="juke-hint">First pick plays · more picks line up in the queue</p>
+
+  <div class="juke-list-wrap">
+    <ul class="juke-list" id="juke-list" aria-label="Song selections"></ul>
+  </div>
+
+  <p class="juke-hint" id="juke-hint">First pick plays · more picks line up</p>
   <p class="juke-toast" id="juke-toast" hidden aria-live="polite"></p>
 </div>
 
@@ -288,6 +297,6 @@
   </div>
 </div>
 
-<script type="module" src="js/pocket.js?v=20260728m18"></script>
+<script type="module" src="js/pocket.js?v=20260728m19"></script>
 </body>
 </html>

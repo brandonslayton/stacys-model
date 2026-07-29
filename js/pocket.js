@@ -11,7 +11,7 @@
  */
 import * as THREE from "three";
 /* Cache-bust local modules so mobile Safari can't serve a half-updated graph. */
-import { ensureSignFonts, canvasTexture } from "./kit.js?v=20260728m18";
+import { ensureSignFonts, canvasTexture } from "./kit.js?v=20260728m19";
 import {
   WX_ICONS,
   TRASH_ICON,
@@ -29,19 +29,19 @@ import {
   moonName,
   moonIllumination,
   moonIcon,
-} from "./icons.js?v=20260728m18";
-import { createStacys } from "./stacys.js?v=20260728m18";
-import { createInterior, WALK as INTERIOR_WALK } from "./interior.js?v=20260728m18";
-import { createStreet, SIDEWALK_INNER_Z } from "./street.js?v=20260728m18";
-import { LifeSystem, crowdFactor } from "./life.js?v=20260728m18";
-import { ChoreSystem } from "./chores.js?v=20260728m18";
-import { MistSystem } from "./mist.js?v=20260728m18";
-import { IncidentSystem } from "./incident.js?v=20260728m18";
-import { RideshareSystem } from "./rideshare.js?v=20260728m18";
-import { UfoSystem } from "./ufo.js?v=20260728m18";
-import { BirdSystem } from "./bird.js?v=20260728m18";
-import { TacoSystem } from "./taco.js?v=20260728m18";
-import { FlickerSystem } from "./flicker.js?v=20260728m18";
+} from "./icons.js?v=20260728m19";
+import { createStacys } from "./stacys.js?v=20260728m19";
+import { createInterior, WALK as INTERIOR_WALK } from "./interior.js?v=20260728m19";
+import { createStreet, SIDEWALK_INNER_Z } from "./street.js?v=20260728m19";
+import { LifeSystem, crowdFactor } from "./life.js?v=20260728m19";
+import { ChoreSystem } from "./chores.js?v=20260728m19";
+import { MistSystem } from "./mist.js?v=20260728m19";
+import { IncidentSystem } from "./incident.js?v=20260728m19";
+import { RideshareSystem } from "./rideshare.js?v=20260728m19";
+import { UfoSystem } from "./ufo.js?v=20260728m19";
+import { BirdSystem } from "./bird.js?v=20260728m19";
+import { TacoSystem } from "./taco.js?v=20260728m19";
+import { FlickerSystem } from "./flicker.js?v=20260728m19";
 import {
   venueNow,
   loadEvents,
@@ -49,8 +49,8 @@ import {
   venueState,
   isOpenNow,
   fetchWeather,
-} from "./venue.js?v=20260728m18";
-import { JukeboxPlayer, paintJukeScreen } from "./jukebox.js?v=20260728m18";
+} from "./venue.js?v=20260728m19";
+import { JukeboxPlayer, paintJukeScreen } from "./jukebox.js?v=20260728m19";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("c");
@@ -1750,6 +1750,7 @@ function updateJukeboxScreens(track, playing, queueLen = 0) {
   apply(juke.userData.stripUi, "strip");
 }
 
+/** Build the selection list once; later updates only mutate status. */
 function renderJukeList() {
   const list = $("juke-list");
   if (!list || !jukeboxPlayer) return;
@@ -1760,65 +1761,112 @@ function renderJukeList() {
     b.type = "button";
     b.className = "juke-track";
     b.dataset.id = t.id;
-    if (jukeboxPlayer.currentId === t.id && jukeboxPlayer.hasActiveSession) {
-      b.classList.add("active");
-    }
     const code = t.note || `A${i + 1}`;
-    const queuedN = jukeboxPlayer.queue.filter((id) => id === t.id).length;
     b.innerHTML =
       `<span class="juke-track-ico" aria-hidden="true"></span>` +
       `<span class="juke-track-meta">` +
       `<span class="juke-track-title"></span>` +
       `<span class="juke-track-sub"></span>` +
-      `</span>`;
+      `</span>` +
+      `<span class="juke-track-action" aria-hidden="true">PLAY</span>`;
     b.querySelector(".juke-track-ico").textContent = code;
     b.querySelector(".juke-track-title").textContent = t.title || t.id;
-    let sub = t.artist || "Select · queues if busy";
-    if (jukeboxPlayer.currentId === t.id && jukeboxPlayer.hasActiveSession) {
-      sub = jukeboxPlayer.playing ? "Now playing" : "Paused";
-      if (queuedN) sub += ` · +${queuedN} in queue`;
-    } else if (queuedN) {
-      sub = `${queuedN} in queue`;
-    }
-    b.querySelector(".juke-track-sub").textContent = sub;
-    b.onclick = async () => {
+    b.querySelector(".juke-track-sub").textContent = t.artist || "Stacy's";
+    li.appendChild(b);
+    list.appendChild(li);
+  });
+  // One delegated handler — no rebuild on every tick
+  if (!list.dataset.wired) {
+    list.dataset.wired = "1";
+    list.addEventListener("click", async (e) => {
+      const b = e.target.closest(".juke-track");
+      if (!b || !jukeboxPlayer) return;
+      const id = b.dataset.id;
       try {
-        const result = await jukeboxPlayer.select(t.id);
-        // Stay open so you can queue more; toast confirms
+        const result = await jukeboxPlayer.select(id);
+        b.classList.remove("flash-play", "flash-queue");
+        // reflow for re-trigger
+        void b.offsetWidth;
+        b.classList.add(result.queued ? "flash-queue" : "flash-play");
         showJukeToast(
           result.queued
-            ? `Queued #${result.position}: ${result.track.title}`
-            : `Now playing: ${result.track.title}`
+            ? `Queued #${result.position} · ${result.track.title}`
+            : `Playing · ${result.track.title}`
         );
       } catch {
         /* onChange surfaces errors */
       }
-    };
-    li.appendChild(b);
-    list.appendChild(li);
-  });
+    });
+  }
+  updateJukeListStatus();
+}
+
+/** Fast in-place status update (no DOM rebuild). */
+function updateJukeListStatus() {
+  if (!jukeboxPlayer) return;
+  const activeId =
+    jukeboxPlayer.hasActiveSession || jukeboxPlayer.playing
+      ? jukeboxPlayer.currentId
+      : null;
+  const counts = {};
+  for (const id of jukeboxPlayer.queue) {
+    counts[id] = (counts[id] || 0) + 1;
+  }
+  for (const b of document.querySelectorAll(".juke-track")) {
+    const id = b.dataset.id;
+    const isActive = id === activeId;
+    const qn = counts[id] || 0;
+    b.classList.toggle("active", isActive);
+    b.classList.toggle("queued", qn > 0 && !isActive);
+    const sub = b.querySelector(".juke-track-sub");
+    const act = b.querySelector(".juke-track-action");
+    if (isActive) {
+      if (sub) {
+        sub.textContent = jukeboxPlayer.playing
+          ? qn
+            ? `Playing · +${qn} queued`
+            : "Playing now"
+          : qn
+            ? `Paused · +${qn} queued`
+            : "Paused";
+      }
+      if (act) act.textContent = jukeboxPlayer.playing ? "LIVE" : "HOLD";
+    } else if (qn) {
+      if (sub) sub.textContent = qn === 1 ? "In queue" : `${qn} in queue`;
+      if (act) act.textContent = `+${qn}`;
+    } else {
+      if (sub) {
+        const t = jukeboxPlayer.tracks.find((x) => x.id === id);
+        sub.textContent = t?.artist || "Stacy's";
+      }
+      if (act) act.textContent = jukeboxPlayer.hasActiveSession ? "QUEUE" : "PLAY";
+    }
+  }
 }
 
 function renderJukeQueue(queue = []) {
   const panel = $("juke-queue-panel");
-  const ol = $("juke-queue-list");
-  if (!panel || !ol) return;
+  const chips = $("juke-queue-list");
+  const label = $("juke-queue-label");
+  if (!panel || !chips) return;
   if (!queue.length) {
     panel.hidden = true;
-    ol.replaceChildren();
+    chips.replaceChildren();
+    if (label) label.textContent = "UP NEXT · 0";
     return;
   }
   panel.hidden = false;
-  ol.replaceChildren();
+  if (label) label.textContent = `UP NEXT · ${queue.length}`;
+  chips.replaceChildren();
   queue.forEach((t, i) => {
-    const li = document.createElement("li");
-    li.textContent = `${i + 1}. ${t.title || t.id}`;
-    if (t.note) {
-      const code = document.createElement("span");
-      code.textContent = t.note;
-      li.appendChild(code);
-    }
-    ol.appendChild(li);
+    const chip = document.createElement("span");
+    chip.className = "juke-chip";
+    chip.title = t.title || t.id;
+    chip.innerHTML =
+      `<span class="juke-chip-n">${i + 1}</span>` +
+      `<span class="juke-chip-t"></span>`;
+    chip.querySelector(".juke-chip-t").textContent = t.title || t.id;
+    chips.appendChild(chip);
   });
 }
 
@@ -1832,7 +1880,7 @@ function showJukeToast(msg) {
   jukeToastTimer = setTimeout(() => {
     el.hidden = true;
     jukeToastTimer = null;
-  }, 2200);
+  }, 1800);
 }
 
 function paintJukeHud(state) {
@@ -1879,18 +1927,33 @@ function paintJukeHud(state) {
     topPause.setAttribute("aria-label", playing ? "Pause" : "Resume");
   }
 
+  // Compact now-playing strip inside the picker
+  const strip = $("juke-now-strip");
+  const stripTxt = $("juke-now-strip-txt");
+  if (strip && stripTxt) {
+    if (track && (playing || (jukeboxPlayer?.audio?.currentTime || 0) > 0.05)) {
+      strip.hidden = false;
+      strip.classList.toggle("is-paused", !playing);
+      stripTxt.textContent = playing
+        ? `Now · ${track.title}`
+        : `Paused · ${track.title}`;
+    } else {
+      strip.hidden = true;
+    }
+  }
+
   const hint = $("juke-hint");
   if (hint) {
     hint.textContent = state?.error
       ? state.error
-      : playing
-        ? "More selections join the queue"
-        : "First pick plays · more picks line up";
+      : playing || queue.length
+        ? "Tap more songs to queue them"
+        : "Tap a song to start · next taps queue";
   }
 
   renderJukeQueue(queue);
-  // Rebuild list so “in queue” counts stay accurate
-  if ($("juke-list")?.children?.length) renderJukeList();
+  // In-place status only — list is built once on catalog load
+  if ($("juke-list")?.children?.length) updateJukeListStatus();
   else if (jukeboxPlayer?.tracks?.length) renderJukeList();
 
   updateJukeboxScreens(track, playing, queue.length);
