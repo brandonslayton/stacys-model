@@ -8,6 +8,13 @@
       "artist": "Stacy's",
       "src": "audio/Starstruck.mp3",
       "note": "A1"
+    },
+    {
+      "id": "oh-lady-berries",
+      "title": "Oh Lady Berries!",
+      "artist": "Stacy's",
+      "src": "audio/Oh-Lady-Berries.mp3",
+      "note": "A2"
     }
   ]
 }
