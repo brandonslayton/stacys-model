@@ -15,6 +15,13 @@
       "artist": "Stacy's",
       "src": "audio/Oh-Lady-Berries.mp3",
       "note": "A2"
+    },
+    {
+      "id": "milkshake",
+      "title": "MILKSHAKE",
+      "artist": "Stacy's",
+      "src": "audio/Milkshake.mp3",
+      "note": "A3"
     }
   ]
 }
