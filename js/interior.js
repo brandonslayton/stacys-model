@@ -2998,7 +2998,7 @@ function buildDjMixer(lit) {
   return g;
 }
 
-/** Fun jukebox face art — music notes, $, song title chrome. */
+/** GAY-MI idle face art — pink / purple / green invite to touch. */
 function jukeScreenTex(kind = "main") {
   const w = kind === "main" ? 360 : 320;
   const h = kind === "main" ? 320 : 140;
@@ -3006,21 +3006,20 @@ function jukeScreenTex(kind = "main") {
   c.width = w;
   c.height = h;
   const ctx = c.getContext("2d");
-  // Club gradient
   const grad = ctx.createLinearGradient(0, 0, w, h);
-  grad.addColorStop(0, "#0a1838");
+  grad.addColorStop(0, "#280818");
   grad.addColorStop(0.5, "#1a0a30");
-  grad.addColorStop(1, "#081828");
+  grad.addColorStop(1, "#081820");
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, h);
-  // Scattered music notes + dollar signs
   ctx.font = `800 28px ${FUN_FONT}`;
   ctx.textAlign = "center";
-  const glyphs = ["♪", "♫", "♬", "$", "♪", "$", "♫", "♩"];
-  const cols = ["#60e8ff", "#ff80c0", "#ffe14a", "#80ffb0", "#c080ff"];
-  for (let i = 0; i < 14; i++) {
+  ctx.textBaseline = "middle";
+  const glyphs = ["♪", "♫", "♬", "♪", "♫"];
+  const cols = ["#ff5fa2", "#9b6dff", "#3dd68c", "#ff80c0", "#60e8ff"];
+  for (let i = 0; i < 12; i++) {
     ctx.fillStyle = cols[i % cols.length];
-    ctx.globalAlpha = 0.35 + (i % 3) * 0.15;
+    ctx.globalAlpha = 0.32 + (i % 3) * 0.12;
     const gx = 24 + (i * 47) % (w - 48);
     const gy = 28 + ((i * 37) % (h - 40));
     ctx.font = `800 ${18 + (i % 4) * 8}px ${FUN_FONT}`;
@@ -3028,25 +3027,24 @@ function jukeScreenTex(kind = "main") {
   }
   ctx.globalAlpha = 1;
   if (kind === "main") {
-    // Title block
-    ctx.fillStyle = "rgba(0,0,0,0.45)";
-    ctx.fillRect(24, h * 0.28, w - 48, h * 0.44);
-    ctx.fillStyle = "#80f0ff";
-    ctx.font = `800 36px ${FUN_FONT}`;
-    ctx.fillText("♪  NOW PLAYING  ♫", w / 2, h * 0.42);
-    ctx.fillStyle = "#ff80c0";
+    ctx.fillStyle = "rgba(0,0,0,0.5)";
+    ctx.fillRect(24, h * 0.22, w - 48, h * 0.56);
+    ctx.fillStyle = "#ff5fa2";
     ctx.font = `800 28px ${FUN_FONT}`;
-    ctx.fillText("PICK A BOP", w / 2, h * 0.56);
-    ctx.fillStyle = "#ffe14a";
+    ctx.fillText("GAY-MI", w / 2, h * 0.36);
+    ctx.fillStyle = "#9b6dff";
     ctx.font = `800 22px ${FUN_FONT}`;
-    ctx.fillText("$1  ·  3 SONGS", w / 2, h * 0.68);
+    ctx.fillText("TOUCH SCREEN", w / 2, h * 0.5);
+    ctx.fillStyle = "#3dd68c";
+    ctx.font = `800 18px ${FUN_FONT}`;
+    ctx.fillText("$1  ·  MAKE A SELECTION", w / 2, h * 0.64);
   } else {
-    ctx.fillStyle = "#ff80c0";
-    ctx.font = `800 30px ${FUN_FONT}`;
-    ctx.fillText("♪ TOUCH TO BROWSE ♫", w / 2, h * 0.45);
+    ctx.fillStyle = "#ff5fa2";
+    ctx.font = `800 26px ${FUN_FONT}`;
+    ctx.fillText("♪ TOUCH TO PLAY ♫", w / 2, h * 0.42);
     ctx.fillStyle = "#80e8ff";
-    ctx.font = `800 20px ${FUN_FONT}`;
-    ctx.fillText("INSERT $  ·  TAP SONG", w / 2, h * 0.72);
+    ctx.font = `800 18px ${FUN_FONT}`;
+    ctx.fillText("GAY-MI  ·  TAP HERE", w / 2, h * 0.72);
   }
   return canvasTexture(c, 2);
 }
@@ -3175,10 +3173,23 @@ function buildAmiJukebox(nightMats, lit) {
   stripUi.position.set(0, bodyY - 0.18, fz + 0.05);
   g.add(stripUi);
 
-  // For real audio jukebox — update these maps when a track plays
+  // Real audio GAY-MI — click targets + screen maps + neon pulse mats
   g.userData.kind = "jukebox";
   g.userData.mainUi = mainUi;
   g.userData.stripUi = stripUi;
+  g.userData.pulseMats = [];
+  for (const m of [main, strip, mainUi, stripUi, accent, kickLed]) {
+    if (m?.material?.emissiveIntensity != null) {
+      g.userData.pulseMats.push({
+        mat: m.material,
+        base: m.material.emissiveIntensity,
+      });
+    }
+  }
+  // Prefer the glass as the interactive hit target
+  mainUi.userData.jukeboxHit = true;
+  stripUi.userData.jukeboxHit = true;
+  main.userData.jukeboxHit = true;
 
   // Bill acceptor with glowing $
   const bill = box(0.22, 0.1, 0.08, 0x1a1a22, { metalness: 0.35, roughness: 0.4 });

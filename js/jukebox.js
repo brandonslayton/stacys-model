@@ -6,14 +6,15 @@
  */
 
 /**
- * Paint a "now playing" / idle face for the AMI jukebox main screen.
+ * Paint a GAY-MI face for the wall unit (idle pulse invite vs now playing).
  * @returns {HTMLCanvasElement}
  */
 export function paintJukeScreen({
-  title = "PICK A BOP",
+  title = "MAKE A SELECTION",
   artist = "",
   playing = false,
   kind = "main",
+  pulse = 0,
 } = {}) {
   const w = kind === "main" ? 360 : 320;
   const h = kind === "main" ? 320 : 140;
@@ -23,59 +24,60 @@ export function paintJukeScreen({
   const ctx = c.getContext("2d");
 
   const grad = ctx.createLinearGradient(0, 0, w, h);
-  grad.addColorStop(0, "#0a1838");
-  grad.addColorStop(0.5, "#1a0a30");
-  grad.addColorStop(1, "#081828");
+  // Pink → purple → green club palette
+  const p = 0.5 + 0.5 * Math.sin(pulse || 0);
+  grad.addColorStop(0, playing ? "#0a1830" : `rgb(${20 + p * 30},${8},${40 + p * 20})`);
+  grad.addColorStop(0.45, playing ? "#1a0a30" : `rgb(${40 + p * 40},${10},${60})`);
+  grad.addColorStop(1, playing ? "#081820" : `rgb(${8},${30 + p * 40},${28})`);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, h);
 
-  // Decorative notes
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  const glyphs = ["♪", "♫", "♬", "$", "♪", "♫"];
-  const cols = ["#60e8ff", "#ff80c0", "#ffe14a", "#80ffb0", "#c080ff"];
-  for (let i = 0; i < 12; i++) {
+  const glyphs = ["♪", "♫", "♬", "♪", "♫"];
+  const cols = ["#ff5fa2", "#9b6dff", "#3dd68c", "#ff80c0", "#60e8ff"];
+  for (let i = 0; i < 10; i++) {
     ctx.fillStyle = cols[i % cols.length];
-    ctx.globalAlpha = 0.28 + (i % 3) * 0.12;
+    ctx.globalAlpha = 0.22 + (i % 3) * 0.1 + (playing ? 0 : p * 0.12);
     ctx.font = `800 ${16 + (i % 4) * 7}px Outfit, system-ui, sans-serif`;
     ctx.fillText(
       glyphs[i % glyphs.length],
-      28 + (i * 51) % (w - 56),
-      24 + ((i * 41) % (h - 36))
+      28 + (i * 55) % (w - 56),
+      24 + ((i * 43) % (h - 36))
     );
   }
   ctx.globalAlpha = 1;
 
   if (kind === "main") {
-    ctx.fillStyle = "rgba(0,0,0,0.5)";
-    ctx.fillRect(20, h * 0.22, w - 40, h * 0.56);
-    ctx.fillStyle = playing ? "#80f0ff" : "#80f0ff";
-    ctx.font = "800 28px Outfit, system-ui, sans-serif";
-    ctx.fillText(playing ? "♪  NOW PLAYING  ♫" : "♪  JUKEBOX  ♫", w / 2, h * 0.36);
-    ctx.fillStyle = "#ff80c0";
-    ctx.font = "800 26px Outfit, system-ui, sans-serif";
-    // Truncate long titles
-    let t = title || "PICK A BOP";
-    if (t.length > 22) t = t.slice(0, 20) + "…";
-    ctx.fillText(t, w / 2, h * 0.52);
-    if (artist) {
-      ctx.fillStyle = "#ffe14a";
-      ctx.font = "700 18px Outfit, system-ui, sans-serif";
-      ctx.fillText(artist, w / 2, h * 0.66);
-    } else {
-      ctx.fillStyle = "#a0c0e0";
-      ctx.font = "700 16px Outfit, system-ui, sans-serif";
-      ctx.fillText(playing ? "TAP TO PAUSE" : "TAP TO BROWSE", w / 2, h * 0.66);
-    }
+    ctx.fillStyle = "rgba(0,0,0,0.52)";
+    ctx.fillRect(18, h * 0.18, w - 36, h * 0.64);
+    ctx.fillStyle = "#ff5fa2";
+    ctx.font = "800 22px Outfit, system-ui, sans-serif";
+    ctx.fillText("GAY-MI", w / 2, h * 0.3);
+    ctx.fillStyle = playing ? "#3dd68c" : "#9b6dff";
+    ctx.font = "800 20px Outfit, system-ui, sans-serif";
+    ctx.fillText(playing ? "NOW PLAYING" : "TOUCH SCREEN", w / 2, h * 0.42);
+    ctx.fillStyle = "#f2eef8";
+    ctx.font = "800 24px Outfit, system-ui, sans-serif";
+    let t = title || "MAKE A SELECTION";
+    if (t.length > 20) t = t.slice(0, 18) + "…";
+    ctx.fillText(t, w / 2, h * 0.56);
+    ctx.fillStyle = playing ? "#ffe14a" : "#80e8ff";
+    ctx.font = "700 15px Outfit, system-ui, sans-serif";
+    ctx.fillText(
+      playing ? artist || "PLAYING INSIDE" : "TAP TO SELECT · $1",
+      w / 2,
+      h * 0.7
+    );
   } else {
-    ctx.fillStyle = playing ? "#3dd68c" : "#ff80c0";
-    ctx.font = "800 26px Outfit, system-ui, sans-serif";
-    ctx.fillText(playing ? "♪ ON AIR ♫" : "♪ TOUCH TO BROWSE ♫", w / 2, h * 0.42);
-    ctx.fillStyle = "#80e8ff";
-    ctx.font = "700 16px Outfit, system-ui, sans-serif";
-    let t = title || "INSERT $  ·  TAP SONG";
-    if (t.length > 28) t = t.slice(0, 26) + "…";
-    ctx.fillText(t, w / 2, h * 0.72);
+    ctx.fillStyle = playing ? "#3dd68c" : "#ff5fa2";
+    ctx.font = "800 24px Outfit, system-ui, sans-serif";
+    ctx.fillText(playing ? "♪ ON AIR ♫" : "♪ TOUCH TO PLAY ♫", w / 2, h * 0.4);
+    ctx.fillStyle = "#c8d0e8";
+    ctx.font = "700 15px Outfit, system-ui, sans-serif";
+    let t = title || "GAY-MI  ·  SELECT A TRACK";
+    if (t.length > 26) t = t.slice(0, 24) + "…";
+    ctx.fillText(t, w / 2, h * 0.7);
   }
   return c;
 }

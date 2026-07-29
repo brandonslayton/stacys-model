@@ -569,13 +569,122 @@ body { user-select: none; -webkit-user-select: none; }
   outline-offset: 1px;
 }
 
-/* ---------------------------------------------------------------- jukebox sheet
-   Interior catalog + real audio player (Suno tracks, etc.) */
+/* ---------------------------------------------------------------- GAY-MI
+   Top now-playing HUD + wall-unit song picker (no dock button). */
+
+/* Mini player pinned to top — progress cursor + pause + “playing inside” */
+#juke-top {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 28;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(420px, calc(100vw - 20px));
+  padding: 8px 12px 10px;
+  border-radius: 16px;
+  background: rgba(12, 10, 22, 0.88);
+  border: 1px solid rgba(255, 95, 162, 0.28);
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.45),
+    0 0 20px rgba(155, 109, 255, 0.12);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  pointer-events: auto;
+}
+#juke-top[hidden] {
+  display: none !important;
+}
+#juke-top-pause {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 95, 162, 0.22);
+  color: #ffe0ef;
+  font: 700 14px/1 system-ui, sans-serif;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#juke-top-pause:active {
+  transform: scale(0.96);
+}
+#juke-top-pause.is-paused {
+  background: rgba(61, 214, 140, 0.25);
+  color: #c8ffe0;
+}
+.juke-top-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.juke-top-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.juke-top-brand {
+  flex: 0 0 auto;
+  font: 800 11px/1 "Outfit", system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  color: #ff5fa2;
+}
+.juke-top-title {
+  font: 700 14px/1.2 "Outfit", system-ui, sans-serif;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.juke-top-note {
+  margin-top: 2px;
+  font: 600 11px/1.2 "DM Sans", system-ui, sans-serif;
+  color: #3dd68c;
+  letter-spacing: 0.02em;
+}
+.juke-progress {
+  position: relative;
+  margin-top: 8px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: visible;
+}
+.juke-progress-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff5fa2, #9b6dff, #3dd68c);
+  transition: width 0.12s linear;
+}
+.juke-progress-cursor {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  background: #f2eef8;
+  box-shadow:
+    0 0 0 2px rgba(255, 95, 162, 0.85),
+    0 0 10px rgba(155, 109, 255, 0.7);
+  transition: left 0.12s linear;
+  pointer-events: none;
+}
+
+/* Catalog sheet — AMI-style picker */
 #jukebox-veil {
   position: fixed;
   inset: 0;
   z-index: 34;
-  background: rgba(8, 6, 16, 0.5);
+  background: rgba(8, 6, 16, 0.52);
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
   opacity: 0;
@@ -602,11 +711,13 @@ body { user-select: none; -webkit-user-select: none; }
   -webkit-overflow-scrolling: touch;
   padding: 8px 14px 16px;
   border-radius: 22px;
-  background: rgba(14, 12, 26, 0.94);
-  border: 1px solid rgba(255, 95, 162, 0.22);
+  background:
+    linear-gradient(165deg, rgba(28, 12, 36, 0.97), rgba(10, 14, 28, 0.96));
+  border: 1px solid rgba(255, 95, 162, 0.3);
   box-shadow:
     0 20px 50px rgba(0, 0, 0, 0.55),
-    0 0 0 1px rgba(96, 232, 255, 0.08);
+    0 0 0 1px rgba(61, 214, 140, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(22px) saturate(150%);
   -webkit-backdrop-filter: blur(22px) saturate(150%);
   opacity: 0;
@@ -621,66 +732,54 @@ body { user-select: none; -webkit-user-select: none; }
   display: none !important;
 }
 
-.juke-now {
-  margin: 4px 2px 12px;
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, rgba(20, 40, 80, 0.65), rgba(60, 16, 48, 0.55));
-  border: 1px solid rgba(255, 255, 255, 0.1);
+.gaymi-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 2px 2px 8px;
 }
-.juke-now-label {
-  font: 700 11px/1.2 "Outfit", system-ui, sans-serif;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--cool);
-  margin-bottom: 4px;
+.gaymi-logo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
-.juke-now.playing .juke-now-label {
-  color: #3dd68c;
+.gaymi-mark {
+  font: 800 22px/1 "Outfit", system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  background: linear-gradient(90deg, #ff5fa2, #9b6dff, #3dd68c);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
-.juke-now-title {
-  font: 800 18px/1.2 "Outfit", system-ui, sans-serif;
-  color: var(--ink);
-  letter-spacing: 0.01em;
-}
-.juke-now-artist {
-  margin-top: 4px;
-  font: 600 13px/1.3 "DM Sans", system-ui, sans-serif;
+.gaymi-sub {
+  font: 700 10px/1.2 "Outfit", system-ui, sans-serif;
+  letter-spacing: 0.12em;
   color: var(--dim);
 }
-
-.juke-controls {
-  display: flex;
-  gap: 8px;
-  margin: 0 2px 12px;
-}
-.juke-play-btn,
-.juke-stop-btn {
-  flex: 1;
-  min-height: 44px;
+.gaymi-credit {
+  margin: 0 4px 12px;
+  padding: 6px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  font: 700 14px/1 "Outfit", system-ui, sans-serif;
+  text-align: center;
+  font: 700 11px/1.2 "Outfit", system-ui, sans-serif;
+  letter-spacing: 0.1em;
+  color: #ffe14a;
+  background: rgba(255, 225, 74, 0.1);
+  border: 1px solid rgba(255, 225, 74, 0.22);
+}
+#jukebox-close {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+  font: 500 22px/1 system-ui, sans-serif;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: background 0.15s ease, transform 0.1s ease;
-}
-.juke-play-btn {
-  color: #0e1a12;
-  background: var(--cool);
-  border-color: transparent;
-}
-.juke-play-btn.playing {
-  background: var(--hot);
-  color: #2a1c06;
-}
-.juke-stop-btn {
-  color: var(--ink);
-  background: rgba(255, 255, 255, 0.1);
-}
-.juke-play-btn:active,
-.juke-stop-btn:active {
-  transform: scale(0.97);
 }
 
 .juke-list {
@@ -700,11 +799,11 @@ body { user-select: none; -webkit-user-select: none; }
   align-items: center;
   gap: 12px;
   text-align: left;
-  min-height: 56px;
+  min-height: 58px;
   padding: 10px 12px;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--ink);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -714,23 +813,24 @@ body { user-select: none; -webkit-user-select: none; }
   background: rgba(255, 255, 255, 0.12);
 }
 .juke-track.active {
-  border-color: rgba(96, 232, 255, 0.45);
-  background: rgba(96, 232, 255, 0.12);
+  border-color: rgba(255, 95, 162, 0.5);
+  background: rgba(155, 109, 255, 0.16);
 }
 .juke-track-ico {
   flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
+  min-width: 42px;
+  height: 42px;
+  padding: 0 6px;
   display: grid;
   place-items: center;
-  border-radius: 12px;
-  background: rgba(255, 95, 162, 0.2);
-  color: #ff8ec4;
-  font: 800 18px/1 "Outfit", system-ui, sans-serif;
+  border-radius: 10px;
+  background: linear-gradient(145deg, rgba(255, 95, 162, 0.35), rgba(61, 214, 140, 0.25));
+  color: #f2eef8;
+  font: 800 13px/1 "Outfit", system-ui, sans-serif;
+  letter-spacing: 0.04em;
 }
 .juke-track.active .juke-track-ico {
-  background: rgba(61, 214, 140, 0.25);
-  color: #3dd68c;
+  background: linear-gradient(145deg, #ff5fa2, #9b6dff);
 }
 .juke-track-meta {
   min-width: 0;
@@ -739,7 +839,7 @@ body { user-select: none; -webkit-user-select: none; }
   gap: 2px;
 }
 .juke-track-title {
-  font: 700 14px/1.2 "Outfit", system-ui, sans-serif;
+  font: 700 15px/1.2 "Outfit", system-ui, sans-serif;
 }
 .juke-track-sub {
   font: 500 12px/1.3 "DM Sans", system-ui, sans-serif;
@@ -768,13 +868,14 @@ body { user-select: none; -webkit-user-select: none; }
   #jukebox-sheet:not([hidden]) {
     transform: translateY(0);
   }
+  #juke-top {
+    width: calc(100vw - 16px);
+  }
 }
 
-#jukebox-btn.on,
-#jukebox-btn[aria-expanded="true"] {
-  color: #0e1c24;
-  background: var(--cool);
-  border-color: transparent;
+/* While GAY-MI top player is up, tip tips sit lower */
+body.juke-playing .inside-tip {
+  top: max(78px, calc(env(safe-area-inset-top) + 64px));
 }
 
 .play-grid {
