@@ -3,8 +3,8 @@
  *
  * Low-poly agents for the lot sim. Cars share a common vocabulary (hood/grille
  * toward local +Z, taillights toward −Z) so the front is always readable, with
- * ambient body styles, a signature black Ram, Phoenix SUVs, and a liquor
- * delivery fleet (box trucks + semis).
+ * cute toon ambient body styles (bubble cabins, fat wheels), a signature black
+ * Ram, Phoenix SUVs, and a liquor delivery fleet (box trucks + semis).
  */
 import * as THREE from "three";
 import { box, cyl, canvasTexture, roundRect } from "./kit.js";
@@ -164,21 +164,36 @@ export function tickCarLights(g, now, opts = {}) {
   for (const mat of L.marker) mat.emissiveIntensity = m;
 }
 
-function addCarWheels(g, positions, radius = 0.17, width = 0.14) {
+/**
+ * Chunky toon wheels — fat tire + bright rim + hub so they read cute at a
+ * distance instead of thin black pucks under a boxy body.
+ */
+function addCarWheels(g, positions, radius = 0.2, width = 0.16) {
   for (const [wx, wz] of positions) {
-    const wheel = cyl(radius, radius, width, 0x141414, RUBBER, 10);
-    wheel.rotation.z = Math.PI / 2;
-    wheel.position.set(wx, radius, wz);
-    g.add(wheel);
-    // Simple hub so wheels read as wheels, not black pucks
-    const hub = cyl(radius * 0.42, radius * 0.42, width + 0.02, 0x9aa0a8, CHROME, 8);
+    // Outer tire sidewall
+    const tire = cyl(radius, radius, width, 0x1a1a20, RUBBER, 12);
+    tire.rotation.z = Math.PI / 2;
+    tire.position.set(wx, radius, wz);
+    g.add(tire);
+    // Slightly inset tread band (darker)
+    const tread = cyl(radius * 0.92, radius * 0.92, width * 0.72, 0x0c0c10, RUBBER, 12);
+    tread.rotation.z = Math.PI / 2;
+    tread.position.set(wx, radius, wz);
+    g.add(tread);
+    // Bright dish rim
+    const rim = cyl(radius * 0.62, radius * 0.62, width + 0.03, 0xd8dce2, CHROME, 10);
+    rim.rotation.z = Math.PI / 2;
+    rim.position.set(wx, radius, wz);
+    g.add(rim);
+    // Hub / cap
+    const hub = cyl(radius * 0.28, radius * 0.28, width + 0.05, 0x8a929c, CHROME, 8);
     hub.rotation.z = Math.PI / 2;
     hub.position.set(wx, radius, wz);
     g.add(hub);
   }
 }
 
-/** Shared front/rear lighting — neon-emissive, registered for flash ticks. */
+/** Shared front/rear lighting — round “eyes” + soft neon, registered for flash. */
 function addCarLights(g, { halfW, noseZ, tailZ, lightY = 0.38, neon = false }) {
   ensureLights(g, {
     neonHeavy: neon,
@@ -187,80 +202,104 @@ function addCarLights(g, { halfW, noseZ, tailZ, lightY = 0.38, neon = false }) {
     baseTail: neon ? 0.9 : 0.7,
   });
 
-  // Headlights — bright, wide, clearly the front
+  // Round cartoon headlights — cute eyes instead of rectangular bars
   for (const side of [-1, 1]) {
-    const hl = box(0.2, 0.07, 0.06, 0xf0f6ff, {
-      roughness: 0.16,
-      metalness: 0.4,
-      emissive: 0xd8e8ff,
-      emissiveIntensity: neon ? 1.05 : 0.85,
-    });
-    hl.position.set(side * (halfW * 0.72), lightY, noseZ);
+    const hl = cyl(
+      0.085,
+      0.085,
+      0.07,
+      0xf0f6ff,
+      {
+        roughness: 0.14,
+        metalness: 0.35,
+        emissive: 0xd8e8ff,
+        emissiveIntensity: neon ? 1.05 : 0.85,
+      },
+      10
+    );
+    hl.rotation.x = Math.PI / 2;
+    hl.position.set(side * (halfW * 0.55), lightY + 0.02, noseZ);
     g.add(hl);
     pushLight(g, hl, "head");
-    // Amber marker under each headlight
-    const am = box(0.08, 0.035, 0.04, 0xffa040, {
-      roughness: 0.32,
-      emissive: 0xff8020,
-      emissiveIntensity: 0.4,
-    });
-    am.position.set(side * (halfW * 0.78), lightY - 0.06, noseZ - 0.01);
+    // Soft chrome ring
+    const ring = cyl(0.1, 0.1, 0.035, 0xc8ccd2, CHROME, 10);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(side * (halfW * 0.55), lightY + 0.02, noseZ - 0.01);
+    g.add(ring);
+    // Amber cheek marker
+    const am = cyl(
+      0.035,
+      0.035,
+      0.04,
+      0xffa040,
+      { roughness: 0.32, emissive: 0xff8020, emissiveIntensity: 0.4 },
+      8
+    );
+    am.rotation.x = Math.PI / 2;
+    am.position.set(side * (halfW * 0.82), lightY - 0.05, noseZ - 0.01);
     g.add(am);
     pushLight(g, am, "marker");
   }
 
-  // Slim neon DRL bar across the nose
-  const drl = box(halfW * 1.55, 0.03, 0.04, neon ? 0xa8f0ff : 0xe8f4ff, {
+  // Soft smile DRL under the eyes
+  const drl = box(halfW * 1.15, 0.028, 0.035, neon ? 0xa8f0ff : 0xe8f4ff, {
     roughness: 0.14,
-    metalness: 0.5,
+    metalness: 0.45,
     emissive: neon ? 0x5ef0ff : 0xc8e8ff,
-    emissiveIntensity: neon ? 1.4 : 0.95,
+    emissiveIntensity: neon ? 1.25 : 0.85,
   });
-  drl.position.set(0, lightY + 0.06, noseZ + 0.01);
+  drl.position.set(0, lightY - 0.08, noseZ + 0.01);
   g.add(drl);
   pushLight(g, drl, "neon");
 
-  // Grille block between the lights
-  const grille = box(halfW * 0.9, 0.12, 0.05, 0x1a1a1e, DARK);
-  grille.position.set(0, lightY - 0.02, noseZ - 0.01);
+  // Friendly oval-ish grille (short, wide)
+  const grille = box(halfW * 0.7, 0.1, 0.05, 0x1a1a1e, DARK);
+  grille.position.set(0, lightY - 0.02, noseZ - 0.015);
   g.add(grille);
-  // Horizontal grille bars
-  for (let i = 0; i < 3; i++) {
-    const bar = box(halfW * 0.78, 0.012, 0.03, 0x3a3a42, CHROME);
-    bar.position.set(0, lightY - 0.06 + i * 0.035, noseZ + 0.01);
+  for (let i = 0; i < 2; i++) {
+    const bar = box(halfW * 0.58, 0.012, 0.03, 0x4a4a52, CHROME);
+    bar.position.set(0, lightY - 0.05 + i * 0.035, noseZ + 0.01);
     g.add(bar);
   }
 
-  // Front bumper lip
-  const bumper = box(halfW * 2.05, 0.1, 0.12, 0x222226, DARK);
-  bumper.position.set(0, 0.18, noseZ - 0.02);
+  // Rounded front bumper roll (cylinder along X)
+  const bumper = cyl(0.07, 0.07, halfW * 1.95, 0x2a2a30, DARK, 10);
+  bumper.rotation.z = Math.PI / 2;
+  bumper.position.set(0, 0.16, noseZ - 0.02);
   g.add(bumper);
 
-  // Taillights — red neon, clearly the rear
+  // Round-ish taillights
   for (const side of [-1, 1]) {
-    const tl = box(0.18, 0.08, 0.05, 0xff2030, {
-      roughness: 0.26,
-      metalness: 0.25,
-      emissive: 0xff1028,
-      emissiveIntensity: neon ? 0.95 : 0.72,
-    });
-    tl.position.set(side * (halfW * 0.72), lightY, tailZ);
+    const tl = cyl(
+      0.07,
+      0.07,
+      0.05,
+      0xff2030,
+      {
+        roughness: 0.26,
+        metalness: 0.25,
+        emissive: 0xff1028,
+        emissiveIntensity: neon ? 0.95 : 0.72,
+      },
+      10
+    );
+    tl.rotation.x = Math.PI / 2;
+    tl.position.set(side * (halfW * 0.58), lightY + 0.02, tailZ);
     g.add(tl);
     pushLight(g, tl, "tail");
   }
-  // Centre rear neon strip
-  const strip = box(halfW * 0.7, 0.035, 0.04, 0xff2040, {
+  const strip = box(halfW * 0.55, 0.03, 0.035, 0xff2040, {
     roughness: 0.28,
     emissive: 0xff1030,
     emissiveIntensity: neon ? 0.85 : 0.45,
   });
-  strip.position.set(0, lightY, tailZ);
+  strip.position.set(0, lightY + 0.02, tailZ);
   g.add(strip);
   pushLight(g, strip, "neon");
 
-  // Rear bumper
-  const rearBump = box(halfW * 2.0, 0.09, 0.1, 0x222226, DARK);
-  rearBump.position.set(0, 0.17, tailZ + 0.02);
+  const rearBump = cyl(0.065, 0.065, halfW * 1.9, 0x2a2a30, DARK, 10);
+  rearBump.rotation.z = Math.PI / 2;
+  rearBump.position.set(0, 0.15, tailZ + 0.02);
   g.add(rearBump);
 }
 
@@ -362,8 +401,11 @@ function attachFrontPlate(g, plate, z, y = 0.28) {
 }
 
 /**
- * Build an ambient lot car.
+ * Build an ambient lot car — cute low-poly “toon” proportions.
+ *
  * Local +Z = nose / headlights. Local −Z = tail / taillights.
+ * Same styles & API as before, but shorter/taller bodies, oversize wheels,
+ * bubble cabins, and rounded nose/tail so they read friendly instead of brick-like.
  *
  * @param {number | { color?: number, style?: string, plate?: string }} colorOrOpts
  */
@@ -378,90 +420,161 @@ export function createCar(colorOrOpts = 0xe85d5d) {
   g.name = "car";
   g.userData.carStyle = style;
 
-  const paint = paintOpts(color);
+  const paint = paintOpts(color, { roughness: 0.48, metalness: 0.1 });
 
-  // Per-style proportions (width, body height, length, cabin height, cabin z-centre, cabin length)
+  // Cute proportions: bigger wheels, shorter length, taller cabin (toy-car stance)
   const specs = {
-    sedan: { w: 1.12, bh: 0.34, len: 2.12, ch: 0.3, cz: 0.05, cl: 1.05, wheelR: 0.17, stance: 0.0 },
-    hatch: { w: 1.1, bh: 0.36, len: 1.95, ch: 0.34, cz: -0.05, cl: 1.15, wheelR: 0.16, stance: 0.0 },
-    coupe: { w: 1.14, bh: 0.3, len: 2.05, ch: 0.26, cz: 0.08, cl: 0.9, wheelR: 0.17, stance: -0.02 },
-    suv: { w: 1.2, bh: 0.42, len: 2.2, ch: 0.4, cz: 0.0, cl: 1.2, wheelR: 0.2, stance: 0.06 },
-    compact: { w: 1.02, bh: 0.32, len: 1.78, ch: 0.3, cz: 0.02, cl: 0.95, wheelR: 0.15, stance: 0.0 },
+    sedan: {
+      w: 1.18, bh: 0.4, len: 1.92, ch: 0.38, cz: 0.02, cl: 0.98,
+      wheelR: 0.22, stance: 0.02, hood: 0.42, trunk: 0.34,
+    },
+    hatch: {
+      w: 1.16, bh: 0.42, len: 1.72, ch: 0.42, cz: -0.04, cl: 1.08,
+      wheelR: 0.21, stance: 0.02, hood: 0.34, trunk: 0,
+    },
+    coupe: {
+      w: 1.2, bh: 0.36, len: 1.85, ch: 0.32, cz: 0.06, cl: 0.82,
+      wheelR: 0.22, stance: 0.0, hood: 0.48, trunk: 0.36,
+    },
+    suv: {
+      w: 1.28, bh: 0.48, len: 2.0, ch: 0.46, cz: 0.0, cl: 1.12,
+      wheelR: 0.24, stance: 0.07, hood: 0.4, trunk: 0.3,
+    },
+    compact: {
+      w: 1.1, bh: 0.38, len: 1.58, ch: 0.38, cz: 0.0, cl: 0.9,
+      wheelR: 0.2, stance: 0.02, hood: 0.32, trunk: 0.28,
+    },
   };
   const s = specs[style] || specs.sedan;
   const halfW = s.w * 0.5;
-  const bodyY = 0.36 + s.stance;
+  // Body sits low so fat wheels dominate the silhouette
+  const bodyY = s.wheelR * 0.95 + s.bh * 0.45 + s.stance;
   const noseZ = s.len * 0.5;
   const tailZ = -s.len * 0.5;
 
-  // Lower rocker
-  const rocker = box(s.w + 0.04, 0.12, s.len * 0.96, 0x1a1a1e, DARK);
-  rocker.position.y = 0.2 + s.stance;
-  g.add(rocker);
+  // Soft lower skirt (not a hard brick rocker)
+  const skirt = box(s.w * 1.02, 0.1, s.len * 0.88, 0x1c1c22, DARK);
+  skirt.position.y = s.wheelR * 0.55 + s.stance;
+  g.add(skirt);
 
-  // Main body shell
-  const body = box(s.w, s.bh, s.len * 0.92, color, paint);
-  body.position.y = bodyY;
+  // Main body — slightly shorter than overall length so rounded ends can peek out
+  const body = box(s.w, s.bh, s.len * 0.78, color, paint);
+  body.position.set(0, bodyY, s.cz * 0.3);
   g.add(body);
 
-  // Hood (front deck) — slightly lower, reads as front
-  const hoodLen = style === "coupe" ? 0.55 : style === "compact" ? 0.38 : 0.48;
-  const hood = box(s.w * 0.92, s.bh * 0.55, hoodLen, color, paint);
-  hood.position.set(0, bodyY + s.bh * 0.08, noseZ - hoodLen * 0.55);
+  // Upper body taper (narrower “shoulder” shelf) — breaks the pure box
+  const shoulder = box(s.w * 0.92, s.bh * 0.28, s.len * 0.72, color, paint);
+  shoulder.position.set(0, bodyY + s.bh * 0.38, s.cz * 0.25);
+  g.add(shoulder);
+
+  // Rounded nose roll (cylinder along X) + hood
+  const noseRoll = cyl(s.bh * 0.42, s.bh * 0.42, s.w * 0.9, color, paint, 12);
+  noseRoll.rotation.z = Math.PI / 2;
+  noseRoll.position.set(0, bodyY - s.bh * 0.05, noseZ - s.hood * 0.35);
+  g.add(noseRoll);
+
+  const hood = box(s.w * 0.88, s.bh * 0.42, s.hood, color, paint);
+  hood.position.set(0, bodyY + s.bh * 0.12, noseZ - s.hood * 0.55);
+  hood.rotation.x = style === "coupe" ? 0.08 : 0.05;
   g.add(hood);
 
-  // Trunk / rear deck (not on hatch — glass goes to the back)
+  // Rounded tail
   if (style !== "hatch") {
-    const trunkLen = style === "coupe" ? 0.42 : 0.38;
-    const trunk = box(s.w * 0.9, s.bh * 0.5, trunkLen, color, paint);
-    trunk.position.set(0, bodyY + s.bh * 0.05, tailZ + trunkLen * 0.55);
+    const tailRoll = cyl(s.bh * 0.38, s.bh * 0.38, s.w * 0.88, color, paint, 12);
+    tailRoll.rotation.z = Math.PI / 2;
+    tailRoll.position.set(0, bodyY - s.bh * 0.02, tailZ + s.trunk * 0.35);
+    g.add(tailRoll);
+    const trunk = box(s.w * 0.86, s.bh * 0.4, s.trunk, color, paint);
+    trunk.position.set(0, bodyY + s.bh * 0.08, tailZ + s.trunk * 0.52);
     g.add(trunk);
+  } else {
+    // Hatch: glass wraps the rear; soft rear bumper volume only
+    const hatchTail = cyl(s.bh * 0.32, s.bh * 0.32, s.w * 0.85, color, paint, 12);
+    hatchTail.rotation.z = Math.PI / 2;
+    hatchTail.position.set(0, bodyY - s.bh * 0.05, tailZ + 0.12);
+    g.add(hatchTail);
   }
 
-  // Greenhouse — glass sits under the roof with a clear gap so the top doesn't
-  // z-fight (white SUVs especially showed a glitchy roof sparkle).
-  const cabinY = bodyY + s.bh * 0.5 + s.ch * 0.42;
-  const cabin = box(s.w * 0.86, s.ch * 0.92, s.cl, 0x121c24, GLASS);
+  // Wheel-arch cheeks — soft fenders so body isn’t a flat slab
+  const wb = s.len * 0.3;
+  for (const wz of [wb, -wb]) {
+    for (const side of [-1, 1]) {
+      const fender = cyl(s.wheelR * 0.95, s.wheelR * 0.95, 0.12, color, paint, 10);
+      fender.rotation.z = Math.PI / 2;
+      fender.position.set(side * (halfW * 0.92), s.wheelR * 0.95 + s.stance, wz);
+      g.add(fender);
+    }
+  }
+
+  // Bubble greenhouse
+  const cabinY = bodyY + s.bh * 0.48 + s.ch * 0.42;
+  const cabin = box(s.w * 0.82, s.ch * 0.88, s.cl * 0.92, 0x15202c, GLASS);
   cabin.position.set(0, cabinY, s.cz);
   g.add(cabin);
 
-  // Windshield — sloped, faces +Z
-  const wind = box(s.w * 0.82, s.ch * 0.78, 0.32, 0x101820, GLASS);
-  wind.position.set(0, cabinY, s.cz + s.cl * 0.5 - 0.05);
-  wind.rotation.x = style === "coupe" ? -0.32 : -0.22;
+  // Side windows (slightly inset) — read as glass panes not a solid block
+  for (const side of [-1, 1]) {
+    const sideWin = box(0.04, s.ch * 0.62, s.cl * 0.78, 0x0e1822, GLASS);
+    sideWin.position.set(side * (halfW * 0.84), cabinY, s.cz);
+    g.add(sideWin);
+  }
+
+  // Windshield — more raked for a friendly face
+  const wind = box(s.w * 0.78, s.ch * 0.72, 0.34, 0x101a24, GLASS);
+  wind.position.set(0, cabinY + s.ch * 0.02, s.cz + s.cl * 0.42);
+  wind.rotation.x = style === "coupe" ? -0.42 : style === "suv" ? -0.22 : -0.32;
   g.add(wind);
 
   // Rear glass
-  const rearG = box(s.w * 0.8, s.ch * 0.7, style === "hatch" ? 0.36 : 0.28, 0x101820, GLASS);
+  const rearLen = style === "hatch" ? 0.4 : 0.28;
+  const rearG = box(s.w * 0.76, s.ch * 0.65, rearLen, 0x101a24, GLASS);
   rearG.position.set(
     0,
-    cabinY - 0.02,
-    s.cz - s.cl * 0.5 + (style === "hatch" ? -0.05 : 0.05)
+    cabinY - 0.01,
+    s.cz - s.cl * 0.42 - (style === "hatch" ? 0.06 : 0)
   );
-  rearG.rotation.x = style === "hatch" ? 0.28 : 0.16;
+  rearG.rotation.x = style === "hatch" ? 0.38 : style === "coupe" ? 0.28 : 0.2;
   g.add(rearG);
 
-  // Roof skin — sits fully above the glass cabin
-  const roofY = bodyY + s.bh * 0.5 + s.ch + 0.03;
-  const roof = box(s.w * 0.8, 0.05, s.cl * 0.85, color, paint);
-  roof.position.set(0, roofY, s.cz - (style === "coupe" ? 0.06 : 0));
+  // Domed roof: main plate + smaller top cap
+  const roofY = bodyY + s.bh * 0.48 + s.ch + 0.02;
+  const roof = box(s.w * 0.74, 0.06, s.cl * 0.78, color, paint);
+  roof.position.set(0, roofY, s.cz - (style === "coupe" ? 0.05 : 0));
   g.add(roof);
+  const roofCap = box(s.w * 0.58, 0.04, s.cl * 0.55, color, paint);
+  roofCap.position.set(0, roofY + 0.04, s.cz - (style === "coupe" ? 0.04 : 0));
+  g.add(roofCap);
 
-  // Door creases (4-door on sedan/suv/hatch/compact; 2-door coupe)
+  // Pillar accents (A-pillar suggestion)
+  for (const side of [-1, 1]) {
+    const pillar = box(0.04, s.ch * 0.7, 0.08, color, paint);
+    pillar.position.set(
+      side * (halfW * 0.78),
+      cabinY,
+      s.cz + s.cl * 0.35
+    );
+    pillar.rotation.x = -0.2;
+    g.add(pillar);
+  }
+
   const doors = style === "coupe" ? 2 : 4;
   addDoorCreases(
     g,
-    halfW * 0.98,
-    bodyY + 0.02,
-    s.cz + s.cl * 0.42,
-    s.cz - s.cl * 0.42,
+    halfW * 0.96,
+    bodyY - s.bh * 0.05,
+    s.cz + s.cl * 0.38,
+    s.cz - s.cl * 0.38,
     doors
   );
 
-  // Side mirrors
+  // Cute stubby mirrors
   for (const side of [-1, 1]) {
-    const mir = box(0.08, 0.05, 0.1, 0x1a1a1e, DARK);
-    mir.position.set(side * (halfW + 0.04), bodyY + s.bh * 0.55, s.cz + s.cl * 0.25);
+    const arm = box(0.06, 0.03, 0.05, 0x1a1a1e, DARK);
+    arm.position.set(side * (halfW * 0.95), bodyY + s.bh * 0.35, s.cz + s.cl * 0.28);
+    g.add(arm);
+    const mir = cyl(0.045, 0.045, 0.04, 0x1e1e24, DARK, 8);
+    mir.rotation.z = Math.PI / 2;
+    mir.position.set(side * (halfW + 0.06), bodyY + s.bh * 0.35, s.cz + s.cl * 0.28);
     g.add(mir);
   }
 
@@ -469,30 +582,31 @@ export function createCar(colorOrOpts = 0xe85d5d) {
     halfW,
     noseZ: noseZ - 0.02,
     tailZ: tailZ + 0.02,
-    lightY: bodyY - 0.02,
+    lightY: bodyY - s.bh * 0.05,
     neon: style === "suv",
   });
 
-  // Generic rear plate (random-ish short tag) unless caller supplies one
   if (opts.plate) {
-    attachRearPlate(g, makePlate(opts.plate, { skyBlue: !!opts.skyPlate }), tailZ - 0.01, 0.3);
+    attachRearPlate(
+      g,
+      makePlate(opts.plate, { skyBlue: !!opts.skyPlate }),
+      tailZ - 0.01,
+      0.28
+    );
   } else {
-    // Subtle blank-ish plate so the rear reads as a rear
-    attachRearPlate(g, makePlate("· · ·"), tailZ - 0.01, 0.3);
+    attachRearPlate(g, makePlate("· · ·"), tailZ - 0.01, 0.28);
   }
 
-  // Wheelbase scales with length
-  const wb = s.len * 0.28;
   addCarWheels(
     g,
     [
-      [-halfW * 0.82, wb],
-      [halfW * 0.82, wb],
-      [-halfW * 0.82, -wb],
-      [halfW * 0.82, -wb],
+      [-halfW * 0.88, wb],
+      [halfW * 0.88, wb],
+      [-halfW * 0.88, -wb],
+      [halfW * 0.88, -wb],
     ],
     s.wheelR,
-    style === "suv" ? 0.16 : 0.13
+    style === "suv" ? 0.18 : 0.15
   );
 
   return g;
@@ -501,9 +615,9 @@ export function createCar(colorOrOpts = 0xe85d5d) {
 /**
  * Typical Phoenix midsize SUV / crossover — the lot staple.
  *
- * Pearl/sand/silver paint, black lower cladding, roof rails, and a full-width
- * cyan-white neon DRL bar (with matching red rear light bar) that breathes and
- * flashes. Local +Z = nose.
+ * Same spirit (pearl/sand paint, black cladding, roof rails, cyan DRL package)
+ * with cute low-poly proportions: taller bubble cabin, fat wheels, rounded ends.
+ * Local +Z = nose.
  *
  * @param {number} [color]
  */
@@ -515,90 +629,117 @@ export function createPhxSuv(color) {
   g.userData.carStyle = "phxSuv";
   g.userData.kind = "phxSuv";
 
-  const paint = { roughness: 0.38, metalness: 0.28 };
+  const paint = { roughness: 0.42, metalness: 0.18 };
   const cladding = 0x1a1c20;
-  const w = 1.28;
+  const w = 1.32;
   const halfW = w * 0.5;
-  const stance = 0.07;
-  const len = 2.35;
+  const stance = 0.06;
+  const len = 2.12; // shorter than before — less brick, more toy
+  const wheelR = 0.24;
   const noseZ = len * 0.5;
   const tailZ = -len * 0.5;
-  const bodyY = 0.4 + stance;
-  const bh = 0.44;
-  const ch = 0.42;
+  const bh = 0.48;
+  const ch = 0.48;
+  const bodyY = wheelR * 0.95 + bh * 0.42 + stance;
+  const wb = len * 0.3;
 
-  // Black plastic lower body cladding (very "every RAV4 in Scottsdale")
-  const clad = box(w + 0.06, 0.2, len * 0.96, cladding, DARK);
-  clad.position.y = 0.22 + stance;
+  // Soft black cladding skirt
+  const clad = box(w * 1.04, 0.16, len * 0.86, cladding, DARK);
+  clad.position.y = wheelR * 0.55 + stance;
   g.add(clad);
-  // Wheel-arch bulges
-  for (const wz of [len * 0.28, -len * 0.28]) {
+
+  // Main body + shoulder taper
+  const body = box(w, bh, len * 0.76, paintColor, paint);
+  body.position.y = bodyY;
+  g.add(body);
+  const shoulder = box(w * 0.92, bh * 0.3, len * 0.7, paintColor, paint);
+  shoulder.position.set(0, bodyY + bh * 0.36, 0);
+  g.add(shoulder);
+
+  // Rounded nose / hood
+  const noseRoll = cyl(bh * 0.4, bh * 0.4, w * 0.9, paintColor, paint, 12);
+  noseRoll.rotation.z = Math.PI / 2;
+  noseRoll.position.set(0, bodyY - bh * 0.04, noseZ - 0.28);
+  g.add(noseRoll);
+  const hood = box(w * 0.9, bh * 0.42, 0.44, paintColor, paint);
+  hood.position.set(0, bodyY + bh * 0.1, noseZ - 0.38);
+  hood.rotation.x = 0.05;
+  g.add(hood);
+
+  // Rounded tail
+  const tailRoll = cyl(bh * 0.36, bh * 0.36, w * 0.88, paintColor, paint, 12);
+  tailRoll.rotation.z = Math.PI / 2;
+  tailRoll.position.set(0, bodyY - bh * 0.02, tailZ + 0.24);
+  g.add(tailRoll);
+
+  // Fender cheeks over fat wheels
+  for (const wz of [wb, -wb]) {
     for (const side of [-1, 1]) {
-      const arch = box(0.1, 0.22, 0.42, cladding, DARK);
-      arch.position.set(side * (halfW + 0.02), 0.28 + stance, wz);
-      g.add(arch);
+      const fender = cyl(wheelR * 0.95, wheelR * 0.95, 0.14, cladding, DARK, 10);
+      fender.rotation.z = Math.PI / 2;
+      fender.position.set(side * (halfW * 0.94), wheelR * 0.95 + stance, wz);
+      g.add(fender);
     }
   }
 
-  // Main body
-  const body = box(w, bh, len * 0.9, paintColor, paint);
-  body.position.y = bodyY;
-  g.add(body);
-
-  // Hood
-  const hood = box(w * 0.94, bh * 0.5, 0.52, paintColor, paint);
-  hood.position.set(0, bodyY + 0.06, noseZ - 0.38);
-  g.add(hood);
-
-  // Greenhouse — tall, upright (crossover, not a coupe-SUV)
-  const cabin = box(w * 0.9, ch, 1.28, 0x0e1620, {
+  // Tall bubble cabin
+  const cabinY = bodyY + bh * 0.48 + ch * 0.4;
+  const cabin = box(w * 0.84, ch * 0.9, 1.15, 0x0e1620, {
     ...GLASS,
     emissiveIntensity: 0.08,
   });
-  cabin.position.set(0, bodyY + bh * 0.5 + ch * 0.42, -0.02);
+  cabin.position.set(0, cabinY, -0.02);
   g.add(cabin);
+  for (const side of [-1, 1]) {
+    const sideWin = box(0.04, ch * 0.62, 0.95, 0x0a1218, GLASS);
+    sideWin.position.set(side * (halfW * 0.86), cabinY, -0.02);
+    g.add(sideWin);
+  }
 
-  const wind = box(w * 0.86, ch * 0.88, 0.36, 0x0a1218, GLASS);
-  wind.position.set(0, bodyY + bh * 0.5 + ch * 0.4, 0.58);
-  wind.rotation.x = -0.18;
+  const wind = box(w * 0.8, ch * 0.75, 0.36, 0x0a1218, GLASS);
+  wind.position.set(0, cabinY + 0.02, 0.52);
+  wind.rotation.x = -0.26;
   g.add(wind);
 
-  const rearG = box(w * 0.84, ch * 0.8, 0.3, 0x0a1218, GLASS);
-  rearG.position.set(0, bodyY + bh * 0.5 + ch * 0.38, -0.62);
-  rearG.rotation.x = 0.14;
+  const rearG = box(w * 0.78, ch * 0.7, 0.32, 0x0a1218, GLASS);
+  rearG.position.set(0, cabinY, -0.58);
+  rearG.rotation.x = 0.22;
   g.add(rearG);
 
-  // Roof + rails
-  const roof = box(w * 0.86, 0.05, 1.15, paintColor, paint);
-  roof.position.set(0, bodyY + bh * 0.5 + ch * 0.88, -0.04);
+  // Domed roof + rails
+  const roofY = bodyY + bh * 0.48 + ch + 0.01;
+  const roof = box(w * 0.78, 0.06, 1.05, paintColor, paint);
+  roof.position.set(0, roofY, -0.04);
   g.add(roof);
+  const roofCap = box(w * 0.6, 0.04, 0.75, paintColor, paint);
+  roofCap.position.set(0, roofY + 0.04, -0.04);
+  g.add(roofCap);
   for (const side of [-1, 1]) {
-    const rail = box(0.04, 0.035, 1.05, 0x2a2c32, DARK);
-    rail.position.set(side * (halfW * 0.55), bodyY + bh * 0.5 + ch * 0.98, -0.04);
+    const rail = box(0.04, 0.035, 0.95, 0x2a2c32, DARK);
+    rail.position.set(side * (halfW * 0.48), roofY + 0.06, -0.04);
     g.add(rail);
-    // Rail feet
-    for (const z of [0.4, -0.4]) {
-      const foot = box(0.05, 0.04, 0.08, 0x1a1a1e, DARK);
-      foot.position.set(side * (halfW * 0.55), bodyY + bh * 0.5 + ch * 0.92, z);
+    for (const z of [0.32, -0.35]) {
+      const foot = box(0.05, 0.04, 0.07, 0x1a1a1e, DARK);
+      foot.position.set(side * (halfW * 0.48), roofY + 0.02, z);
       g.add(foot);
     }
   }
 
-  // Roof spoiler lip
-  const spoiler = box(w * 0.82, 0.04, 0.12, paintColor, paint);
-  spoiler.position.set(0, bodyY + bh * 0.5 + ch * 0.85, -0.68);
+  // Soft rear spoiler lip
+  const spoiler = box(w * 0.72, 0.04, 0.1, paintColor, paint);
+  spoiler.position.set(0, roofY - 0.02, -0.62);
   g.add(spoiler);
 
-  addDoorCreases(g, halfW, bodyY + 0.02, 0.55, -0.55, 4);
+  addDoorCreases(g, halfW * 0.96, bodyY - 0.02, 0.48, -0.48, 4);
 
-  // Side mirrors
   for (const side of [-1, 1]) {
-    const mir = box(0.09, 0.06, 0.12, cladding, DARK);
-    mir.position.set(side * (halfW + 0.05), bodyY + bh * 0.55, 0.4);
+    const mir = cyl(0.05, 0.05, 0.045, cladding, DARK, 8);
+    mir.rotation.z = Math.PI / 2;
+    mir.position.set(side * (halfW + 0.06), bodyY + bh * 0.3, 0.38);
     g.add(mir);
   }
 
-  // ── Neon light package (the whole point of a Phoenix night lot) ──
+  // ── Neon light package (Phoenix night lot signature) ──
   ensureLights(g, {
     neonHeavy: true,
     baseHead: 1.15,
@@ -607,108 +748,129 @@ export function createPhxSuv(color) {
     baseMarker: 0.5,
   });
 
-  // Full-width neon DRL light bar
-  const drlBar = box(w * 0.92, 0.045, 0.055, 0xb8f8ff, {
+  // Soft DRL smile bar
+  const drlBar = box(w * 0.78, 0.04, 0.045, 0xb8f8ff, {
     roughness: 0.12,
-    metalness: 0.55,
+    metalness: 0.5,
     emissive: 0x60f0ff,
-    emissiveIntensity: 1.6,
+    emissiveIntensity: 1.55,
   });
-  drlBar.position.set(0, bodyY + 0.08, noseZ - 0.01);
+  drlBar.position.set(0, bodyY - 0.06, noseZ - 0.01);
   g.add(drlBar);
   pushLight(g, drlBar, "neon");
 
-  // Twin projector headlights
+  // Round projector eyes
   for (const side of [-1, 1]) {
-    const hl = box(0.24, 0.1, 0.08, 0xf4f8ff, {
-      roughness: 0.14,
-      metalness: 0.45,
-      emissive: 0xe0f0ff,
-      emissiveIntensity: 1.15,
-    });
-    hl.position.set(side * (halfW * 0.62), bodyY - 0.02, noseZ - 0.02);
+    const hl = cyl(
+      0.095,
+      0.095,
+      0.075,
+      0xf4f8ff,
+      {
+        roughness: 0.14,
+        metalness: 0.4,
+        emissive: 0xe0f0ff,
+        emissiveIntensity: 1.15,
+      },
+      10
+    );
+    hl.rotation.x = Math.PI / 2;
+    hl.position.set(side * (halfW * 0.52), bodyY + 0.04, noseZ - 0.01);
     g.add(hl);
     pushLight(g, hl, "head");
-    // Outer neon accent hook
-    const hook = box(0.06, 0.16, 0.05, 0xa0f4ff, {
+    const ring = cyl(0.11, 0.11, 0.04, 0xc0c8d0, CHROME, 10);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(side * (halfW * 0.52), bodyY + 0.04, noseZ - 0.02);
+    g.add(ring);
+    // Outer neon hook
+    const hook = box(0.05, 0.14, 0.04, 0xa0f4ff, {
       roughness: 0.14,
       metalness: 0.5,
       emissive: 0x48e8ff,
-      emissiveIntensity: 1.45,
+      emissiveIntensity: 1.4,
     });
-    hook.position.set(side * (halfW * 0.88), bodyY + 0.02, noseZ - 0.02);
+    hook.position.set(side * (halfW * 0.82), bodyY + 0.02, noseZ - 0.02);
     g.add(hook);
     pushLight(g, hook, "neon");
-    // Amber marker
-    const am = box(0.08, 0.04, 0.04, 0xffa030, {
-      roughness: 0.3,
-      emissive: 0xff8010,
-      emissiveIntensity: 0.5,
-    });
-    am.position.set(side * (halfW * 0.9), bodyY - 0.1, noseZ - 0.03);
+    const am = cyl(
+      0.035,
+      0.035,
+      0.04,
+      0xffa030,
+      { roughness: 0.3, emissive: 0xff8010, emissiveIntensity: 0.5 },
+      8
+    );
+    am.rotation.x = Math.PI / 2;
+    am.position.set(side * (halfW * 0.88), bodyY - 0.1, noseZ - 0.02);
     g.add(am);
     pushLight(g, am, "marker");
   }
 
-  // Dark grille mesh
-  const grille = box(w * 0.55, 0.16, 0.06, 0x121418, DARK);
-  grille.position.set(0, bodyY - 0.06, noseZ - 0.03);
+  const grille = box(w * 0.42, 0.12, 0.05, 0x121418, DARK);
+  grille.position.set(0, bodyY - 0.04, noseZ - 0.025);
   g.add(grille);
-  for (let i = 0; i < 4; i++) {
-    const bar = box(w * 0.48, 0.012, 0.03, 0x3a3e46, CHROME);
-    bar.position.set(0, bodyY - 0.12 + i * 0.035, noseZ - 0.01);
+  for (let i = 0; i < 3; i++) {
+    const bar = box(w * 0.36, 0.012, 0.03, 0x3a3e46, CHROME);
+    bar.position.set(0, bodyY - 0.08 + i * 0.032, noseZ - 0.01);
     g.add(bar);
   }
 
-  // Front bumper + skid plate
-  const fBump = box(w * 1.02, 0.14, 0.16, cladding, DARK);
-  fBump.position.set(0, 0.2 + stance, noseZ - 0.04);
+  // Rounded front bumper
+  const fBump = cyl(0.08, 0.08, w * 1.0, cladding, DARK, 10);
+  fBump.rotation.z = Math.PI / 2;
+  fBump.position.set(0, 0.18 + stance, noseZ - 0.03);
   g.add(fBump);
-  const skid = box(w * 0.45, 0.04, 0.1, 0x8a9098, CHROME);
-  skid.position.set(0, 0.16 + stance, noseZ + 0.02);
+  const skid = box(w * 0.4, 0.035, 0.08, 0x8a9098, CHROME);
+  skid.position.set(0, 0.14 + stance, noseZ + 0.02);
   g.add(skid);
 
-  // Vertical neon taillights + spanning red bar
+  // Round-ish neon tails + bar
   for (const side of [-1, 1]) {
-    const tl = box(0.1, 0.28, 0.07, 0xff1840, {
-      roughness: 0.22,
-      metalness: 0.3,
-      emissive: 0xff1040,
-      emissiveIntensity: 1.05,
-    });
-    tl.position.set(side * (halfW * 0.82), bodyY + 0.06, tailZ + 0.02);
+    const tl = cyl(
+      0.08,
+      0.08,
+      0.06,
+      0xff1840,
+      {
+        roughness: 0.22,
+        metalness: 0.3,
+        emissive: 0xff1040,
+        emissiveIntensity: 1.05,
+      },
+      10
+    );
+    tl.rotation.x = Math.PI / 2;
+    tl.position.set(side * (halfW * 0.58), bodyY + 0.06, tailZ + 0.02);
     g.add(tl);
     pushLight(g, tl, "tail");
   }
-  const rearBar = box(w * 0.75, 0.04, 0.05, 0xff2850, {
+  const rearBar = box(w * 0.62, 0.035, 0.04, 0xff2850, {
     roughness: 0.2,
     metalness: 0.35,
     emissive: 0xff1848,
     emissiveIntensity: 1.2,
   });
-  rearBar.position.set(0, bodyY + 0.12, tailZ + 0.02);
+  rearBar.position.set(0, bodyY + 0.1, tailZ + 0.02);
   g.add(rearBar);
   pushLight(g, rearBar, "neon");
 
-  const rBump = box(w * 1.0, 0.12, 0.12, cladding, DARK);
-  rBump.position.set(0, 0.2 + stance, tailZ + 0.03);
+  const rBump = cyl(0.07, 0.07, w * 0.95, cladding, DARK, 10);
+  rBump.rotation.z = Math.PI / 2;
+  rBump.position.set(0, 0.17 + stance, tailZ + 0.03);
   g.add(rBump);
 
-  // AZ plate
-  attachRearPlate(g, makePlate("· PHX ·", { skyBlue: true }), tailZ - 0.01, 0.32);
+  attachRearPlate(g, makePlate("· PHX ·", { skyBlue: true }), tailZ - 0.01, 0.3);
 
-  // Slightly larger crossover wheels
-  const wb = len * 0.3;
   addCarWheels(
     g,
     [
-      [-halfW * 0.84, wb],
-      [halfW * 0.84, wb],
-      [-halfW * 0.84, -wb],
-      [halfW * 0.84, -wb],
+      [-halfW * 0.88, wb],
+      [halfW * 0.88, wb],
+      [-halfW * 0.88, -wb],
+      [halfW * 0.88, -wb],
     ],
-    0.2,
-    0.16
+    wheelR,
+    0.18
   );
 
   return g;

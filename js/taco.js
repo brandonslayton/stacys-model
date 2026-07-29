@@ -12,7 +12,7 @@
  */
 import * as THREE from "three";
 import { box, cyl, canvasTexture, roundRect } from "./kit.js";
-import { createCar, createPedestrian, tickCarLights, setCarLightsOff } from "./agents.js";
+import { createCar, createPedestrian, tickCarLights, setCarLightsOff } from "./agents.js?v=20260728m6";
 import {
   STREET,
   roadPolyline,
