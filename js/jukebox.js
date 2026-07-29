@@ -1,8 +1,9 @@
 /**
- * jukebox.js — catalog + real HTMLAudio playback for the interior jukebox.
+ * jukebox.js — GAY-MI catalog + HTMLAudio with a real jukebox queue.
  *
  * Tracks live in data/jukebox.json; audio files under audio/.
- * Browsers require a user gesture to start sound — the jukebox UI provides that.
+ * First selection starts playback; more selections line up and auto-play next.
+ * Browsers require a user gesture for the *first* play.
  */
 
 /**
@@ -15,6 +16,7 @@ export function paintJukeScreen({
   playing = false,
   kind = "main",
   pulse = 0,
+  queueLen = 0,
 } = {}) {
   const w = kind === "main" ? 360 : 320;
   const h = kind === "main" ? 320 : 140;
@@ -24,7 +26,6 @@ export function paintJukeScreen({
   const ctx = c.getContext("2d");
 
   const grad = ctx.createLinearGradient(0, 0, w, h);
-  // Pink → purple → green club palette
   const p = 0.5 + 0.5 * Math.sin(pulse || 0);
   grad.addColorStop(0, playing ? "#0a1830" : `rgb(${20 + p * 30},${8},${40 + p * 20})`);
   grad.addColorStop(0.45, playing ? "#1a0a30" : `rgb(${40 + p * 40},${10},${60})`);
@@ -64,18 +65,19 @@ export function paintJukeScreen({
     ctx.fillText(t, w / 2, h * 0.56);
     ctx.fillStyle = playing ? "#ffe14a" : "#80e8ff";
     ctx.font = "700 15px Outfit, system-ui, sans-serif";
-    ctx.fillText(
-      playing ? artist || "PLAYING INSIDE" : "TAP TO SELECT · $1",
-      w / 2,
-      h * 0.7
-    );
+    let sub = playing ? artist || "PLAYING INSIDE" : "TAP TO SELECT · $1";
+    if (playing && queueLen > 0) sub = `${queueLen} IN QUEUE`;
+    ctx.fillText(sub, w / 2, h * 0.7);
   } else {
     ctx.fillStyle = playing ? "#3dd68c" : "#ff5fa2";
     ctx.font = "800 24px Outfit, system-ui, sans-serif";
     ctx.fillText(playing ? "♪ ON AIR ♫" : "♪ TOUCH TO PLAY ♫", w / 2, h * 0.4);
     ctx.fillStyle = "#c8d0e8";
     ctx.font = "700 15px Outfit, system-ui, sans-serif";
-    let t = title || "GAY-MI  ·  SELECT A TRACK";
+    let t =
+      playing && queueLen > 0
+        ? `+${queueLen} QUEUED`
+        : title || "GAY-MI  ·  SELECT A TRACK";
     if (t.length > 26) t = t.slice(0, 24) + "…";
     ctx.fillText(t, w / 2, h * 0.7);
   }
@@ -83,17 +85,19 @@ export function paintJukeScreen({
 }
 
 /**
- * Catalog + HTMLAudioElement controller.
+ * Catalog + HTMLAudioElement + FIFO selection queue (real jukebox behavior).
  */
 export class JukeboxPlayer {
   /**
    * @param {{
-   *   onChange?: (state: { track: object|null, playing: boolean, error?: string }) => void
+   *   onChange?: (state: object) => void
    * }} [opts]
    */
   constructor(opts = {}) {
     this.onChange = opts.onChange || (() => {});
     this.tracks = [];
+    /** @type {string[]} pending track ids after the current one */
+    this.queue = [];
     this.currentId = null;
     this.audio = new Audio();
     this.audio.preload = "metadata";
@@ -109,23 +113,32 @@ export class JukeboxPlayer {
     this.audio.addEventListener("play", emit);
     this.audio.addEventListener("pause", emit);
     this.audio.addEventListener("ended", () => {
-      // Stay on the track, just stop
-      this._emit();
+      this._advanceQueue();
     });
     this.audio.addEventListener("error", () => {
       this._emit("Could not load track");
     });
   }
 
+  _trackById(id) {
+    return this.tracks.find((t) => t.id === id) || null;
+  }
+
   _emit(error) {
-    const track = this.tracks.find((t) => t.id === this.currentId) || null;
+    const track = this._trackById(this.currentId);
+    const queueTracks = this.queue.map((id) => this._trackById(id)).filter(Boolean);
     this.onChange({
       track,
       playing: !this.audio.paused && !this.audio.ended && !!this.currentId,
       error: error || null,
       currentTime: this.audio.currentTime || 0,
       duration: this.audio.duration || 0,
+      queue: queueTracks,
+      queueIds: this.queue.slice(),
+      /** Last select() result for UI toast */
+      lastAction: this._lastAction || null,
     });
+    this._lastAction = null;
   }
 
   async loadCatalog(url = "data/jukebox.json") {
@@ -142,18 +155,24 @@ export class JukeboxPlayer {
   }
 
   get current() {
-    return this.tracks.find((t) => t.id === this.currentId) || null;
+    return this._trackById(this.currentId);
+  }
+
+  /** True if something is loaded / mid-play (including paused). */
+  get hasActiveSession() {
+    if (!this.currentId) return false;
+    if (this.playing) return true;
+    // Paused mid-track still owns the "now playing" slot
+    return (this.audio.currentTime || 0) > 0.05 && !this.audio.ended;
   }
 
   /**
-   * Play a track by id (or resume current). Must be called from a user gesture.
+   * Start a track immediately (clears nothing in the queue unless replace).
    * @param {string} [id]
    */
   async play(id) {
     const track =
-      (id && this.tracks.find((t) => t.id === id)) ||
-      this.current ||
-      this.tracks[0];
+      (id && this._trackById(id)) || this.current || this.tracks[0];
     if (!track) throw new Error("No tracks in catalog");
 
     if (this.currentId !== track.id) {
@@ -170,24 +189,106 @@ export class JukeboxPlayer {
     this._emit();
   }
 
+  /**
+   * Jukebox selection:
+   *  - If nothing is playing → start this song
+   *  - If something is already on → queue this song for later
+   * @param {string} id
+   * @returns {Promise<{ queued: boolean, position?: number, track: object }>}
+   */
+  async select(id) {
+    const track = this._trackById(id);
+    if (!track) throw new Error("Unknown track");
+
+    // Idle (or fully stopped) → play now
+    if (!this.hasActiveSession && !this.playing) {
+      // Clear stale ended state
+      if (this.audio.ended) {
+        this.audio.currentTime = 0;
+      }
+      this._lastAction = { type: "play", track };
+      await this.play(id);
+      return { queued: false, track };
+    }
+
+    // Already the current song and nothing after? Re-queue for another spin
+    // (classic jukebox lets you pay again for the same track)
+    this.queue.push(id);
+    this._lastAction = {
+      type: "queue",
+      track,
+      position: this.queue.length,
+    };
+    this._emit();
+    return { queued: true, position: this.queue.length, track };
+  }
+
+  /** Advance to next queued track, or go idle. */
+  async _advanceQueue() {
+    if (this.queue.length === 0) {
+      // Stay on last track id but stopped — real jukes go silent
+      this.audio.currentTime = 0;
+      this._emit();
+      return;
+    }
+    const nextId = this.queue.shift();
+    this.currentId = nextId;
+    const track = this._trackById(nextId);
+    if (!track) {
+      // Skip missing entries
+      return this._advanceQueue();
+    }
+    this.audio.src = track.src;
+    this.audio.load();
+    try {
+      await this.audio.play();
+    } catch {
+      // If autoplay fails mid-queue, keep queue and surface error
+      this._emit("Tap play to continue the queue");
+      return;
+    }
+    this._emit();
+  }
+
   pause() {
     this.audio.pause();
     this._emit();
   }
 
-  /** Toggle play/pause for id (or current/first track). */
-  async toggle(id) {
-    if (id && id !== this.currentId) {
-      await this.play(id);
+  /** Toggle play/pause for the current song only (does not alter queue). */
+  async toggle() {
+    if (this.playing) {
+      this.pause();
       return;
     }
-    if (this.playing) this.pause();
-    else await this.play(id || this.currentId);
+    if (this.currentId) {
+      await this.play(this.currentId);
+      return;
+    }
+    if (this.queue.length) {
+      await this._advanceQueue();
+      return;
+    }
+    if (this.tracks[0]) await this.play(this.tracks[0].id);
   }
 
+  /** Stop playback and clear the entire queue. */
   stop() {
     this.audio.pause();
     this.audio.currentTime = 0;
+    this.queue = [];
+    this._emit();
+  }
+
+  /** Remove one upcoming selection (by queue index). */
+  removeFromQueue(index) {
+    if (index < 0 || index >= this.queue.length) return;
+    this.queue.splice(index, 1);
+    this._emit();
+  }
+
+  clearQueue() {
+    this.queue = [];
     this._emit();
   }
 }

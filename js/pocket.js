@@ -11,7 +11,7 @@
  */
 import * as THREE from "three";
 /* Cache-bust local modules so mobile Safari can't serve a half-updated graph. */
-import { ensureSignFonts, canvasTexture } from "./kit.js?v=20260728m10";
+import { ensureSignFonts, canvasTexture } from "./kit.js?v=20260728m17";
 import {
   WX_ICONS,
   TRASH_ICON,
@@ -29,19 +29,19 @@ import {
   moonName,
   moonIllumination,
   moonIcon,
-} from "./icons.js?v=20260728m10";
-import { createStacys } from "./stacys.js?v=20260728m10";
-import { createInterior, WALK as INTERIOR_WALK } from "./interior.js?v=20260728m10";
-import { createStreet, SIDEWALK_INNER_Z } from "./street.js?v=20260728m10";
-import { LifeSystem, crowdFactor } from "./life.js?v=20260728m10";
-import { ChoreSystem } from "./chores.js?v=20260728m10";
-import { MistSystem } from "./mist.js?v=20260728m10";
-import { IncidentSystem } from "./incident.js?v=20260728m10";
-import { RideshareSystem } from "./rideshare.js?v=20260728m10";
-import { UfoSystem } from "./ufo.js?v=20260728m10";
-import { BirdSystem } from "./bird.js?v=20260728m10";
-import { TacoSystem } from "./taco.js?v=20260728m10";
-import { FlickerSystem } from "./flicker.js?v=20260728m10";
+} from "./icons.js?v=20260728m17";
+import { createStacys } from "./stacys.js?v=20260728m17";
+import { createInterior, WALK as INTERIOR_WALK } from "./interior.js?v=20260728m17";
+import { createStreet, SIDEWALK_INNER_Z } from "./street.js?v=20260728m17";
+import { LifeSystem, crowdFactor } from "./life.js?v=20260728m17";
+import { ChoreSystem } from "./chores.js?v=20260728m17";
+import { MistSystem } from "./mist.js?v=20260728m17";
+import { IncidentSystem } from "./incident.js?v=20260728m17";
+import { RideshareSystem } from "./rideshare.js?v=20260728m17";
+import { UfoSystem } from "./ufo.js?v=20260728m17";
+import { BirdSystem } from "./bird.js?v=20260728m17";
+import { TacoSystem } from "./taco.js?v=20260728m17";
+import { FlickerSystem } from "./flicker.js?v=20260728m17";
 import {
   venueNow,
   loadEvents,
@@ -49,8 +49,8 @@ import {
   venueState,
   isOpenNow,
   fetchWeather,
-} from "./venue.js?v=20260728m10";
-import { JukeboxPlayer, paintJukeScreen } from "./jukebox.js?v=20260728m10";
+} from "./venue.js?v=20260728m17";
+import { JukeboxPlayer, paintJukeScreen } from "./jukebox.js?v=20260728m17";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("c");
@@ -1599,10 +1599,13 @@ function enterInterior() {
   cancelFocus();
   setPlayOpen(false);
   // Refresh GAY-MI face + top player if a track is already going
-  if (jukeboxPlayer?.current) {
+  if (jukeboxPlayer?.current || jukeboxPlayer?.queue?.length) {
     paintJukeHud({
       track: jukeboxPlayer.current,
       playing: jukeboxPlayer.playing,
+      queue: (jukeboxPlayer.queue || [])
+        .map((id) => jukeboxPlayer.tracks.find((t) => t.id === id))
+        .filter(Boolean),
     });
   }
   exteriorViewSnapshot = {
@@ -1723,7 +1726,7 @@ function setJukeTopVisible(on) {
   document.body.classList.toggle("juke-playing", !!on);
 }
 
-function updateJukeboxScreens(track, playing) {
+function updateJukeboxScreens(track, playing, queueLen = 0) {
   const juke = interior?.userData?.jukebox;
   if (!juke) return;
   const title = track?.title || "MAKE A SELECTION";
@@ -1736,6 +1739,7 @@ function updateJukeboxScreens(track, playing) {
       playing,
       kind,
       pulse: jukeScreenPulseT,
+      queueLen,
     });
     const old = mesh.material.map;
     mesh.material.map = canvasTexture(canvas, 2);
@@ -1756,8 +1760,11 @@ function renderJukeList() {
     b.type = "button";
     b.className = "juke-track";
     b.dataset.id = t.id;
-    if (jukeboxPlayer.currentId === t.id) b.classList.add("active");
+    if (jukeboxPlayer.currentId === t.id && jukeboxPlayer.hasActiveSession) {
+      b.classList.add("active");
+    }
     const code = t.note || `A${i + 1}`;
+    const queuedN = jukeboxPlayer.queue.filter((id) => id === t.id).length;
     b.innerHTML =
       `<span class="juke-track-ico" aria-hidden="true"></span>` +
       `<span class="juke-track-meta">` +
@@ -1766,12 +1773,23 @@ function renderJukeList() {
       `</span>`;
     b.querySelector(".juke-track-ico").textContent = code;
     b.querySelector(".juke-track-title").textContent = t.title || t.id;
-    b.querySelector(".juke-track-sub").textContent =
-      t.artist || "Select to play on the house system";
+    let sub = t.artist || "Select · queues if busy";
+    if (jukeboxPlayer.currentId === t.id && jukeboxPlayer.hasActiveSession) {
+      sub = jukeboxPlayer.playing ? "Now playing" : "Paused";
+      if (queuedN) sub += ` · +${queuedN} in queue`;
+    } else if (queuedN) {
+      sub = `${queuedN} in queue`;
+    }
+    b.querySelector(".juke-track-sub").textContent = sub;
     b.onclick = async () => {
       try {
-        await jukeboxPlayer.play(t.id);
-        setJukeboxOpen(false);
+        const result = await jukeboxPlayer.select(t.id);
+        // Stay open so you can queue more; toast confirms
+        showJukeToast(
+          result.queued
+            ? `Queued #${result.position}: ${result.track.title}`
+            : `Now playing: ${result.track.title}`
+        );
       } catch {
         /* onChange surfaces errors */
       }
@@ -1781,16 +1799,56 @@ function renderJukeList() {
   });
 }
 
+function renderJukeQueue(queue = []) {
+  const panel = $("juke-queue-panel");
+  const ol = $("juke-queue-list");
+  if (!panel || !ol) return;
+  if (!queue.length) {
+    panel.hidden = true;
+    ol.replaceChildren();
+    return;
+  }
+  panel.hidden = false;
+  ol.replaceChildren();
+  queue.forEach((t, i) => {
+    const li = document.createElement("li");
+    li.textContent = `${i + 1}. ${t.title || t.id}`;
+    if (t.note) {
+      const code = document.createElement("span");
+      code.textContent = t.note;
+      li.appendChild(code);
+    }
+    ol.appendChild(li);
+  });
+}
+
+let jukeToastTimer = null;
+function showJukeToast(msg) {
+  const el = $("juke-toast");
+  if (!el || !msg) return;
+  el.textContent = msg;
+  el.hidden = false;
+  if (jukeToastTimer) clearTimeout(jukeToastTimer);
+  jukeToastTimer = setTimeout(() => {
+    el.hidden = true;
+    jukeToastTimer = null;
+  }, 2200);
+}
+
 function paintJukeHud(state) {
   const track = state?.track;
   const playing = !!state?.playing;
+  const queue = state?.queue || [];
   const hasTrack = !!track;
+  const session =
+    hasTrack &&
+    (playing || (jukeboxPlayer?.audio?.currentTime || 0) > 0.05 || queue.length > 0);
 
-  // Top mini player — visible whenever a track is loaded (playing or paused mid-song)
-  const showTop = hasTrack && (playing || (jukeboxPlayer?.audio?.currentTime || 0) > 0.05);
-  setJukeTopVisible(showTop && insideMode);
+  // Top mini player while a song or queue is active
+  setJukeTopVisible(session && insideMode);
   const topTitle = $("juke-top-title");
   const topNote = $("juke-top-note");
+  const topNext = $("juke-top-next");
   const topPause = $("juke-top-pause");
   if (topTitle) topTitle.textContent = track?.title || "—";
   if (topNote) {
@@ -1798,7 +1856,22 @@ function paintJukeHud(state) {
       ? state.error
       : playing
         ? "Playing inside"
-        : "Paused · playing inside";
+        : track
+          ? "Paused · playing inside"
+          : "Queue ready";
+  }
+  if (topNext) {
+    if (queue.length) {
+      const n = queue[0];
+      topNext.hidden = false;
+      topNext.textContent =
+        queue.length === 1
+          ? `Up next: ${n.title}`
+          : `Up next: ${n.title} · +${queue.length - 1} more`;
+    } else {
+      topNext.hidden = true;
+      topNext.textContent = "";
+    }
   }
   if (topPause) {
     topPause.textContent = playing ? "❚❚" : "▶";
@@ -1810,14 +1883,17 @@ function paintJukeHud(state) {
   if (hint) {
     hint.textContent = state?.error
       ? state.error
-      : "Make a selection · plays on the house system";
+      : playing
+        ? "More selections join the queue"
+        : "First pick plays · more picks line up";
   }
 
-  for (const b of document.querySelectorAll(".juke-track")) {
-    b.classList.toggle("active", b.dataset.id === track?.id);
-  }
+  renderJukeQueue(queue);
+  // Rebuild list so “in queue” counts stay accurate
+  if ($("juke-list")?.children?.length) renderJukeList();
+  else if (jukeboxPlayer?.tracks?.length) renderJukeList();
 
-  updateJukeboxScreens(track, playing);
+  updateJukeboxScreens(track, playing, queue.length);
   updateJukeProgress();
 }
 
@@ -1880,7 +1956,7 @@ function wireJukebox() {
     .loadCatalog("data/jukebox.json")
     .then(() => {
       renderJukeList();
-      paintJukeHud({ track: null, playing: false });
+      paintJukeHud({ track: null, playing: false, queue: [] });
     })
     .catch(() => {
       const hint = $("juke-hint");
@@ -1892,10 +1968,14 @@ function wireJukebox() {
 
   $("juke-top-pause")?.addEventListener("click", async () => {
     try {
-      await jukeboxPlayer?.toggle(jukeboxPlayer.currentId);
+      await jukeboxPlayer?.toggle();
     } catch {
       /* ignore */
     }
+  });
+  $("juke-queue-clear")?.addEventListener("click", () => {
+    jukeboxPlayer?.clearQueue();
+    showJukeToast("Queue cleared");
   });
 
   // Click the 3D GAY-MI screen to open the picker (ignore drags)

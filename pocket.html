@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/pocket.css?v=20260728m16">
+<link rel="stylesheet" href="css/pocket.css?v=20260728m17">
 <script type="importmap">
 {
   "imports": {
@@ -192,6 +192,7 @@
       <span class="juke-top-title" id="juke-top-title">Starstruck</span>
     </div>
     <div class="juke-top-note" id="juke-top-note">Playing inside</div>
+    <div class="juke-top-next" id="juke-top-next" hidden></div>
     <div class="juke-progress" id="juke-progress" aria-hidden="true">
       <div class="juke-progress-fill" id="juke-progress-fill"></div>
       <div class="juke-progress-cursor" id="juke-progress-cursor"></div>
@@ -210,9 +211,17 @@
     </div>
     <button id="jukebox-close" type="button" aria-label="Close GAY-MI">&times;</button>
   </header>
-  <div class="gaymi-credit">$1 · MAKE A SELECTION</div>
+  <div class="gaymi-credit">$1 · MAKE A SELECTION · QUEUES LIKE A REAL JUKE</div>
+  <div class="juke-queue-panel" id="juke-queue-panel" hidden>
+    <div class="juke-queue-head">
+      <span>UP NEXT</span>
+      <button type="button" id="juke-queue-clear" class="juke-queue-clear">Clear</button>
+    </div>
+    <ol class="juke-queue-list" id="juke-queue-list" aria-label="Queued songs"></ol>
+  </div>
   <ul class="juke-list" id="juke-list" aria-label="Song selections"></ul>
-  <p class="juke-hint" id="juke-hint">Tap a selection to play on the house system</p>
+  <p class="juke-hint" id="juke-hint">First pick plays · more picks line up in the queue</p>
+  <p class="juke-toast" id="juke-toast" hidden aria-live="polite"></p>
 </div>
 
 <!-- Interior walk HUD — dual sticks on mobile (Move L / Look R); desktop = WASD + drag -->
@@ -276,6 +285,6 @@
   </div>
 </div>
 
-<script type="module" src="js/pocket.js?v=20260728m16"></script>
+<script type="module" src="js/pocket.js?v=20260728m17"></script>
 </body>
 </html>
