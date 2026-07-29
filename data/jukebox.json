@@ -1,0 +1,13 @@
+{
+  "venue": "Stacy's @ Melrose",
+  "tracks": [
+    {
+      "id": "starstruck",
+      "title": "Starstruck",
+      "artist": "Stacy's",
+      "album": "Suno",
+      "src": "audio/Starstruck.mp3",
+      "note": "Made on Suno"
+    }
+  ]
+}

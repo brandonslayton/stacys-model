@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/pocket.css?v=20260728m8">
+<link rel="stylesheet" href="css/pocket.css?v=20260728m9">
 <script type="importmap">
 {
   "imports": {
@@ -183,6 +183,27 @@
 <!-- Glass hover tip (desktop) -->
 <div id="ctrl-tip" hidden></div>
 
+<!-- Interior jukebox catalog + player (real audio) -->
+<div id="jukebox-veil" hidden></div>
+<div id="jukebox-sheet" role="dialog" aria-label="Jukebox" aria-modal="true" aria-hidden="true" hidden>
+  <div class="play-handle" aria-hidden="true"></div>
+  <header class="play-head">
+    <h2 class="play-title">♪ Jukebox</h2>
+    <button id="jukebox-close" type="button" aria-label="Close jukebox">&times;</button>
+  </header>
+  <div class="juke-now" id="juke-now">
+    <div class="juke-now-label" id="juke-now-label">Ready</div>
+    <div class="juke-now-title" id="juke-now-title">Pick a track</div>
+    <div class="juke-now-artist" id="juke-now-artist">Stacy's @ Melrose</div>
+  </div>
+  <div class="juke-controls">
+    <button id="juke-play" type="button" class="juke-play-btn" aria-label="Play or pause">Play</button>
+    <button id="juke-stop" type="button" class="juke-stop-btn" aria-label="Stop">Stop</button>
+  </div>
+  <ul class="juke-list" id="juke-list" aria-label="Song catalog"></ul>
+  <p class="juke-hint" id="juke-hint">Tap a song to play · audio needs a tap to start</p>
+</div>
+
 <!-- Interior walk HUD — dual sticks on mobile (Move L / Look R); desktop = WASD + drag -->
 <div id="inside-hud" hidden aria-hidden="true">
   <!-- Move joystick (bottom-left). Follows thumb origin for easier control. -->
@@ -199,11 +220,15 @@
     <span class="hud-stick-label">Look</span>
   </div>
 
-  <!-- Bottom action bar: Lot / Office -->
+  <!-- Bottom action bar: Lot / Jukebox / Office -->
   <nav id="inside-bar" aria-label="Interior actions">
     <button id="exit-inside" type="button" aria-label="Back to the lot">
       <span class="ibar-ico" aria-hidden="true">←</span>
       <span class="ibar-txt">Lot</span>
+    </button>
+    <button id="jukebox-btn" type="button" aria-label="Open jukebox" aria-expanded="false" aria-controls="jukebox-sheet">
+      <span class="ibar-ico" aria-hidden="true">♪</span>
+      <span class="ibar-txt">Jukebox</span>
     </button>
     <button id="office" type="button" aria-label="Manager office" aria-pressed="false">
       <span class="ibar-ico" aria-hidden="true">⌂</span>
@@ -244,6 +269,6 @@
   </div>
 </div>
 
-<script type="module" src="js/pocket.js?v=20260728m8"></script>
+<script type="module" src="js/pocket.js?v=20260728m9"></script>
 </body>
 </html>

@@ -3175,6 +3175,11 @@ function buildAmiJukebox(nightMats, lit) {
   stripUi.position.set(0, bodyY - 0.18, fz + 0.05);
   g.add(stripUi);
 
+  // For real audio jukebox — update these maps when a track plays
+  g.userData.kind = "jukebox";
+  g.userData.mainUi = mainUi;
+  g.userData.stripUi = stripUi;
+
   // Bill acceptor with glowing $
   const bill = box(0.22, 0.1, 0.08, 0x1a1a22, { metalness: 0.35, roughness: 0.4 });
   bill.position.set(-0.18, bodyY - 0.36, fz + 0.02);
@@ -4824,6 +4829,7 @@ export function createInterior() {
     juke.rotation.y = Math.PI / 2;
     juke.position.set(x + 0.12, 0, jukeZ);
     add(juke);
+    g.userData.jukebox = juke;
     solidAt(x + 0.28, jukeZ, 0.3, 0.36);
     const jukeWash = new THREE.PointLight(0x40e0ff, 0.5, 4.5, 2);
     jukeWash.position.set(x + 0.7, 1.4, jukeZ);

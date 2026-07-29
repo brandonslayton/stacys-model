@@ -11,7 +11,7 @@
  */
 import * as THREE from "three";
 /* Cache-bust local modules so mobile Safari can't serve a half-updated graph. */
-import { ensureSignFonts } from "./kit.js?v=20260728m8";
+import { ensureSignFonts, canvasTexture } from "./kit.js?v=20260728m9";
 import {
   WX_ICONS,
   TRASH_ICON,
@@ -29,19 +29,19 @@ import {
   moonName,
   moonIllumination,
   moonIcon,
-} from "./icons.js?v=20260728m8";
-import { createStacys } from "./stacys.js?v=20260728m8";
-import { createInterior, WALK as INTERIOR_WALK } from "./interior.js?v=20260728m8";
-import { createStreet, SIDEWALK_INNER_Z } from "./street.js?v=20260728m8";
-import { LifeSystem, crowdFactor } from "./life.js?v=20260728m8";
-import { ChoreSystem } from "./chores.js?v=20260728m8";
-import { MistSystem } from "./mist.js?v=20260728m8";
-import { IncidentSystem } from "./incident.js?v=20260728m8";
-import { RideshareSystem } from "./rideshare.js?v=20260728m8";
-import { UfoSystem } from "./ufo.js?v=20260728m8";
-import { BirdSystem } from "./bird.js?v=20260728m8";
-import { TacoSystem } from "./taco.js?v=20260728m8";
-import { FlickerSystem } from "./flicker.js?v=20260728m8";
+} from "./icons.js?v=20260728m9";
+import { createStacys } from "./stacys.js?v=20260728m9";
+import { createInterior, WALK as INTERIOR_WALK } from "./interior.js?v=20260728m9";
+import { createStreet, SIDEWALK_INNER_Z } from "./street.js?v=20260728m9";
+import { LifeSystem, crowdFactor } from "./life.js?v=20260728m9";
+import { ChoreSystem } from "./chores.js?v=20260728m9";
+import { MistSystem } from "./mist.js?v=20260728m9";
+import { IncidentSystem } from "./incident.js?v=20260728m9";
+import { RideshareSystem } from "./rideshare.js?v=20260728m9";
+import { UfoSystem } from "./ufo.js?v=20260728m9";
+import { BirdSystem } from "./bird.js?v=20260728m9";
+import { TacoSystem } from "./taco.js?v=20260728m9";
+import { FlickerSystem } from "./flicker.js?v=20260728m9";
 import {
   venueNow,
   loadEvents,
@@ -49,7 +49,8 @@ import {
   venueState,
   isOpenNow,
   fetchWeather,
-} from "./venue.js?v=20260728m8";
+} from "./venue.js?v=20260728m9";
+import { JukeboxPlayer, paintJukeScreen } from "./jukebox.js?v=20260728m9";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("c");
@@ -1653,6 +1654,7 @@ function showInsideHud(on) {
 function exitInterior() {
   if (!insideMode) return;
   if (officeMode) exitOffice();
+  setJukeboxOpen(false);
   insideMode = false;
   keysDown.clear();
   stick.x = 0;
@@ -1683,6 +1685,152 @@ function exitInterior() {
   idleAt = performance.now();
 }
 
+// ---------------------------------------------------------------- jukebox (real audio)
+let jukeboxOpen = false;
+/** @type {JukeboxPlayer | null} */
+let jukeboxPlayer = null;
+
+function setJukeboxOpen(on) {
+  const next = !!on && insideMode;
+  jukeboxOpen = next;
+  const sheet = $("jukebox-sheet");
+  const veil = $("jukebox-veil");
+  const btn = $("jukebox-btn");
+  if (sheet) {
+    sheet.hidden = !next;
+    sheet.setAttribute("aria-hidden", next ? "false" : "true");
+  }
+  if (veil) veil.hidden = !next;
+  if (btn) {
+    btn.setAttribute("aria-expanded", next ? "true" : "false");
+    btn.classList.toggle("on", next);
+  }
+}
+
+function updateJukeboxScreens(track, playing) {
+  const juke = interior?.userData?.jukebox;
+  if (!juke) return;
+  const title = track?.title || "PICK A BOP";
+  const artist = track?.artist || "";
+  const apply = (mesh, kind) => {
+    if (!mesh?.material) return;
+    const canvas = paintJukeScreen({ title, artist, playing, kind });
+    const old = mesh.material.map;
+    mesh.material.map = canvasTexture(canvas, 2);
+    mesh.material.needsUpdate = true;
+    old?.dispose?.();
+  };
+  apply(juke.userData.mainUi, "main");
+  apply(juke.userData.stripUi, "strip");
+}
+
+function renderJukeList() {
+  const list = $("juke-list");
+  if (!list || !jukeboxPlayer) return;
+  list.replaceChildren();
+  for (const t of jukeboxPlayer.tracks) {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "juke-track";
+    b.dataset.id = t.id;
+    if (jukeboxPlayer.currentId === t.id) b.classList.add("active");
+    b.innerHTML =
+      `<span class="juke-track-ico" aria-hidden="true">♪</span>` +
+      `<span class="juke-track-meta">` +
+      `<span class="juke-track-title"></span>` +
+      `<span class="juke-track-sub"></span>` +
+      `</span>`;
+    b.querySelector(".juke-track-title").textContent = t.title || t.id;
+    b.querySelector(".juke-track-sub").textContent =
+      [t.artist, t.note].filter(Boolean).join(" · ") || "Tap to play";
+    b.onclick = async () => {
+      try {
+        await jukeboxPlayer.toggle(t.id);
+      } catch {
+        /* gesture / load errors surfaced via onChange */
+      }
+    };
+    li.appendChild(b);
+    list.appendChild(li);
+  }
+}
+
+function paintJukeHud(state) {
+  const now = $("juke-now");
+  const label = $("juke-now-label");
+  const title = $("juke-now-title");
+  const artist = $("juke-now-artist");
+  const playBtn = $("juke-play");
+  const hint = $("juke-hint");
+  const track = state?.track;
+  const playing = !!state?.playing;
+
+  if (now) now.classList.toggle("playing", playing);
+  if (label) label.textContent = playing ? "Now playing" : state?.error ? "Error" : "Ready";
+  if (title) title.textContent = track?.title || "Pick a track";
+  if (artist) {
+    artist.textContent = state?.error
+      ? state.error
+      : track
+        ? [track.artist, track.note].filter(Boolean).join(" · ")
+        : "Stacy's @ Melrose";
+  }
+  if (playBtn) {
+    playBtn.textContent = playing ? "Pause" : "Play";
+    playBtn.classList.toggle("playing", playing);
+  }
+  if (hint) {
+    hint.textContent = state?.error
+      ? state.error
+      : playing
+        ? "Playing inside the club — close this sheet anytime"
+        : "Tap a song to play · browsers need a tap to start audio";
+  }
+
+  // Highlight active row
+  for (const b of document.querySelectorAll(".juke-track")) {
+    b.classList.toggle("active", b.dataset.id === track?.id);
+  }
+
+  updateJukeboxScreens(track, playing);
+}
+
+function wireJukebox() {
+  jukeboxPlayer = new JukeboxPlayer({
+    onChange: (state) => paintJukeHud(state),
+  });
+  jukeboxPlayer
+    .loadCatalog("data/jukebox.json")
+    .then(() => {
+      renderJukeList();
+      paintJukeHud({ track: null, playing: false });
+    })
+    .catch(() => {
+      const hint = $("juke-hint");
+      if (hint) hint.textContent = "Could not load jukebox catalog";
+    });
+
+  const btn = $("jukebox-btn");
+  const close = $("jukebox-close");
+  const veil = $("jukebox-veil");
+  btn?.addEventListener("click", () => {
+    if (!insideMode) return;
+    setJukeboxOpen(!jukeboxOpen);
+  });
+  close?.addEventListener("click", () => setJukeboxOpen(false));
+  veil?.addEventListener("click", () => setJukeboxOpen(false));
+
+  $("juke-play")?.addEventListener("click", async () => {
+    try {
+      await jukeboxPlayer.toggle(jukeboxPlayer.currentId || jukeboxPlayer.tracks[0]?.id);
+    } catch {
+      /* onChange shows error */
+    }
+  });
+  $("juke-stop")?.addEventListener("click", () => jukeboxPlayer?.stop());
+}
+
 function wireInsideButton() {
   const btn = $("inside");
   if (!btn) return;
@@ -1690,6 +1838,7 @@ function wireInsideButton() {
   btn.onclick = () => {
     if (enterLoadPending) return;
     setPlayOpen(false);
+    setJukeboxOpen(false);
     if (insideMode) exitInterior();
     else enterInteriorWithLoader();
   };
@@ -1697,18 +1846,27 @@ function wireInsideButton() {
   if (exitBtn) {
     exitBtn.onclick = () => {
       if (officeMode) exitOffice();
+      setJukeboxOpen(false);
       exitInterior();
     };
   }
   const officeBtn = $("office");
   if (officeBtn) {
-    officeBtn.onclick = () => toggleOffice();
+    officeBtn.onclick = () => {
+      setJukeboxOpen(false);
+      toggleOffice();
+    };
   }
+  wireJukebox();
   wireVirtualSticks();
   window.addEventListener("keydown", (e) => {
     if (!insideMode) return;
     if (e.code === "Escape") {
       e.preventDefault();
+      if (jukeboxOpen) {
+        setJukeboxOpen(false);
+        return;
+      }
       if (officeMode) exitOffice();
       else exitInterior();
     }

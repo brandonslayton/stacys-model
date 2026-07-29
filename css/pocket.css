@@ -569,6 +569,214 @@ body { user-select: none; -webkit-user-select: none; }
   outline-offset: 1px;
 }
 
+/* ---------------------------------------------------------------- jukebox sheet
+   Interior catalog + real audio player (Suno tracks, etc.) */
+#jukebox-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 34;
+  background: rgba(8, 6, 16, 0.5);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: auto;
+}
+#jukebox-veil:not([hidden]) {
+  opacity: 1;
+}
+#jukebox-veil[hidden] {
+  display: none !important;
+}
+
+#jukebox-sheet {
+  position: fixed;
+  left: 50%;
+  bottom: max(76px, calc(env(safe-area-inset-bottom) + 64px));
+  transform: translateX(-50%) translateY(12px);
+  z-index: 35;
+  width: min(400px, calc(100vw - 20px));
+  max-height: min(62vh, 480px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 14px 16px;
+  border-radius: 22px;
+  background: rgba(14, 12, 26, 0.94);
+  border: 1px solid rgba(255, 95, 162, 0.22);
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(96, 232, 255, 0.08);
+  backdrop-filter: blur(22px) saturate(150%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.22s cubic-bezier(0.2, 0.9, 0.2, 1);
+  pointer-events: auto;
+}
+#jukebox-sheet:not([hidden]) {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+#jukebox-sheet[hidden] {
+  display: none !important;
+}
+
+.juke-now {
+  margin: 4px 2px 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(20, 40, 80, 0.65), rgba(60, 16, 48, 0.55));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.juke-now-label {
+  font: 700 11px/1.2 "Outfit", system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cool);
+  margin-bottom: 4px;
+}
+.juke-now.playing .juke-now-label {
+  color: #3dd68c;
+}
+.juke-now-title {
+  font: 800 18px/1.2 "Outfit", system-ui, sans-serif;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+}
+.juke-now-artist {
+  margin-top: 4px;
+  font: 600 13px/1.3 "DM Sans", system-ui, sans-serif;
+  color: var(--dim);
+}
+
+.juke-controls {
+  display: flex;
+  gap: 8px;
+  margin: 0 2px 12px;
+}
+.juke-play-btn,
+.juke-stop-btn {
+  flex: 1;
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font: 700 14px/1 "Outfit", system-ui, sans-serif;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.juke-play-btn {
+  color: #0e1a12;
+  background: var(--cool);
+  border-color: transparent;
+}
+.juke-play-btn.playing {
+  background: var(--hot);
+  color: #2a1c06;
+}
+.juke-stop-btn {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.1);
+}
+.juke-play-btn:active,
+.juke-stop-btn:active {
+  transform: scale(0.97);
+}
+
+.juke-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.juke-list li {
+  margin: 0;
+}
+.juke-track {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  min-height: 56px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.juke-track:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+.juke-track.active {
+  border-color: rgba(96, 232, 255, 0.45);
+  background: rgba(96, 232, 255, 0.12);
+}
+.juke-track-ico {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(255, 95, 162, 0.2);
+  color: #ff8ec4;
+  font: 800 18px/1 "Outfit", system-ui, sans-serif;
+}
+.juke-track.active .juke-track-ico {
+  background: rgba(61, 214, 140, 0.25);
+  color: #3dd68c;
+}
+.juke-track-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.juke-track-title {
+  font: 700 14px/1.2 "Outfit", system-ui, sans-serif;
+}
+.juke-track-sub {
+  font: 500 12px/1.3 "DM Sans", system-ui, sans-serif;
+  color: var(--dim);
+}
+
+.juke-hint {
+  margin: 12px 4px 0;
+  font: 500 11px/1.35 "DM Sans", system-ui, sans-serif;
+  color: var(--dim);
+  text-align: center;
+}
+
+@media (max-width: 699px) {
+  #jukebox-sheet {
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: none;
+    bottom: 0;
+    transform: translateY(108%);
+    border-radius: 22px 22px 0 0;
+    max-height: min(70vh, 520px);
+    padding-bottom: max(18px, env(safe-area-inset-bottom));
+  }
+  #jukebox-sheet:not([hidden]) {
+    transform: translateY(0);
+  }
+}
+
+#jukebox-btn.on,
+#jukebox-btn[aria-expanded="true"] {
+  color: #0e1c24;
+  background: var(--cool);
+  border-color: transparent;
+}
+
 .play-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
