@@ -11,7 +11,7 @@
  */
 import * as THREE from "three";
 /* Cache-bust local modules so mobile Safari can't serve a half-updated graph. */
-import { ensureSignFonts } from "./kit.js?v=20260728m7";
+import { ensureSignFonts } from "./kit.js?v=20260728m8";
 import {
   WX_ICONS,
   TRASH_ICON,
@@ -29,19 +29,19 @@ import {
   moonName,
   moonIllumination,
   moonIcon,
-} from "./icons.js?v=20260728m7";
-import { createStacys } from "./stacys.js?v=20260728m7";
-import { createInterior, WALK as INTERIOR_WALK } from "./interior.js?v=20260728m7";
-import { createStreet, SIDEWALK_INNER_Z } from "./street.js?v=20260728m7";
-import { LifeSystem, crowdFactor } from "./life.js?v=20260728m7";
-import { ChoreSystem } from "./chores.js?v=20260728m7";
-import { MistSystem } from "./mist.js?v=20260728m7";
-import { IncidentSystem } from "./incident.js?v=20260728m7";
-import { RideshareSystem } from "./rideshare.js?v=20260728m7";
-import { UfoSystem } from "./ufo.js?v=20260728m7";
-import { BirdSystem } from "./bird.js?v=20260728m7";
-import { TacoSystem } from "./taco.js?v=20260728m7";
-import { FlickerSystem } from "./flicker.js?v=20260728m7";
+} from "./icons.js?v=20260728m8";
+import { createStacys } from "./stacys.js?v=20260728m8";
+import { createInterior, WALK as INTERIOR_WALK } from "./interior.js?v=20260728m8";
+import { createStreet, SIDEWALK_INNER_Z } from "./street.js?v=20260728m8";
+import { LifeSystem, crowdFactor } from "./life.js?v=20260728m8";
+import { ChoreSystem } from "./chores.js?v=20260728m8";
+import { MistSystem } from "./mist.js?v=20260728m8";
+import { IncidentSystem } from "./incident.js?v=20260728m8";
+import { RideshareSystem } from "./rideshare.js?v=20260728m8";
+import { UfoSystem } from "./ufo.js?v=20260728m8";
+import { BirdSystem } from "./bird.js?v=20260728m8";
+import { TacoSystem } from "./taco.js?v=20260728m8";
+import { FlickerSystem } from "./flicker.js?v=20260728m8";
 import {
   venueNow,
   loadEvents,
@@ -49,7 +49,7 @@ import {
   venueState,
   isOpenNow,
   fetchWeather,
-} from "./venue.js?v=20260728m7";
+} from "./venue.js?v=20260728m8";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("c");

@@ -116,7 +116,9 @@ export function makeCmuBlockTexture(faceHex, mortarHex, liteHex) {
  *
  * The **right** leaf (street view, local +X / south) sits on
  * `streetDoorRightPivot` so life.js can swing it open when guests use the door.
- * Open rotation.y is negative so the free edge swings into the building (−Z).
+ * Open rotation.y is **positive** so the free edge swings **out** onto the porch (+Z).
+ * Behind the leaves is a little “party room” (neon + silhouettes) that brightens
+ * when the door is open.
  *
  * `x` / `z` = door center on the wall, `baseY` = deck height it stands on.
  */
@@ -125,13 +127,15 @@ export function addCarvedDoubleDoor(g, x, z, totalW, totalH, baseY = 0) {
   const mid = 0x422b1c;
   const carveHi = 0x6d4a2e; // warm lit edge of the carving
 
-  // Recessed opening behind the leaves, so gaps read as interior darkness
+  // Recessed opening / jamb
   const jamb = box(totalW + 0.16, totalH + 0.14, 0.08, dark, { roughness: 0.92 });
   jamb.position.set(x, baseY + (totalH + 0.14) / 2, z - 0.03);
   g.add(jamb);
-  const voidBox = box(totalW, totalH, 0.06, 0x0d0a07, { roughness: 0.98 });
-  voidBox.position.set(x, baseY + totalH / 2, z + 0.005);
-  g.add(voidBox);
+
+  // Fun interior peek — neon, disco, dancing silhouettes (ticked from life.js)
+  const party = createStreetDoorParty(x, z, totalW, totalH, baseY);
+  g.add(party.root);
+  g.userData.streetDoorParty = party;
 
   // Surrounding frame
   for (const [fx, fw, fh] of [
@@ -260,8 +264,220 @@ export function addCarvedDoubleDoor(g, x, z, totalW, totalH, baseY = 0) {
   // Metadata for life.js door animation
   g.userData.streetDoorAnim = {
     pivotName: "streetDoorRightPivot",
-    /** Negative Y rotation = free edge swings into the building (−Z). */
-    openAngle: -1.25,
+    /** Positive Y rotation = free edge swings out onto the porch (+Z). */
+    openAngle: 1.28,
+  };
+}
+
+/**
+ * Peek of the club through the open front door: dark room shell, pride neons,
+ * a tiny disco flash, and bobbing crowd silhouettes. `tick(now, open01)` scales
+ * brightness with how far the leaf is open so closed doors stay dark.
+ */
+function createStreetDoorParty(x, z, totalW, totalH, baseY) {
+  const root = new THREE.Group();
+  root.name = "streetDoorParty";
+
+  const roomW = totalW * 0.96;
+  const roomH = totalH * 0.96;
+  const roomD = 1.35;
+  const cx = x;
+  const floorY = baseY + 0.02;
+  const midY = baseY + totalH * 0.5;
+  // Room sits just behind the wall plane (local −Z = into the club)
+  const roomZ = z - roomD * 0.45;
+
+  // Shell
+  const floor = box(roomW, 0.04, roomD, 0x1a1020, {
+    roughness: 0.55,
+    metalness: 0.15,
+    emissive: 0x2a1040,
+    emissiveIntensity: 0.15,
+  });
+  floor.position.set(cx, floorY, roomZ);
+  root.add(floor);
+
+  const ceil = box(roomW, 0.05, roomD, 0x120818, { roughness: 0.9 });
+  ceil.position.set(cx, baseY + totalH - 0.04, roomZ);
+  root.add(ceil);
+
+  const back = box(roomW, roomH, 0.08, 0x0a0610, { roughness: 0.95 });
+  back.position.set(cx, midY, z - roomD + 0.04);
+  root.add(back);
+
+  for (const side of [-1, 1]) {
+    const wall = box(0.06, roomH, roomD, 0x100818, { roughness: 0.92 });
+    wall.position.set(cx + side * (roomW * 0.5 - 0.02), midY, roomZ);
+    root.add(wall);
+  }
+
+  // Warm club wash (always a little there when open)
+  const wash = box(roomW * 0.9, roomH * 0.85, 0.04, 0x2a1040, {
+    roughness: 0.8,
+    emissive: 0x6a2088,
+    emissiveIntensity: 0.2,
+    castShadow: false,
+  });
+  wash.position.set(cx, midY, z - roomD + 0.1);
+  root.add(wash);
+
+  // Pride neon strips along the back wall
+  const pride = [0xff2d55, 0xff8c1a, 0xffe14a, 0x3dd68c, 0x3ca0ff, 0x9b6dff];
+  const neonMats = [];
+  const stripH = roomH * 0.72;
+  const stripY0 = baseY + totalH * 0.18;
+  for (let i = 0; i < pride.length; i++) {
+    const col = pride[i];
+    const strip = box(0.07, stripH / pride.length - 0.02, 0.05, col, {
+      roughness: 0.25,
+      metalness: 0.2,
+      emissive: col,
+      emissiveIntensity: 0.55,
+      castShadow: false,
+    });
+    strip.position.set(
+      cx - roomW * 0.28 + i * (roomW * 0.11),
+      stripY0 + (i + 0.5) * (stripH / pride.length),
+      z - roomD + 0.12
+    );
+    root.add(strip);
+    neonMats.push(strip.material);
+  }
+
+  // Horizontal hot-pink and cyan tubes
+  const pinkTube = box(roomW * 0.7, 0.04, 0.04, 0xff5fa2, {
+    roughness: 0.2,
+    emissive: 0xff4a9a,
+    emissiveIntensity: 0.7,
+    castShadow: false,
+  });
+  pinkTube.position.set(cx, baseY + totalH * 0.78, z - roomD * 0.55);
+  root.add(pinkTube);
+  neonMats.push(pinkTube.material);
+
+  const cyanTube = box(roomW * 0.55, 0.035, 0.035, 0x5ef0ff, {
+    roughness: 0.2,
+    emissive: 0x40e8ff,
+    emissiveIntensity: 0.65,
+    castShadow: false,
+  });
+  cyanTube.position.set(cx + 0.08, baseY + totalH * 0.62, z - roomD * 0.35);
+  root.add(cyanTube);
+  neonMats.push(cyanTube.material);
+
+  // Tiny disco ball
+  const disco = cyl(0.1, 0.1, 0.1, 0xd8e0e8, {
+    roughness: 0.2,
+    metalness: 0.85,
+    emissive: 0x8899aa,
+    emissiveIntensity: 0.35,
+  }, 10);
+  disco.position.set(cx - 0.15, baseY + totalH * 0.82, z - roomD * 0.4);
+  root.add(disco);
+  neonMats.push(disco.material);
+
+  // Floor light bloom (reads as dance-floor spill)
+  const floorGlow = box(roomW * 0.75, 0.02, roomD * 0.7, 0xff40a0, {
+    roughness: 0.4,
+    emissive: 0xff2080,
+    emissiveIntensity: 0.25,
+    castShadow: false,
+  });
+  floorGlow.position.set(cx, floorY + 0.03, roomZ + 0.05);
+  root.add(floorGlow);
+  neonMats.push(floorGlow.material);
+
+  // Crowd silhouettes — dark shapes that bob/sway like dancers
+  const silhouettes = [];
+  const silColors = [0x0a0610, 0x120818, 0x080510];
+  for (let i = 0; i < 5; i++) {
+    const h = 0.55 + (i % 3) * 0.12;
+    const body = box(0.16 + (i % 2) * 0.04, h, 0.12, silColors[i % 3], {
+      roughness: 1,
+      castShadow: false,
+    });
+    const head = cyl(0.07, 0.07, 0.09, silColors[i % 3], { roughness: 1 }, 6);
+    const fig = new THREE.Group();
+    body.position.y = h * 0.5;
+    head.position.y = h + 0.06;
+    fig.add(body);
+    fig.add(head);
+    fig.position.set(
+      cx - 0.35 + i * 0.18,
+      floorY,
+      z - roomD * 0.55 - (i % 2) * 0.15
+    );
+    root.add(fig);
+    silhouettes.push({
+      fig,
+      baseX: fig.position.x,
+      baseZ: fig.position.z,
+      phase: i * 1.3,
+      bob: 0.04 + (i % 3) * 0.015,
+    });
+  }
+
+  // Strobe flash plane (brief white pops)
+  const strobe = box(roomW * 0.85, roomH * 0.7, 0.02, 0xffffff, {
+    roughness: 0.3,
+    emissive: 0xffffff,
+    emissiveIntensity: 0,
+    castShadow: false,
+  });
+  strobe.position.set(cx, midY, z - roomD + 0.14);
+  root.add(strobe);
+
+  // Base emissive values to scale with open amount
+  const baseE = neonMats.map((m) => m.emissiveIntensity);
+  const washBase = wash.material.emissiveIntensity;
+  const floorBase = floor.material.emissiveIntensity;
+
+  return {
+    root,
+    /**
+     * @param {number} now sim seconds
+     * @param {number} open01 0 closed … 1 fully open
+     */
+    tick(now, open01) {
+      const o = THREE.MathUtils.clamp(open01, 0, 1);
+      // Ease so partial open still shows some glow
+      const vis = o * o * (3 - 2 * o);
+      const pulse = 0.85 + 0.15 * Math.sin(now * 4.2);
+      const bass = 0.9 + 0.1 * Math.sin(now * 2.1);
+
+      for (let i = 0; i < neonMats.length; i++) {
+        const mat = neonMats[i];
+        // Slight per-strip phase so colors shimmer differently
+        const ph = 0.9 + 0.12 * Math.sin(now * 3.5 + i * 0.9);
+        mat.emissiveIntensity = baseE[i] * vis * pulse * ph;
+      }
+      wash.material.emissiveIntensity = washBase * vis * bass * 1.4;
+      floor.material.emissiveIntensity = floorBase * vis * bass;
+
+      // Occasional strobe when door is mostly open
+      if (vis > 0.55 && Math.sin(now * 11) > 0.92) {
+        strobe.material.emissiveIntensity = 0.55 * vis;
+      } else {
+        strobe.material.emissiveIntensity = Math.max(
+          0,
+          strobe.material.emissiveIntensity - 0.12
+        );
+      }
+
+      disco.rotation.y = now * 2.4;
+      disco.rotation.x = Math.sin(now * 1.5) * 0.3;
+
+      for (const s of silhouettes) {
+        const t = now * 5.5 + s.phase;
+        s.fig.position.y = floorY + Math.abs(Math.sin(t)) * s.bob;
+        s.fig.position.x = s.baseX + Math.sin(t * 0.7) * 0.04;
+        s.fig.rotation.y = Math.sin(t * 0.5) * 0.35;
+        s.fig.rotation.z = Math.sin(t * 0.9) * 0.08;
+      }
+
+      // Hide silhouettes when fully closed (no z-fighting glow through leaf)
+      root.visible = vis > 0.04;
+    },
   };
 }
 

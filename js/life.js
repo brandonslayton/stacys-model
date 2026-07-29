@@ -188,10 +188,12 @@ export class LifeSystem {
     // Front porch right leaf — swings open when guests use the door
     this.streetDoorPivot = venue.getObjectByName("streetDoorRightPivot");
     const anim = ud.streetDoorAnim || {};
-    this.streetDoorOpenAngle = anim.openAngle ?? -1.25;
+    // Positive = swing out onto the porch (see streetDoorAnim.openAngle)
+    this.streetDoorOpenAngle = anim.openAngle ?? 1.28;
     this.streetDoorAngle = 0;
     this.streetDoorTarget = 0;
     this.streetDoorHoldUntil = 0;
+    this.streetDoorParty = ud.streetDoorParty || null;
 
     this.patioSpots = (access.patio || []).map((p, i) => ({
       key: `patio${i}`,
@@ -598,12 +600,10 @@ export class LifeSystem {
   }
 
   /**
-   * Open the right front leaf when someone is near the porch, and ease it shut
-   * after they clear. Mirrors the north-door animation used by incident/ufo.
+   * Open the right front leaf **outward** when someone is near the porch, ease
+   * it shut after they clear, and drive the party-lights peek inside.
    */
   _tickStreetDoor(dt) {
-    if (!this.streetDoorPivot) return;
-
     let needOpen = false;
     const near = (mesh, r = 1.55) => {
       if (!mesh?.visible) return false;
@@ -655,14 +655,23 @@ export class LifeSystem {
       this.streetDoorTarget = 0;
     }
 
-    const da = this.streetDoorTarget - this.streetDoorAngle;
-    if (Math.abs(da) > 1e-4) {
-      this.streetDoorAngle += da * (1 - Math.exp(-dt * 5.5));
-      this.streetDoorPivot.rotation.y = this.streetDoorAngle;
-    } else {
-      this.streetDoorAngle = this.streetDoorTarget;
-      this.streetDoorPivot.rotation.y = this.streetDoorAngle;
+    if (this.streetDoorPivot) {
+      const da = this.streetDoorTarget - this.streetDoorAngle;
+      if (Math.abs(da) > 1e-4) {
+        this.streetDoorAngle += da * (1 - Math.exp(-dt * 5.5));
+        this.streetDoorPivot.rotation.y = this.streetDoorAngle;
+      } else {
+        this.streetDoorAngle = this.streetDoorTarget;
+        this.streetDoorPivot.rotation.y = this.streetDoorAngle;
+      }
     }
+
+    // 0..1 how far open — feeds neon/disco intensity
+    const open01 =
+      Math.abs(this.streetDoorOpenAngle) > 1e-4
+        ? Math.abs(this.streetDoorAngle / this.streetDoorOpenAngle)
+        : 0;
+    this.streetDoorParty?.tick?.(this.now, open01);
   }
 
   /** Porch door back out to the sidewalk and off-screen. */
