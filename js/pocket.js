@@ -11,7 +11,7 @@
  */
 import * as THREE from "three";
 /* Cache-bust local modules so mobile Safari can't serve a half-updated graph. */
-import { ensureSignFonts } from "./kit.js?v=20260728m2";
+import { ensureSignFonts } from "./kit.js?v=20260728m3";
 import {
   WX_ICONS,
   ROTATE_ICON,
@@ -30,19 +30,19 @@ import {
   moonName,
   moonIllumination,
   moonIcon,
-} from "./icons.js?v=20260728m2";
-import { createStacys } from "./stacys.js?v=20260728m2";
-import { createInterior, WALK as INTERIOR_WALK } from "./interior.js?v=20260728m2";
-import { createStreet, SIDEWALK_INNER_Z } from "./street.js?v=20260728m2";
-import { LifeSystem, crowdFactor } from "./life.js?v=20260728m2";
-import { ChoreSystem } from "./chores.js?v=20260728m2";
-import { MistSystem } from "./mist.js?v=20260728m2";
-import { IncidentSystem } from "./incident.js?v=20260728m2";
-import { RideshareSystem } from "./rideshare.js?v=20260728m2";
-import { UfoSystem } from "./ufo.js?v=20260728m2";
-import { BirdSystem } from "./bird.js?v=20260728m2";
-import { TacoSystem } from "./taco.js?v=20260728m2";
-import { FlickerSystem } from "./flicker.js?v=20260728m2";
+} from "./icons.js?v=20260728m3";
+import { createStacys } from "./stacys.js?v=20260728m3";
+import { createInterior, WALK as INTERIOR_WALK } from "./interior.js?v=20260728m3";
+import { createStreet, SIDEWALK_INNER_Z } from "./street.js?v=20260728m3";
+import { LifeSystem, crowdFactor } from "./life.js?v=20260728m3";
+import { ChoreSystem } from "./chores.js?v=20260728m3";
+import { MistSystem } from "./mist.js?v=20260728m3";
+import { IncidentSystem } from "./incident.js?v=20260728m3";
+import { RideshareSystem } from "./rideshare.js?v=20260728m3";
+import { UfoSystem } from "./ufo.js?v=20260728m3";
+import { BirdSystem } from "./bird.js?v=20260728m3";
+import { TacoSystem } from "./taco.js?v=20260728m3";
+import { FlickerSystem } from "./flicker.js?v=20260728m3";
 import {
   venueNow,
   loadEvents,
@@ -50,7 +50,7 @@ import {
   venueState,
   isOpenNow,
   fetchWeather,
-} from "./venue.js?v=20260728m2";
+} from "./venue.js?v=20260728m3";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("c");
@@ -670,37 +670,47 @@ function stepFp(dt) {
 }
 
 /**
- * Size the WebGL buffer to the *visible* viewport.
+ * Size the WebGL buffer to the canvas's CSS box (full-bleed via CSS inset:0).
  *
- * On mobile, `innerHeight` / layout % can disagree with what the user sees
- * (URL bar, dynamic toolbars). Prefer visualViewport, fall back to inner*,
- * and pin the canvas CSS so the lot paints edge-to-edge with no dead band.
+ * Important: do NOT force canvas height from visualViewport. On iPhone Safari
+ * that value is often shorter than the layout viewport, which left a solid
+ * body-color strip under the dock (the "view ends early" bug in screenshots).
+ * CSS owns geometry; we only match the drawing buffer to the painted box.
  */
-function viewportSize() {
-  const vv = window.visualViewport;
-  if (vv && vv.width > 0 && vv.height > 0) {
-    return {
-      w: Math.max(1, Math.round(vv.width)),
-      h: Math.max(1, Math.round(vv.height)),
-      top: Math.round(vv.offsetTop || 0),
-      left: Math.round(vv.offsetLeft || 0),
-    };
-  }
-  return {
-    w: Math.max(1, Math.round(innerWidth)),
-    h: Math.max(1, Math.round(innerHeight)),
-    top: 0,
-    left: 0,
-  };
-}
-
 function resize() {
-  const { w, h, top, left } = viewportSize();
+  // Drop any previous inline geometry overrides so CSS full-bleed wins.
+  canvas.style.removeProperty("width");
+  canvas.style.removeProperty("height");
+  canvas.style.removeProperty("top");
+  canvas.style.removeProperty("left");
+  canvas.style.removeProperty("right");
+  canvas.style.removeProperty("bottom");
+
+  const rect = canvas.getBoundingClientRect();
+  const w = Math.max(
+    1,
+    Math.round(
+      Math.max(
+        rect.width,
+        canvas.clientWidth,
+        document.documentElement.clientWidth,
+        innerWidth
+      )
+    )
+  );
+  const h = Math.max(
+    1,
+    Math.round(
+      Math.max(
+        rect.height,
+        canvas.clientHeight,
+        document.documentElement.clientHeight,
+        innerHeight
+      )
+    )
+  );
+
   renderer.setSize(w, h, false);
-  canvas.style.width = `${w}px`;
-  canvas.style.height = `${h}px`;
-  canvas.style.top = `${top}px`;
-  canvas.style.left = `${left}px`;
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   computeFit();
@@ -709,6 +719,7 @@ function resize() {
   mistRef?.setProjection(camera.fov, renderer.domElement.height);
 }
 addEventListener("resize", resize);
+// Still listen — URL bar show/hide changes layout; we re-measure the CSS box.
 if (window.visualViewport) {
   visualViewport.addEventListener("resize", resize);
   visualViewport.addEventListener("scroll", resize);
