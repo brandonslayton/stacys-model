@@ -11,7 +11,7 @@
  */
 import * as THREE from "three";
 /* Cache-bust local modules so mobile Safari can't serve a half-updated graph. */
-import { ensureSignFonts } from "./kit.js?v=20260728m4";
+import { ensureSignFonts } from "./kit.js?v=20260728m5";
 import {
   WX_ICONS,
   TRASH_ICON,
@@ -29,19 +29,19 @@ import {
   moonName,
   moonIllumination,
   moonIcon,
-} from "./icons.js?v=20260728m4";
-import { createStacys } from "./stacys.js?v=20260728m4";
-import { createInterior, WALK as INTERIOR_WALK } from "./interior.js?v=20260728m4";
-import { createStreet, SIDEWALK_INNER_Z } from "./street.js?v=20260728m4";
-import { LifeSystem, crowdFactor } from "./life.js?v=20260728m4";
-import { ChoreSystem } from "./chores.js?v=20260728m4";
-import { MistSystem } from "./mist.js?v=20260728m4";
-import { IncidentSystem } from "./incident.js?v=20260728m4";
-import { RideshareSystem } from "./rideshare.js?v=20260728m4";
-import { UfoSystem } from "./ufo.js?v=20260728m4";
-import { BirdSystem } from "./bird.js?v=20260728m4";
-import { TacoSystem } from "./taco.js?v=20260728m4";
-import { FlickerSystem } from "./flicker.js?v=20260728m4";
+} from "./icons.js?v=20260728m5";
+import { createStacys } from "./stacys.js?v=20260728m5";
+import { createInterior, WALK as INTERIOR_WALK } from "./interior.js?v=20260728m5";
+import { createStreet, SIDEWALK_INNER_Z } from "./street.js?v=20260728m5";
+import { LifeSystem, crowdFactor } from "./life.js?v=20260728m5";
+import { ChoreSystem } from "./chores.js?v=20260728m5";
+import { MistSystem } from "./mist.js?v=20260728m5";
+import { IncidentSystem } from "./incident.js?v=20260728m5";
+import { RideshareSystem } from "./rideshare.js?v=20260728m5";
+import { UfoSystem } from "./ufo.js?v=20260728m5";
+import { BirdSystem } from "./bird.js?v=20260728m5";
+import { TacoSystem } from "./taco.js?v=20260728m5";
+import { FlickerSystem } from "./flicker.js?v=20260728m5";
 import {
   venueNow,
   loadEvents,
@@ -49,7 +49,7 @@ import {
   venueState,
   isOpenNow,
   fetchWeather,
-} from "./venue.js?v=20260728m4";
+} from "./venue.js?v=20260728m5";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("c");
@@ -1412,33 +1412,65 @@ function wireUfoButton(ufo) {
 }
 
 /**
- * Pigeon flyby — one-shot arc over the property to tune model + flight.
+ * Pigeon scenes — flyby arc, or roof perch (land, look, hop, takeoff).
  * Soft camera follow so it stays readable on a phone.
  */
-function wireBirdButton(bird) {
-  const btn = $("bird");
-  setBtnIcon(btn, BIRD_ICON);
-  btn.onclick = () => {
-    if (!bird.start()) return;
-    setPlayOpen(false);
-    showActionToast("Pigeon flyby…");
-    beginFollow(() => bird.followPoint?.(), {
-      az: 48,
-      el: 28,
-      zoom: 0.55,
-    });
-    btn.disabled = true;
+function wireBirdButtons(bird) {
+  const flyBtn = $("bird");
+  const perchBtn = $("bird-perch");
+  setBtnIcon(flyBtn, BIRD_ICON);
+  if (perchBtn) setBtnIcon(perchBtn, BIRD_ICON);
+
+  const lock = () => {
+    if (flyBtn) flyBtn.disabled = true;
+    if (perchBtn) perchBtn.disabled = true;
     const release = () => {
       if (bird.busy) {
         requestAnimationFrame(release);
         return;
       }
-      btn.disabled = false;
-      btn.classList.add("done");
-      setTimeout(() => btn.classList.remove("done"), 900);
+      if (flyBtn) {
+        flyBtn.disabled = false;
+        flyBtn.classList.add("done");
+        setTimeout(() => flyBtn.classList.remove("done"), 900);
+      }
+      if (perchBtn) {
+        perchBtn.disabled = false;
+        perchBtn.classList.add("done");
+        setTimeout(() => perchBtn.classList.remove("done"), 900);
+      }
     };
     requestAnimationFrame(release);
   };
+
+  if (flyBtn) {
+    flyBtn.onclick = () => {
+      if (!bird.start()) return;
+      setPlayOpen(false);
+      showActionToast("Pigeon flyby…");
+      beginFollow(() => bird.followPoint?.(), {
+        az: 48,
+        el: 28,
+        zoom: 0.55,
+      });
+      lock();
+    };
+  }
+
+  if (perchBtn) {
+    perchBtn.onclick = () => {
+      if (!bird.startPerch()) return;
+      setPlayOpen(false);
+      showActionToast("Pigeon landing on the roof…");
+      // Higher elevation so the ridge + hops read on a phone
+      beginFollow(() => bird.followPoint?.(), {
+        az: 42,
+        el: 34,
+        zoom: 0.48,
+      });
+      lock();
+    };
+  }
 }
 
 /**
@@ -1815,7 +1847,7 @@ async function boot() {
   wireTacoButton(taco);
   wireRideButtons(rideshare);
   wireUfoButton(ufo);
-  wireBirdButton(bird);
+  wireBirdButtons(bird);
   outdoor = {
     life,
     hideRoots: [life, chores, incident, rideshare, ufo, bird, taco, mist],

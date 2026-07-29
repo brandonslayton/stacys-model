@@ -50,7 +50,8 @@ no lost camera position.
 | Gaymo pickup | Play sheet — explicit pickup action |
 | Gaymo drop-off | Play sheet — explicit drop-off (no hold/double-tap) |
 | UFO abduction | Play sheet |
-| Pigeon flyby | Play sheet |
+| Pigeon flyby | Play sheet — one arc over the property |
+| Pigeon perch | Play sheet — lands on the ridge, looks around, hops, takes off |
 
 Tapping the trash can sends a worker out of the porch with a bag, up the parking
 aisle, and into the dumpster — which reacts with a heart. The camera eases round to

@@ -655,7 +655,8 @@ body { user-select: none; -webkit-user-select: none; }
 #ufo.done .play-ico {
   color: #c8f0ff;
 }
-#bird.done .play-ico {
+#bird.done .play-ico,
+#bird-perch.done .play-ico {
   color: #c4c4d0;
 }
 #gaymo-pickup.done .play-ico,

@@ -3506,6 +3506,16 @@ export function createStacys(parcel) {
     topY: padTop,
   };
 
+  // Main ridge line (local space) — bird perch hops along this.
+  // Caps sit ~0.06 above ridgeY; bird feet need a little more clearance.
+  g.userData.roof = {
+    ridgeY: ridgeY + 0.12,
+    ridgeZ: bZ,
+    xMin: northRoofX + 0.55,
+    xMax: southRoofX - 0.45,
+    eaveY,
+  };
+
   // North side door, for incident.js. The leaf hangs on "northDoorPivot"; a negative
   // rotation.y swings it out into the parking lot (its face points −X).
   g.userData.northDoor = {
