@@ -43,6 +43,13 @@
       "artist": "Stacy's",
       "src": "audio/Root-Beer.mp3",
       "note": "A6"
+    },
+    {
+      "id": "welcome-to-jurassic-park",
+      "title": "Welcome to Jurassic Park",
+      "artist": "Stacy's",
+      "src": "audio/Welcome-to-Jurassic-Park.mp3",
+      "note": "A7"
     }
   ]
 }
