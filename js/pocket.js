@@ -10,7 +10,8 @@
  * no live feed from the real venue.
  */
 import * as THREE from "three";
-import { ensureSignFonts } from "./kit.js";
+/* Cache-bust local modules so mobile Safari can't serve a half-updated graph. */
+import { ensureSignFonts } from "./kit.js?v=20260728m1";
 import {
   WX_ICONS,
   ROTATE_ICON,
@@ -29,19 +30,19 @@ import {
   moonName,
   moonIllumination,
   moonIcon,
-} from "./icons.js";
-import { createStacys } from "./stacys.js";
-import { createInterior, WALK as INTERIOR_WALK } from "./interior.js";
-import { createStreet, SIDEWALK_INNER_Z } from "./street.js";
-import { LifeSystem, crowdFactor } from "./life.js";
-import { ChoreSystem } from "./chores.js";
-import { MistSystem } from "./mist.js";
-import { IncidentSystem } from "./incident.js";
-import { RideshareSystem } from "./rideshare.js";
-import { UfoSystem } from "./ufo.js";
-import { BirdSystem } from "./bird.js";
-import { TacoSystem } from "./taco.js";
-import { FlickerSystem } from "./flicker.js";
+} from "./icons.js?v=20260728m1";
+import { createStacys } from "./stacys.js?v=20260728m1";
+import { createInterior, WALK as INTERIOR_WALK } from "./interior.js?v=20260728m1";
+import { createStreet, SIDEWALK_INNER_Z } from "./street.js?v=20260728m1";
+import { LifeSystem, crowdFactor } from "./life.js?v=20260728m1";
+import { ChoreSystem } from "./chores.js?v=20260728m1";
+import { MistSystem } from "./mist.js?v=20260728m1";
+import { IncidentSystem } from "./incident.js?v=20260728m1";
+import { RideshareSystem } from "./rideshare.js?v=20260728m1";
+import { UfoSystem } from "./ufo.js?v=20260728m1";
+import { BirdSystem } from "./bird.js?v=20260728m1";
+import { TacoSystem } from "./taco.js?v=20260728m1";
+import { FlickerSystem } from "./flicker.js?v=20260728m1";
 import {
   venueNow,
   loadEvents,
@@ -49,7 +50,7 @@ import {
   venueState,
   isOpenNow,
   fetchWeather,
-} from "./venue.js";
+} from "./venue.js?v=20260728m1";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("c");

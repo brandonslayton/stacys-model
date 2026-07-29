@@ -715,28 +715,161 @@ body { user-select: none; -webkit-user-select: none; }
   }
 }
 
-/* Very narrow phones: keep the dock readable without horizontal scroll */
-@media (max-width: 380px) {
+/* ---------------------------------------------------------------- mobile lot chrome
+   Phones: full-width bottom bar (not a cramped floating pill), 44px+ targets,
+   true bottom sheet for Play. Desktop keeps the floating pill above. */
+@media (max-width: 699px) {
+  /* Spin sits above the bar so it never fights the dock */
+  #spin {
+    left: max(12px, env(safe-area-inset-left));
+    bottom: max(76px, calc(env(safe-area-inset-bottom) + 64px));
+    width: 48px;
+    height: 48px;
+    z-index: 23;
+  }
+  #spin svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* Edge-to-edge dock = unmistakable, thumb-reachable primary chrome */
   #dock {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    transform: none;
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+    justify-content: space-between;
     gap: 2px;
-    padding: 5px 6px;
-    max-width: calc(100vw - 64px);
+    padding:
+      8px
+      max(6px, env(safe-area-inset-right))
+      max(10px, env(safe-area-inset-bottom))
+      max(6px, env(safe-area-inset-left));
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(10, 8, 20, 0.92);
+    box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
   }
+
   .dock-btn {
-    min-width: 56px;
-    min-height: 48px;
-    padding: 6px 8px 5px;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 56px;
+    padding: 8px 4px 7px;
+    gap: 4px;
+    border-radius: 14px;
   }
+  .dock-btn .dock-ico svg {
+    width: 24px;
+    height: 24px;
+  }
+  .dock-lbl {
+    font-size: 11px;
+    letter-spacing: 0.01em;
+  }
+
+  /* Play is the gateway to every other scene — make it obvious */
+  #play {
+    background: rgba(255, 95, 162, 0.16);
+    border-color: rgba(255, 95, 162, 0.28);
+  }
+  #play .dock-ico {
+    color: #ff8ec4;
+  }
+  #play .dock-lbl {
+    color: #ffe0ef;
+  }
+  #play[aria-expanded="true"] {
+    background: var(--hot);
+    border-color: transparent;
+  }
+  #play[aria-expanded="true"] .dock-ico,
+  #play[aria-expanded="true"] .dock-lbl {
+    color: #2a1c06;
+  }
+
+  /* True iOS-style bottom sheet */
+  #play-sheet {
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: none;
+    bottom: 0;
+    transform: translateY(108%);
+    border-radius: 22px 22px 0 0;
+    max-height: min(78vh, 620px);
+    padding: 6px 12px max(18px, env(safe-area-inset-bottom));
+    box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.55);
+  }
+  #play-sheet:not([hidden]) {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  .play-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .play-tile {
+    min-height: 72px;
+    padding: 12px;
+    border-radius: 16px;
+  }
+  .play-ico {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+  .play-ico svg {
+    width: 24px;
+    height: 24px;
+  }
+  .play-name {
+    font-size: 13px;
+  }
+  .play-sub {
+    font-size: 11px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .lot-tip {
+    bottom: max(88px, calc(env(safe-area-inset-bottom) + 72px));
+    font-size: 12px;
+    padding: 9px 14px;
+    max-width: calc(100vw - 16px);
+    white-space: normal;
+    text-align: center;
+  }
+
+  #action-toast {
+    bottom: max(92px, calc(env(safe-area-inset-bottom) + 76px));
+  }
+
+  #sms {
+    bottom: max(100px, calc(env(safe-area-inset-bottom) + 84px));
+  }
+}
+
+/* Tiny phones: slightly tighter type, still full-width bar */
+@media (max-width: 360px) {
   .dock-lbl {
     font-size: 10px;
   }
-  .dock-btn .dock-ico svg {
-    width: 20px;
-    height: 20px;
+  .dock-btn {
+    min-height: 54px;
+    padding: 7px 2px 6px;
   }
-  #spin {
-    width: 44px;
-    height: 44px;
+  .play-sub {
+    font-size: 10px;
   }
 }
 

@@ -6,6 +6,9 @@
 <meta name="theme-color" content="#14182a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- Bust aggressive mobile Safari cache after chrome deploys -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
 <title>Stacy's @ Melrose</title>
 <!-- ensureSignFonts() loads these faces before the canvas sign and mural text are
      drawn; without the stylesheet they don't exist and both silently fall back to
@@ -13,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/pocket.css">
+<link rel="stylesheet" href="css/pocket.css?v=20260728m1">
 <script type="importmap">
 {
   "imports": {
@@ -236,6 +239,6 @@
   </div>
 </div>
 
-<script type="module" src="js/pocket.js"></script>
+<script type="module" src="js/pocket.js?v=20260728m1"></script>
 </body>
 </html>
