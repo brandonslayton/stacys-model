@@ -11,7 +11,7 @@
  */
 import * as THREE from "three";
 /* Cache-bust local modules so mobile Safari can't serve a half-updated graph. */
-import { ensureSignFonts } from "./kit.js?v=20260728m1";
+import { ensureSignFonts } from "./kit.js?v=20260728m2";
 import {
   WX_ICONS,
   ROTATE_ICON,
@@ -30,19 +30,19 @@ import {
   moonName,
   moonIllumination,
   moonIcon,
-} from "./icons.js?v=20260728m1";
-import { createStacys } from "./stacys.js?v=20260728m1";
-import { createInterior, WALK as INTERIOR_WALK } from "./interior.js?v=20260728m1";
-import { createStreet, SIDEWALK_INNER_Z } from "./street.js?v=20260728m1";
-import { LifeSystem, crowdFactor } from "./life.js?v=20260728m1";
-import { ChoreSystem } from "./chores.js?v=20260728m1";
-import { MistSystem } from "./mist.js?v=20260728m1";
-import { IncidentSystem } from "./incident.js?v=20260728m1";
-import { RideshareSystem } from "./rideshare.js?v=20260728m1";
-import { UfoSystem } from "./ufo.js?v=20260728m1";
-import { BirdSystem } from "./bird.js?v=20260728m1";
-import { TacoSystem } from "./taco.js?v=20260728m1";
-import { FlickerSystem } from "./flicker.js?v=20260728m1";
+} from "./icons.js?v=20260728m2";
+import { createStacys } from "./stacys.js?v=20260728m2";
+import { createInterior, WALK as INTERIOR_WALK } from "./interior.js?v=20260728m2";
+import { createStreet, SIDEWALK_INNER_Z } from "./street.js?v=20260728m2";
+import { LifeSystem, crowdFactor } from "./life.js?v=20260728m2";
+import { ChoreSystem } from "./chores.js?v=20260728m2";
+import { MistSystem } from "./mist.js?v=20260728m2";
+import { IncidentSystem } from "./incident.js?v=20260728m2";
+import { RideshareSystem } from "./rideshare.js?v=20260728m2";
+import { UfoSystem } from "./ufo.js?v=20260728m2";
+import { BirdSystem } from "./bird.js?v=20260728m2";
+import { TacoSystem } from "./taco.js?v=20260728m2";
+import { FlickerSystem } from "./flicker.js?v=20260728m2";
 import {
   venueNow,
   loadEvents,
@@ -50,7 +50,7 @@ import {
   venueState,
   isOpenNow,
   fetchWeather,
-} from "./venue.js?v=20260728m1";
+} from "./venue.js?v=20260728m2";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("c");
@@ -669,17 +669,50 @@ function stepFp(dt) {
   if (moved || looked) applyFpCamera();
 }
 
+/**
+ * Size the WebGL buffer to the *visible* viewport.
+ *
+ * On mobile, `innerHeight` / layout % can disagree with what the user sees
+ * (URL bar, dynamic toolbars). Prefer visualViewport, fall back to inner*,
+ * and pin the canvas CSS so the lot paints edge-to-edge with no dead band.
+ */
+function viewportSize() {
+  const vv = window.visualViewport;
+  if (vv && vv.width > 0 && vv.height > 0) {
+    return {
+      w: Math.max(1, Math.round(vv.width)),
+      h: Math.max(1, Math.round(vv.height)),
+      top: Math.round(vv.offsetTop || 0),
+      left: Math.round(vv.offsetLeft || 0),
+    };
+  }
+  return {
+    w: Math.max(1, Math.round(innerWidth)),
+    h: Math.max(1, Math.round(innerHeight)),
+    top: 0,
+    left: 0,
+  };
+}
+
 function resize() {
-  const w = innerWidth;
-  const h = innerHeight;
+  const { w, h, top, left } = viewportSize();
   renderer.setSize(w, h, false);
+  canvas.style.width = `${w}px`;
+  canvas.style.height = `${h}px`;
+  canvas.style.top = `${top}px`;
+  canvas.style.left = `${left}px`;
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   computeFit();
-  applyCamera();
+  if (insideMode) applyFpCamera();
+  else applyCamera();
   mistRef?.setProjection(camera.fov, renderer.domElement.height);
 }
 addEventListener("resize", resize);
+if (window.visualViewport) {
+  visualViewport.addEventListener("resize", resize);
+  visualViewport.addEventListener("scroll", resize);
+}
 
 // ---------------------------------------------------------------- camera focus
 /**
