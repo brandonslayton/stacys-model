@@ -2998,7 +2998,7 @@ function buildDjMixer(lit) {
   return g;
 }
 
-/** GAY-MI idle face art — pink / purple / green invite to touch. */
+/** Juke Boxx idle face — pride bar + rainbow BOXX wordmark. */
 function jukeScreenTex(kind = "main") {
   const w = kind === "main" ? 360 : 320;
   const h = kind === "main" ? 320 : 140;
@@ -3006,16 +3006,16 @@ function jukeScreenTex(kind = "main") {
   c.width = w;
   c.height = h;
   const ctx = c.getContext("2d");
+  const pride = ["#e40303", "#ff8c00", "#ffed00", "#008026", "#24408e", "#732982"];
   const grad = ctx.createLinearGradient(0, 0, w, h);
   grad.addColorStop(0, "#280818");
   grad.addColorStop(0.5, "#1a0a30");
   grad.addColorStop(1, "#081820");
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, h);
-  ctx.font = `800 28px ${FUN_FONT}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  const glyphs = ["♪", "♫", "♬", "♪", "♫"];
+  const glyphs = ["♪", "♫", "♥", "♪", "♬"];
   const cols = ["#ff5fa2", "#9b6dff", "#3dd68c", "#ff80c0", "#60e8ff"];
   for (let i = 0; i < 12; i++) {
     ctx.fillStyle = cols[i % cols.length];
@@ -3028,23 +3028,41 @@ function jukeScreenTex(kind = "main") {
   ctx.globalAlpha = 1;
   if (kind === "main") {
     ctx.fillStyle = "rgba(0,0,0,0.5)";
-    ctx.fillRect(24, h * 0.22, w - 48, h * 0.56);
-    ctx.fillStyle = "#ff5fa2";
-    ctx.font = `800 28px ${FUN_FONT}`;
-    ctx.fillText("GAY-MI", w / 2, h * 0.36);
-    ctx.fillStyle = "#9b6dff";
-    ctx.font = `800 22px ${FUN_FONT}`;
-    ctx.fillText("TOUCH SCREEN", w / 2, h * 0.5);
-    ctx.fillStyle = "#3dd68c";
+    ctx.fillRect(24, h * 0.2, w - 48, h * 0.58);
+    ctx.fillStyle = "#ff8ec4";
     ctx.font = `800 18px ${FUN_FONT}`;
-    ctx.fillText("$1  ·  MAKE A SELECTION", w / 2, h * 0.64);
+    ctx.fillText("JUKE", w / 2, h * 0.34);
+    ctx.font = `800 40px ${FUN_FONT}`;
+    const boxx = "BOXX";
+    const tw = ctx.measureText(boxx).width;
+    let cx = w / 2 - tw / 2;
+    for (let i = 0; i < boxx.length; i++) {
+      const ch = boxx[i];
+      const cw = ctx.measureText(ch).width;
+      ctx.fillStyle = pride[i % pride.length];
+      ctx.fillText(ch, cx + cw / 2, h * 0.48);
+      cx += cw;
+    }
+    const sw = 120 / pride.length;
+    for (let i = 0; i < pride.length; i++) {
+      ctx.fillStyle = pride[i];
+      ctx.fillRect(w / 2 - 60 + i * sw, h * 0.56, sw + 0.5, 5);
+    }
+    ctx.fillStyle = "#c9a0e8";
+    ctx.font = `800 16px ${FUN_FONT}`;
+    ctx.fillText("TOUCH SCREEN", w / 2, h * 0.68);
   } else {
+    const sw = (w - 48) / pride.length;
+    for (let i = 0; i < pride.length; i++) {
+      ctx.fillStyle = pride[i];
+      ctx.fillRect(24 + i * sw, 14, sw + 0.5, 5);
+    }
     ctx.fillStyle = "#ff5fa2";
-    ctx.font = `800 26px ${FUN_FONT}`;
-    ctx.fillText("♪ TOUCH TO PLAY ♫", w / 2, h * 0.42);
+    ctx.font = `800 24px ${FUN_FONT}`;
+    ctx.fillText("♪ JUKE BOXX ♫", w / 2, h * 0.48);
     ctx.fillStyle = "#80e8ff";
-    ctx.font = `800 18px ${FUN_FONT}`;
-    ctx.fillText("GAY-MI  ·  TAP HERE", w / 2, h * 0.72);
+    ctx.font = `800 16px ${FUN_FONT}`;
+    ctx.fillText("TAP TO SELECT", w / 2, h * 0.74);
   }
   return canvasTexture(c, 2);
 }
@@ -3173,7 +3191,7 @@ function buildAmiJukebox(nightMats, lit) {
   stripUi.position.set(0, bodyY - 0.18, fz + 0.05);
   g.add(stripUi);
 
-  // Real audio GAY-MI — click targets + screen maps + neon pulse mats
+  // Real audio Juke Boxx — click targets + screen maps + neon pulse mats
   g.userData.kind = "jukebox";
   g.userData.mainUi = mainUi;
   g.userData.stripUi = stripUi;

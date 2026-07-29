@@ -569,7 +569,7 @@ body { user-select: none; -webkit-user-select: none; }
   outline-offset: 1px;
 }
 
-/* ---------------------------------------------------------------- GAY-MI
+/* ---------------------------------------------------------------- Juke Boxx
    Top now-playing HUD + wall-unit song picker (no dock button). */
 
 /* Mini player pinned to top — progress cursor + pause + “playing inside” */
@@ -629,8 +629,11 @@ body { user-select: none; -webkit-user-select: none; }
 .juke-top-brand {
   flex: 0 0 auto;
   font: 800 11px/1 "Outfit", system-ui, sans-serif;
-  letter-spacing: 0.08em;
-  color: #ff5fa2;
+  letter-spacing: 0.04em;
+  background: linear-gradient(90deg, #ff5fa2, #9b6dff, #3dd68c, #ffe14a);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 .juke-top-title {
   font: 700 14px/1.2 "Outfit", system-ui, sans-serif;
@@ -743,32 +746,68 @@ body { user-select: none; -webkit-user-select: none; }
   display: none !important;
 }
 
-.gaymi-head {
+.jb-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin: 2px 2px 8px;
+  margin: 2px 2px 10px;
 }
-.gaymi-logo {
+.jb-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.jb-logo-img {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 0 0 1px rgba(255, 95, 162, 0.25),
+    0 8px 20px rgba(0, 0, 0, 0.4),
+    0 0 18px rgba(155, 109, 255, 0.35);
+}
+.jb-logo-word {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
+  min-width: 0;
 }
-.gaymi-mark {
-  font: 800 22px/1 "Outfit", system-ui, sans-serif;
-  letter-spacing: 0.06em;
-  background: linear-gradient(90deg, #ff5fa2, #9b6dff, #3dd68c);
+.jb-logo-juke {
+  font: 800 13px/1 "Outfit", system-ui, sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #ff8ec4;
+}
+.jb-logo-boxx {
+  font: 800 26px/1 "Outfit", system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  background: linear-gradient(
+    90deg,
+    #e40303 0%,
+    #ff8c00 18%,
+    #ffed00 36%,
+    #008026 54%,
+    #24408e 72%,
+    #732982 90%,
+    #ff5fa2 100%
+  );
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  filter: drop-shadow(0 0 10px rgba(255, 95, 162, 0.35));
 }
-.gaymi-sub {
+.jb-logo-sub {
+  margin-top: 3px;
   font: 700 10px/1.2 "Outfit", system-ui, sans-serif;
   letter-spacing: 0.12em;
   color: var(--dim);
 }
-.gaymi-credit {
+.jb-credit {
   margin: 0 4px 12px;
   padding: 6px 10px;
   border-radius: 999px;
@@ -948,7 +987,7 @@ body { user-select: none; -webkit-user-select: none; }
   }
 }
 
-/* While GAY-MI top player is up, tip tips sit lower */
+/* While Juke Boxx top player is up, tip sits lower */
 body.juke-playing .inside-tip {
   top: max(78px, calc(env(safe-area-inset-top) + 64px));
 }

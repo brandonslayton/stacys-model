@@ -11,7 +11,7 @@
  */
 import * as THREE from "three";
 /* Cache-bust local modules so mobile Safari can't serve a half-updated graph. */
-import { ensureSignFonts, canvasTexture } from "./kit.js?v=20260728m17";
+import { ensureSignFonts, canvasTexture } from "./kit.js?v=20260728m18";
 import {
   WX_ICONS,
   TRASH_ICON,
@@ -29,19 +29,19 @@ import {
   moonName,
   moonIllumination,
   moonIcon,
-} from "./icons.js?v=20260728m17";
-import { createStacys } from "./stacys.js?v=20260728m17";
-import { createInterior, WALK as INTERIOR_WALK } from "./interior.js?v=20260728m17";
-import { createStreet, SIDEWALK_INNER_Z } from "./street.js?v=20260728m17";
-import { LifeSystem, crowdFactor } from "./life.js?v=20260728m17";
-import { ChoreSystem } from "./chores.js?v=20260728m17";
-import { MistSystem } from "./mist.js?v=20260728m17";
-import { IncidentSystem } from "./incident.js?v=20260728m17";
-import { RideshareSystem } from "./rideshare.js?v=20260728m17";
-import { UfoSystem } from "./ufo.js?v=20260728m17";
-import { BirdSystem } from "./bird.js?v=20260728m17";
-import { TacoSystem } from "./taco.js?v=20260728m17";
-import { FlickerSystem } from "./flicker.js?v=20260728m17";
+} from "./icons.js?v=20260728m18";
+import { createStacys } from "./stacys.js?v=20260728m18";
+import { createInterior, WALK as INTERIOR_WALK } from "./interior.js?v=20260728m18";
+import { createStreet, SIDEWALK_INNER_Z } from "./street.js?v=20260728m18";
+import { LifeSystem, crowdFactor } from "./life.js?v=20260728m18";
+import { ChoreSystem } from "./chores.js?v=20260728m18";
+import { MistSystem } from "./mist.js?v=20260728m18";
+import { IncidentSystem } from "./incident.js?v=20260728m18";
+import { RideshareSystem } from "./rideshare.js?v=20260728m18";
+import { UfoSystem } from "./ufo.js?v=20260728m18";
+import { BirdSystem } from "./bird.js?v=20260728m18";
+import { TacoSystem } from "./taco.js?v=20260728m18";
+import { FlickerSystem } from "./flicker.js?v=20260728m18";
 import {
   venueNow,
   loadEvents,
@@ -49,8 +49,8 @@ import {
   venueState,
   isOpenNow,
   fetchWeather,
-} from "./venue.js?v=20260728m17";
-import { JukeboxPlayer, paintJukeScreen } from "./jukebox.js?v=20260728m17";
+} from "./venue.js?v=20260728m18";
+import { JukeboxPlayer, paintJukeScreen } from "./jukebox.js?v=20260728m18";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("c");
@@ -1598,7 +1598,7 @@ function enterInterior() {
   if (insideMode || !interior) return;
   cancelFocus();
   setPlayOpen(false);
-  // Refresh GAY-MI face + top player if a track is already going
+  // Refresh Juke Boxx face + top player if a track is already going
   if (jukeboxPlayer?.current || jukeboxPlayer?.queue?.length) {
     paintJukeHud({
       track: jukeboxPlayer.current,
@@ -1696,7 +1696,7 @@ function exitInterior() {
   idleAt = performance.now();
 }
 
-// ---------------------------------------------------------------- GAY-MI jukebox (real audio)
+// ---------------------------------------------------------------- Juke Boxx (real audio)
 let jukeboxOpen = false;
 /** @type {JukeboxPlayer | null} */
 let jukeboxPlayer = null;
@@ -1960,7 +1960,7 @@ function wireJukebox() {
     })
     .catch(() => {
       const hint = $("juke-hint");
-      if (hint) hint.textContent = "Could not load GAY-MI selections";
+      if (hint) hint.textContent = "Could not load Juke Boxx selections";
     });
 
   $("jukebox-close")?.addEventListener("click", () => setJukeboxOpen(false));
@@ -1978,7 +1978,7 @@ function wireJukebox() {
     showJukeToast("Queue cleared");
   });
 
-  // Click the 3D GAY-MI screen to open the picker (ignore drags)
+  // Click the 3D Juke Boxx screen to open the picker (ignore drags)
   canvas.addEventListener("pointerdown", (e) => {
     if (!insideMode || jukeboxOpen) return;
     if (e.button != null && e.button !== 0) return;

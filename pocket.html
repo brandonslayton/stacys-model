@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/pocket.css?v=20260728m17">
+<link rel="stylesheet" href="css/pocket.css?v=20260728m18">
 <script type="importmap">
 {
   "imports": {
@@ -188,7 +188,7 @@
   <button id="juke-top-pause" type="button" aria-label="Pause or resume">❚❚</button>
   <div class="juke-top-main">
     <div class="juke-top-row">
-      <span class="juke-top-brand">GAY-MI</span>
+      <span class="juke-top-brand">Juke Boxx</span>
       <span class="juke-top-title" id="juke-top-title">Starstruck</span>
     </div>
     <div class="juke-top-note" id="juke-top-note">Playing inside</div>
@@ -200,18 +200,21 @@
   </div>
 </div>
 
-<!-- GAY-MI song picker (opens when you tap the jukebox screen) -->
+<!-- Juke Boxx song picker (opens when you tap the jukebox screen) -->
 <div id="jukebox-veil" hidden></div>
-<div id="jukebox-sheet" role="dialog" aria-label="GAY-MI jukebox" aria-modal="true" aria-hidden="true" hidden>
+<div id="jukebox-sheet" role="dialog" aria-label="Juke Boxx" aria-modal="true" aria-hidden="true" hidden>
   <div class="play-handle" aria-hidden="true"></div>
-  <header class="gaymi-head">
-    <div class="gaymi-logo">
-      <span class="gaymi-mark">GAY-MI</span>
-      <span class="gaymi-sub">DIGITAL JUKE · STACY'S</span>
+  <header class="jb-head">
+    <div class="jb-logo">
+      <img class="jb-logo-img" src="images/juke-boxx-logo.jpg" width="56" height="56" alt="" />
+      <div class="jb-logo-word">
+        <span class="jb-logo-juke">Juke</span><span class="jb-logo-boxx">Boxx</span>
+        <span class="jb-logo-sub">STACY'S · PRIDE POWERED</span>
+      </div>
     </div>
-    <button id="jukebox-close" type="button" aria-label="Close GAY-MI">&times;</button>
+    <button id="jukebox-close" type="button" aria-label="Close Juke Boxx">&times;</button>
   </header>
-  <div class="gaymi-credit">$1 · MAKE A SELECTION · QUEUES LIKE A REAL JUKE</div>
+  <div class="jb-credit">$1 · MAKE A SELECTION · QUEUES LIKE A REAL JUKE</div>
   <div class="juke-queue-panel" id="juke-queue-panel" hidden>
     <div class="juke-queue-head">
       <span>UP NEXT</span>
@@ -285,6 +288,6 @@
   </div>
 </div>
 
-<script type="module" src="js/pocket.js?v=20260728m17"></script>
+<script type="module" src="js/pocket.js?v=20260728m18"></script>
 </body>
 </html>

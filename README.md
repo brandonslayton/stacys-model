@@ -52,7 +52,7 @@ no lost camera position.
 | UFO abduction | Play sheet |
 | Pigeon flyby | Play sheet — one arc over the property |
 | Pigeon perch | Play sheet — lands on the ridge, looks around, hops, takes off |
-| GAY-MI | Inside — tap the glowing wall jukebox; top HUD shows progress + pause |
+| Juke Boxx | Inside — tap the glowing wall jukebox; top HUD shows progress + pause |
 
 Tapping the trash can sends a worker out of the porch with a bag, up the parking
 aisle, and into the dumpster — which reacts with a heart. The camera eases round to

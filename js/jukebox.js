@@ -1,13 +1,24 @@
 /**
- * jukebox.js — GAY-MI catalog + HTMLAudio with a real jukebox queue.
+ * jukebox.js — Juke Boxx catalog + HTMLAudio with a real jukebox queue.
  *
  * Tracks live in data/jukebox.json; audio files under audio/.
  * First selection starts playback; more selections line up and auto-play next.
  * Browsers require a user gesture for the *first* play.
  */
 
+const PRIDE = ["#e40303", "#ff8c00", "#ffed00", "#008026", "#24408e", "#732982"];
+
+/** Tiny pride bar under a title on canvas screens. */
+function prideBar(ctx, x, y, w, h = 6) {
+  const sw = w / PRIDE.length;
+  for (let i = 0; i < PRIDE.length; i++) {
+    ctx.fillStyle = PRIDE[i];
+    ctx.fillRect(x + i * sw, y, sw + 0.5, h);
+  }
+}
+
 /**
- * Paint a GAY-MI face for the wall unit (idle pulse invite vs now playing).
+ * Paint a Juke Boxx face for the wall unit (idle pulse invite vs now playing).
  * @returns {HTMLCanvasElement}
  */
 export function paintJukeScreen({
@@ -35,8 +46,8 @@ export function paintJukeScreen({
 
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  const glyphs = ["♪", "♫", "♬", "♪", "♫"];
-  const cols = ["#ff5fa2", "#9b6dff", "#3dd68c", "#ff80c0", "#60e8ff"];
+  const glyphs = ["♪", "♫", "♥", "♪", "♬"];
+  const cols = ["#ff5fa2", "#9b6dff", "#3dd68c", "#ff80c0", "#60e8ff", "#ffe14a"];
   for (let i = 0; i < 10; i++) {
     ctx.fillStyle = cols[i % cols.length];
     ctx.globalAlpha = 0.22 + (i % 3) * 0.1 + (playing ? 0 : p * 0.12);
@@ -51,35 +62,50 @@ export function paintJukeScreen({
 
   if (kind === "main") {
     ctx.fillStyle = "rgba(0,0,0,0.52)";
-    ctx.fillRect(18, h * 0.18, w - 36, h * 0.64);
-    ctx.fillStyle = "#ff5fa2";
-    ctx.font = "800 22px Outfit, system-ui, sans-serif";
-    ctx.fillText("GAY-MI", w / 2, h * 0.3);
-    ctx.fillStyle = playing ? "#3dd68c" : "#9b6dff";
-    ctx.font = "800 20px Outfit, system-ui, sans-serif";
-    ctx.fillText(playing ? "NOW PLAYING" : "TOUCH SCREEN", w / 2, h * 0.42);
+    ctx.fillRect(18, h * 0.16, w - 36, h * 0.68);
+    // Wordmark
+    ctx.fillStyle = "#ff8ec4";
+    ctx.font = "800 16px Outfit, system-ui, sans-serif";
+    ctx.fillText("JUKE", w / 2, h * 0.28);
+    // Rainbow BOXX
+    const boxx = "BOXX";
+    ctx.font = "800 36px Outfit, system-ui, sans-serif";
+    const tw = ctx.measureText(boxx).width;
+    let cx = w / 2 - tw / 2;
+    for (let i = 0; i < boxx.length; i++) {
+      const ch = boxx[i];
+      const cw = ctx.measureText(ch).width;
+      ctx.fillStyle = PRIDE[i % PRIDE.length];
+      ctx.fillText(ch, cx + cw / 2, h * 0.4);
+      cx += cw;
+    }
+    prideBar(ctx, w / 2 - 54, h * 0.48, 108, 5);
+    ctx.fillStyle = playing ? "#3dd68c" : "#c9a0e8";
+    ctx.font = "800 16px Outfit, system-ui, sans-serif";
+    ctx.fillText(playing ? "NOW PLAYING" : "TOUCH SCREEN", w / 2, h * 0.58);
     ctx.fillStyle = "#f2eef8";
-    ctx.font = "800 24px Outfit, system-ui, sans-serif";
+    ctx.font = "800 20px Outfit, system-ui, sans-serif";
     let t = title || "MAKE A SELECTION";
     if (t.length > 20) t = t.slice(0, 18) + "…";
-    ctx.fillText(t, w / 2, h * 0.56);
+    ctx.fillText(t, w / 2, h * 0.68);
     ctx.fillStyle = playing ? "#ffe14a" : "#80e8ff";
-    ctx.font = "700 15px Outfit, system-ui, sans-serif";
+    ctx.font = "700 14px Outfit, system-ui, sans-serif";
     let sub = playing ? artist || "PLAYING INSIDE" : "TAP TO SELECT · $1";
     if (playing && queueLen > 0) sub = `${queueLen} IN QUEUE`;
-    ctx.fillText(sub, w / 2, h * 0.7);
+    ctx.fillText(sub, w / 2, h * 0.78);
   } else {
+    prideBar(ctx, 24, 12, w - 48, 5);
     ctx.fillStyle = playing ? "#3dd68c" : "#ff5fa2";
-    ctx.font = "800 24px Outfit, system-ui, sans-serif";
-    ctx.fillText(playing ? "♪ ON AIR ♫" : "♪ TOUCH TO PLAY ♫", w / 2, h * 0.4);
+    ctx.font = "800 22px Outfit, system-ui, sans-serif";
+    ctx.fillText(playing ? "♪ ON AIR ♫" : "♪ JUKE BOXX ♫", w / 2, h * 0.42);
     ctx.fillStyle = "#c8d0e8";
-    ctx.font = "700 15px Outfit, system-ui, sans-serif";
+    ctx.font = "700 14px Outfit, system-ui, sans-serif";
     let t =
       playing && queueLen > 0
         ? `+${queueLen} QUEUED`
-        : title || "GAY-MI  ·  SELECT A TRACK";
+        : title || "TAP TO SELECT A TRACK";
     if (t.length > 26) t = t.slice(0, 24) + "…";
-    ctx.fillText(t, w / 2, h * 0.7);
+    ctx.fillText(t, w / 2, h * 0.72);
   }
   return c;
 }
