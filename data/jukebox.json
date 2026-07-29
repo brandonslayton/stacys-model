@@ -29,6 +29,20 @@
       "artist": "Stacy's",
       "src": "audio/Euphoria.mp3",
       "note": "A4"
+    },
+    {
+      "id": "stacys",
+      "title": "Stacy's",
+      "artist": "Stacy's",
+      "src": "audio/Stacys.mp3",
+      "note": "A5"
+    },
+    {
+      "id": "root-beer",
+      "title": "Root Beer",
+      "artist": "Stacy's",
+      "src": "audio/Root-Beer.mp3",
+      "note": "A6"
     }
   ]
 }
