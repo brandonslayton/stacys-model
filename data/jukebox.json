@@ -50,6 +50,13 @@
       "artist": "Stacy's",
       "src": "audio/Welcome-to-Jurassic-Park.mp3",
       "note": "A7"
+    },
+    {
+      "id": "craving-you",
+      "title": "Craving You",
+      "artist": "Stacy's",
+      "src": "audio/Craving-You.mp3",
+      "note": "A8"
     }
   ]
 }
