@@ -11,7 +11,7 @@
  */
 import * as THREE from "three";
 /* Cache-bust local modules so mobile Safari can't serve a half-updated graph. */
-import { ensureSignFonts, canvasTexture } from "./kit.js?v=20260728m19";
+import { ensureSignFonts, canvasTexture } from "./kit.js?v=20260728m20";
 import {
   WX_ICONS,
   TRASH_ICON,
@@ -29,19 +29,19 @@ import {
   moonName,
   moonIllumination,
   moonIcon,
-} from "./icons.js?v=20260728m19";
-import { createStacys } from "./stacys.js?v=20260728m19";
-import { createInterior, WALK as INTERIOR_WALK } from "./interior.js?v=20260728m19";
-import { createStreet, SIDEWALK_INNER_Z } from "./street.js?v=20260728m19";
-import { LifeSystem, crowdFactor } from "./life.js?v=20260728m19";
-import { ChoreSystem } from "./chores.js?v=20260728m19";
-import { MistSystem } from "./mist.js?v=20260728m19";
-import { IncidentSystem } from "./incident.js?v=20260728m19";
-import { RideshareSystem } from "./rideshare.js?v=20260728m19";
-import { UfoSystem } from "./ufo.js?v=20260728m19";
-import { BirdSystem } from "./bird.js?v=20260728m19";
-import { TacoSystem } from "./taco.js?v=20260728m19";
-import { FlickerSystem } from "./flicker.js?v=20260728m19";
+} from "./icons.js?v=20260728m20";
+import { createStacys } from "./stacys.js?v=20260728m20";
+import { createInterior, WALK as INTERIOR_WALK } from "./interior.js?v=20260728m20";
+import { createStreet, SIDEWALK_INNER_Z } from "./street.js?v=20260728m20";
+import { LifeSystem, crowdFactor } from "./life.js?v=20260728m20";
+import { ChoreSystem } from "./chores.js?v=20260728m20";
+import { MistSystem } from "./mist.js?v=20260728m20";
+import { IncidentSystem } from "./incident.js?v=20260728m20";
+import { RideshareSystem } from "./rideshare.js?v=20260728m20";
+import { UfoSystem } from "./ufo.js?v=20260728m20";
+import { BirdSystem } from "./bird.js?v=20260728m20";
+import { TacoSystem } from "./taco.js?v=20260728m20";
+import { FlickerSystem } from "./flicker.js?v=20260728m20";
 import {
   venueNow,
   loadEvents,
@@ -49,8 +49,8 @@ import {
   venueState,
   isOpenNow,
   fetchWeather,
-} from "./venue.js?v=20260728m19";
-import { JukeboxPlayer, paintJukeScreen } from "./jukebox.js?v=20260728m19";
+} from "./venue.js?v=20260728m20";
+import { JukeboxPlayer, paintJukeScreen } from "./jukebox.js?v=20260728m20";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("c");

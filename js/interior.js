@@ -3068,22 +3068,22 @@ function jukeScreenTex(kind = "main") {
 }
 
 /**
- * Chunkier AMI-style digital jukebox — thicker body, shorter height (~half),
- * music notes + dollar signs so it reads as a real jukebox.
+ * Juke Boxx wall unit — pride neon chassis, rainbow BOXX screens, logo badge.
  * Local +Z faces into the room.
  */
 function buildAmiJukebox(nightMats, lit) {
   const g = new THREE.Group();
-  g.name = "amiJukebox";
+  g.name = "jukeBoxx";
 
-  // Chunky chassis (~half prior height, real depth off the wall)
+  const PRIDE_HEX = [0xe40303, 0xff8c00, 0xffed00, 0x008026, 0x24408e, 0x732982];
   const bodyW = 0.78;
-  const bodyH = 0.95; // was ~1.85 — about half
-  const bodyD = 0.36; // thick, not a flat panel
-  const bodyY = 0.95; // mid-wall sit (on a short plinth)
+  const bodyH = 0.95;
+  const bodyD = 0.36;
+  const bodyY = 0.95;
+  const fz = bodyD * 0.85;
 
-  // Plinth / kick
-  const plinth = box(bodyW + 0.08, 0.12, bodyD + 0.06, 0x12141a, {
+  // Plinth / kick with pride stripe
+  const plinth = box(bodyW + 0.08, 0.12, bodyD + 0.06, 0x121018, {
     roughness: 0.55,
     metalness: 0.25,
   });
@@ -3091,19 +3091,30 @@ function buildAmiJukebox(nightMats, lit) {
   g.add(plinth);
   const kickLed = box(bodyW + 0.02, 0.03, 0.04, 0xff4fa8, {
     emissive: 0xff2a80,
-    emissiveIntensity: 0.75,
+    emissiveIntensity: 0.85,
   });
   kickLed.position.set(0, 0.47, bodyD * 0.7);
-  lit(kickLed, 1.0, 0.55, { glimmerSpeed: 2.6 });
+  lit(kickLed, 1.05, 0.6, { glimmerSpeed: 2.6 });
   g.add(kickLed);
+  // Pride kick beads
+  for (let i = 0; i < PRIDE_HEX.length; i++) {
+    const bead = box(0.1, 0.02, 0.025, PRIDE_HEX[i], {
+      emissive: PRIDE_HEX[i],
+      emissiveIntensity: 0.7,
+      castShadow: false,
+    });
+    bead.position.set(-0.28 + i * 0.112, 0.47, bodyD * 0.78);
+    lit(bead, 0.9, 0.5, { glimmerSpeed: 2.4 + i * 0.15, phase: i });
+    g.add(bead);
+  }
 
-  // Main body
-  const body = box(bodyW, bodyH, bodyD, 0x0c0e16, { roughness: 0.35, metalness: 0.4 });
+  // Main body — deep purple-black club shell
+  const body = box(bodyW, bodyH, bodyD, 0x100818, { roughness: 0.35, metalness: 0.38 });
   body.position.set(0, bodyY, bodyD * 0.45);
   g.add(body);
-  // Side wings (AMI Curve silhouette)
+  // Side wings
   for (const side of [-1, 1]) {
-    const wing = box(0.1, bodyH * 0.92, bodyD * 0.85, 0x141820, {
+    const wing = box(0.1, bodyH * 0.92, bodyD * 0.85, 0x16101c, {
       roughness: 0.4,
       metalness: 0.35,
     });
@@ -3111,92 +3122,146 @@ function buildAmiJukebox(nightMats, lit) {
     g.add(wing);
   }
 
-  // Neon edge frame (front face)
-  const frameCol = 0x40e0ff;
-  const fz = bodyD * 0.85;
-  for (const [w, h, y] of [
-    [bodyW + 0.08, 0.045, bodyY + bodyH * 0.5],
-    [bodyW + 0.08, 0.045, bodyY - bodyH * 0.5],
-  ]) {
-    const f = box(w, h, 0.05, frameCol, {
-      emissive: frameCol,
+  // Pride-segmented top & bottom neon frame
+  const frameW = bodyW + 0.08;
+  const segW = frameW / PRIDE_HEX.length;
+  for (const y of [bodyY + bodyH * 0.5, bodyY - bodyH * 0.5]) {
+    for (let i = 0; i < PRIDE_HEX.length; i++) {
+      const col = PRIDE_HEX[i];
+      const f = box(segW * 0.92, 0.04, 0.05, col, {
+        emissive: col,
+        emissiveIntensity: 1.0,
+        roughness: 0.25,
+        castShadow: false,
+      });
+      f.position.set(-frameW * 0.5 + (i + 0.5) * segW, y, fz);
+      lit(f, 1.25, 0.8, { glimmerSpeed: 2.6 + i * 0.12, phase: i * 0.4 });
+      g.add(f);
+    }
+  }
+  // Side frame rails — pink / purple / green
+  const sideCols = [0xff4fa8, 0x9b6dff];
+  for (const side of [-1, 1]) {
+    const col = side < 0 ? sideCols[0] : sideCols[1];
+    const f = box(0.045, bodyH + 0.04, 0.05, col, {
+      emissive: col,
       emissiveIntensity: 0.95,
       roughness: 0.25,
     });
-    f.position.set(0, y, fz);
-    lit(f, 1.2, 0.75, { glimmerSpeed: 2.8 });
-    g.add(f);
-  }
-  for (const side of [-1, 1]) {
-    const f = box(0.045, bodyH + 0.04, 0.05, frameCol, {
-      emissive: frameCol,
-      emissiveIntensity: 0.9,
-      roughness: 0.25,
-    });
     f.position.set(side * (bodyW * 0.5 + 0.02), bodyY, fz);
-    lit(f, 1.15, 0.7, { glimmerSpeed: 3.0 });
+    lit(f, 1.15, 0.75, { glimmerSpeed: 2.9 });
     g.add(f);
   }
-  // Magenta accent bar
-  const accent = box(bodyW * 0.92, 0.035, 0.04, 0xff4fa8, {
-    emissive: 0xff2a80,
-    emissiveIntensity: 0.9,
-  });
-  accent.position.set(0, bodyY + 0.08, fz + 0.01);
-  lit(accent, 1.15, 0.7, { glimmerSpeed: 3.4 });
-  g.add(accent);
 
-  // Main touchscreen (upper half of short body)
-  const main = box(0.58, 0.42, 0.04, 0x061018, {
-    emissive: 0x0a2848,
-    emissiveIntensity: 0.8,
-    roughness: 0.15,
-    metalness: 0.2,
+  // Dual accent bars (pink + green)
+  const accent = box(bodyW * 0.92, 0.028, 0.04, 0xff4fa8, {
+    emissive: 0xff2a80,
+    emissiveIntensity: 0.95,
   });
-  main.position.set(0, bodyY + 0.18, fz + 0.02);
-  lit(main, 1.2, 0.75);
-  g.add(main);
-  const mainUi = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.54, 0.38),
+  accent.position.set(0, bodyY + 0.1, fz + 0.01);
+  lit(accent, 1.2, 0.75, { glimmerSpeed: 3.2 });
+  g.add(accent);
+  const accent2 = box(bodyW * 0.92, 0.02, 0.035, 0x3dd68c, {
+    emissive: 0x20c070,
+    emissiveIntensity: 0.85,
+  });
+  accent2.position.set(0, bodyY - 0.02, fz + 0.01);
+  lit(accent2, 1.1, 0.65, { glimmerSpeed: 3.0 });
+  g.add(accent2);
+
+  // Logo badge (pride jukebox emblem)
+  const logoTex = new THREE.TextureLoader().load("images/juke-boxx-logo.jpg");
+  if ("colorSpace" in logoTex) logoTex.colorSpace = THREE.SRGBColorSpace;
+  logoTex.anisotropy = 4;
+  const logoBadge = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.2, 0.2),
     new THREE.MeshStandardMaterial({
-      map: jukeScreenTex("main"),
-      emissive: 0x2060a0,
-      emissiveIntensity: 0.7,
-      roughness: 0.3,
+      map: logoTex,
+      emissive: 0xffffff,
+      emissiveMap: logoTex,
+      emissiveIntensity: 0.45,
+      roughness: 0.45,
+      metalness: 0.15,
       flatShading: true,
     })
   );
-  mainUi.position.set(0, bodyY + 0.18, fz + 0.05);
-  g.add(mainUi);
+  logoBadge.position.set(-0.28, bodyY + bodyH * 0.38, fz + 0.06);
+  g.add(logoBadge);
 
-  // Lower browse strip
-  const strip = box(0.58, 0.2, 0.035, 0x0a1020, {
-    emissive: 0x201030,
-    emissiveIntensity: 0.75,
-    roughness: 0.2,
+  // Brand marquee — JUKE BOXX wordmark
+  const brandMap = jukeBrandTex();
+  const brand = box(0.52, 0.12, 0.04, 0x140818, {
+    emissive: 0x401028,
+    emissiveIntensity: 0.5,
   });
-  strip.position.set(0, bodyY - 0.18, fz + 0.02);
-  lit(strip, 1.05, 0.65);
-  g.add(strip);
-  const stripUi = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.54, 0.17),
+  brand.position.set(0.06, bodyY + bodyH * 0.38, fz + 0.02);
+  lit(brand, 0.9, 0.5, { glimmerSpeed: 2.4 });
+  g.add(brand);
+  const brandTxt = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.48, 0.1),
     new THREE.MeshStandardMaterial({
-      map: jukeScreenTex("strip"),
-      emissive: 0x602040,
+      map: brandMap,
+      emissive: 0xffffff,
+      emissiveMap: brandMap,
       emissiveIntensity: 0.55,
       roughness: 0.35,
       flatShading: true,
     })
   );
-  stripUi.position.set(0, bodyY - 0.18, fz + 0.05);
+  brandTxt.position.set(0.06, bodyY + bodyH * 0.38, fz + 0.05);
+  g.add(brandTxt);
+
+  // Main touchscreen
+  const main = box(0.58, 0.42, 0.04, 0x0a0614, {
+    emissive: 0x201030,
+    emissiveIntensity: 0.75,
+    roughness: 0.15,
+    metalness: 0.2,
+  });
+  main.position.set(0, bodyY + 0.12, fz + 0.02);
+  lit(main, 1.15, 0.7);
+  g.add(main);
+  const mainUi = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.54, 0.38),
+    new THREE.MeshStandardMaterial({
+      map: jukeScreenTex("main"),
+      emissive: 0x402060,
+      emissiveIntensity: 0.65,
+      roughness: 0.3,
+      flatShading: true,
+    })
+  );
+  mainUi.position.set(0, bodyY + 0.12, fz + 0.05);
+  g.add(mainUi);
+
+  // Lower browse strip
+  const strip = box(0.58, 0.18, 0.035, 0x100818, {
+    emissive: 0x301028,
+    emissiveIntensity: 0.7,
+    roughness: 0.2,
+  });
+  strip.position.set(0, bodyY - 0.22, fz + 0.02);
+  lit(strip, 1.0, 0.6);
+  g.add(strip);
+  const stripUi = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.54, 0.15),
+    new THREE.MeshStandardMaterial({
+      map: jukeScreenTex("strip"),
+      emissive: 0x502040,
+      emissiveIntensity: 0.55,
+      roughness: 0.35,
+      flatShading: true,
+    })
+  );
+  stripUi.position.set(0, bodyY - 0.22, fz + 0.05);
   g.add(stripUi);
 
-  // Real audio Juke Boxx — click targets + screen maps + neon pulse mats
+  // Real audio — click targets + pulse mats
   g.userData.kind = "jukebox";
   g.userData.mainUi = mainUi;
   g.userData.stripUi = stripUi;
   g.userData.pulseMats = [];
-  for (const m of [main, strip, mainUi, stripUi, accent, kickLed]) {
+  for (const m of [main, strip, mainUi, stripUi, accent, accent2, kickLed, brand]) {
     if (m?.material?.emissiveIntensity != null) {
       g.userData.pulseMats.push({
         mat: m.material,
@@ -3204,53 +3269,53 @@ function buildAmiJukebox(nightMats, lit) {
       });
     }
   }
-  // Prefer the glass as the interactive hit target
   mainUi.userData.jukeboxHit = true;
   stripUi.userData.jukeboxHit = true;
   main.userData.jukeboxHit = true;
+  strip.userData.jukeboxHit = true;
 
-  // Bill acceptor with glowing $
+  // Bill acceptor
   const bill = box(0.22, 0.1, 0.08, 0x1a1a22, { metalness: 0.35, roughness: 0.4 });
-  bill.position.set(-0.18, bodyY - 0.36, fz + 0.02);
+  bill.position.set(-0.18, bodyY - 0.4, fz + 0.02);
   g.add(bill);
   const billSlot = box(0.16, 0.025, 0.03, 0x050508);
-  billSlot.position.set(-0.18, bodyY - 0.36, fz + 0.06);
+  billSlot.position.set(-0.18, bodyY - 0.4, fz + 0.06);
   g.add(billSlot);
   const dollar = new THREE.Mesh(
     new THREE.PlaneGeometry(0.1, 0.08),
     new THREE.MeshStandardMaterial({
-      map: labelTex("$", {
+      map: labelTex("$1", {
         w: 96,
         h: 80,
         bg: "#1a1a22",
         fg: "#3dd68c",
-        size: 52,
+        size: 40,
         weight: 800,
         font: "fun",
       }),
       emissive: 0x20a050,
-      emissiveIntensity: 0.65,
+      emissiveIntensity: 0.7,
       roughness: 0.4,
       flatShading: true,
     })
   );
-  dollar.position.set(-0.18, bodyY - 0.36, fz + 0.08);
+  dollar.position.set(-0.18, bodyY - 0.4, fz + 0.08);
   g.add(dollar);
 
-  // Coin cup / change return
+  // Coin cup
   const coin = box(0.14, 0.08, 0.06, 0x2a2a32, { metalness: 0.4, roughness: 0.4 });
-  coin.position.set(0.2, bodyY - 0.36, fz + 0.02);
+  coin.position.set(0.2, bodyY - 0.4, fz + 0.02);
   g.add(coin);
   const coinHole = box(0.1, 0.03, 0.02, 0x050508);
-  coinHole.position.set(0.2, bodyY - 0.36, fz + 0.055);
+  coinHole.position.set(0.2, bodyY - 0.4, fz + 0.055);
   g.add(coinHole);
 
-  // Floating neon music notes on the side wings
+  // Side pride notes / hearts
   for (const [side, glyph, col, oy] of [
-    [-1, "♪", 0x40e0ff, 0.22],
-    [-1, "♫", 0xff4fa8, -0.12],
-    [1, "♬", 0xffe14a, 0.18],
-    [1, "$", 0x3dd68c, -0.15],
+    [-1, "♪", 0xff4fa8, 0.22],
+    [-1, "♥", 0x9b6dff, -0.12],
+    [1, "♬", 0x3dd68c, 0.18],
+    [1, "♫", 0xffe14a, -0.15],
   ]) {
     const note = new THREE.Mesh(
       new THREE.PlaneGeometry(0.12, 0.14),
@@ -3258,14 +3323,21 @@ function buildAmiJukebox(nightMats, lit) {
         map: labelTex(glyph, {
           w: 96,
           h: 96,
-          bg: "#0c0e16",
-          fg: col === 0x40e0ff ? "#40e0ff" : col === 0xff4fa8 ? "#ff4fa8" : col === 0xffe14a ? "#ffe14a" : "#3dd68c",
+          bg: "#100818",
+          fg:
+            col === 0xff4fa8
+              ? "#ff4fa8"
+              : col === 0x9b6dff
+                ? "#9b6dff"
+                : col === 0xffe14a
+                  ? "#ffe14a"
+                  : "#3dd68c",
           size: 56,
           weight: 800,
           font: "fun",
         }),
         emissive: col,
-        emissiveIntensity: 0.75,
+        emissiveIntensity: 0.8,
         roughness: 0.4,
         flatShading: true,
         transparent: true,
@@ -3273,59 +3345,70 @@ function buildAmiJukebox(nightMats, lit) {
     );
     note.position.set(side * (bodyW * 0.5 + 0.06), bodyY + oy, fz + 0.02);
     note.rotation.y = side > 0 ? -0.35 : 0.35;
-    lit(note, 1.0, 0.55, { glimmerSpeed: 2.8 + oy });
+    lit(note, 1.05, 0.6, { glimmerSpeed: 2.8 + oy });
     g.add(note);
   }
 
-  // EQ bars (beat-reactive look)
+  // EQ bars — pride cycle
   for (let i = 0; i < 8; i++) {
     const h = 0.05 + (i % 4) * 0.035;
-    const bar = box(0.04, h, 0.03, i % 2 ? 0x40e0ff : 0xff4fa8, {
-      emissive: i % 2 ? 0x20c0ff : 0xff2a80,
-      emissiveIntensity: 0.85,
+    const col = PRIDE_HEX[i % PRIDE_HEX.length];
+    const bar = box(0.04, h, 0.03, col, {
+      emissive: col,
+      emissiveIntensity: 0.9,
     });
-    bar.position.set(-0.16 + i * 0.045, bodyY - 0.48 + h * 0.5, fz + 0.01);
-    lit(bar, 1.1, 0.65, { glimmerSpeed: 4 + i * 0.4, phase: i });
+    bar.position.set(-0.16 + i * 0.045, bodyY - 0.52 + h * 0.5, fz + 0.01);
+    lit(bar, 1.15, 0.7, { glimmerSpeed: 4 + i * 0.4, phase: i });
     g.add(bar);
   }
 
-  // Brand marquee
-  const brand = box(0.5, 0.1, 0.04, 0x1a1020, {
-    emissive: 0xff4fa8,
-    emissiveIntensity: 0.55,
-  });
-  brand.position.set(0, bodyY + bodyH * 0.42, fz + 0.02);
-  lit(brand, 0.95, 0.55, { glimmerSpeed: 2.5 });
-  g.add(brand);
-  const brandTxt = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.46, 0.08),
-    new THREE.MeshStandardMaterial({
-      map: labelTex("♪ AMI JUKE $", {
-        w: 320,
-        h: 64,
-        bg: "#1a1020",
-        fg: "#ff80c0",
-        size: 26,
-        weight: 800,
-        font: "fun",
-      }),
-      emissive: 0xff4fa8,
-      emissiveIntensity: 0.5,
-      roughness: 0.4,
-      flatShading: true,
-    })
-  );
-  brandTxt.position.set(0, bodyY + bodyH * 0.42, fz + 0.05);
-  g.add(brandTxt);
-
-  // Soft wash into the room
-  const wash = new THREE.PointLight(0x40e0ff, 0.6, 3.8, 2);
+  // Soft wash into the room — pink + purple + green
+  const wash = new THREE.PointLight(0xff4fa8, 0.55, 3.8, 2);
   wash.position.set(0, bodyY + 0.1, bodyD + 0.35);
   g.add(wash);
-  const wash2 = new THREE.PointLight(0xff4fa8, 0.35, 3.2, 2);
-  wash2.position.set(0, bodyY - 0.2, bodyD + 0.25);
+  const wash2 = new THREE.PointLight(0x9b6dff, 0.4, 3.2, 2);
+  wash2.position.set(0.15, bodyY - 0.15, bodyD + 0.28);
   g.add(wash2);
+  const wash3 = new THREE.PointLight(0x3dd68c, 0.28, 2.8, 2);
+  wash3.position.set(-0.12, bodyY - 0.25, bodyD + 0.22);
+  g.add(wash3);
   return g;
+}
+
+/** Canvas marquee: "JUKE" + rainbow "BOXX". */
+function jukeBrandTex() {
+  const w = 320;
+  const h = 72;
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext("2d");
+  const pride = ["#e40303", "#ff8c00", "#ffed00", "#008026", "#24408e", "#732982"];
+  ctx.fillStyle = "#140818";
+  ctx.fillRect(0, 0, w, h);
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.font = `800 22px ${FUN_FONT}`;
+  ctx.fillStyle = "#ff8ec4";
+  ctx.fillText("JUKE", 18, h * 0.48);
+  ctx.font = `800 34px ${FUN_FONT}`;
+  const boxx = "BOXX";
+  let x = 92;
+  for (let i = 0; i < boxx.length; i++) {
+    const ch = boxx[i];
+    const cw = ctx.measureText(ch).width;
+    ctx.fillStyle = pride[i % pride.length];
+    ctx.fillText(ch, x, h * 0.5);
+    x += cw + 1;
+  }
+  // Tiny pride underline
+  const barW = 200;
+  const sw = barW / pride.length;
+  for (let i = 0; i < pride.length; i++) {
+    ctx.fillStyle = pride[i];
+    ctx.fillRect(92 + i * sw, h - 10, sw + 0.5, 4);
+  }
+  return canvasTexture(c, 2);
 }
 
 /**
