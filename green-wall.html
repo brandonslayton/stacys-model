@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <title>Green Wall + Stacy's Neon — clear the leaves</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700&family=Outfit:wght@600;700;800&family=Pacifico&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0a0c14;
+      --panel: rgba(16, 18, 32, 0.94);
+      --line: rgba(180, 140, 255, 0.28);
+      --text: #f0ecff;
+      --muted: #9a90b8;
+      --accent: #b46dff;
+      --teal: #2dffc8;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+      font-family: "DM Sans", system-ui, sans-serif; overflow: hidden;
+      touch-action: none; }
+    #stage { display: block; width: 100%; height: 100%; touch-action: none; }
+    #panel {
+      position: fixed; top: 12px; left: 12px; width: min(320px, calc(100vw - 24px));
+      max-height: calc(100vh - 24px); overflow: auto;
+      background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+      padding: 14px 16px; backdrop-filter: blur(12px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+      z-index: 5;
+    }
+    h1 { font-family: Outfit, system-ui, sans-serif; font-size: 1.05rem; margin: 0 0 2px; }
+    h1 span { color: var(--teal); font-weight: 600; }
+    .sub { margin: 0 0 10px; color: var(--muted); font-size: 0.78rem; }
+    h2 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--accent); margin: 14px 0 8px; }
+    label.row { display: grid; grid-template-columns: 72px 1fr 42px; gap: 8px;
+      align-items: center; margin: 6px 0; font-size: 0.8rem; color: var(--muted); }
+    label.row input[type=range] { width: 100%; }
+    label.check { display: flex; gap: 8px; align-items: center; font-size: 0.82rem;
+      color: var(--muted); margin: 6px 0; }
+    .btn-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    button {
+      background: rgba(180, 109, 255, 0.15); border: 1px solid var(--line);
+      color: var(--text); border-radius: 8px; padding: 6px 10px; font: inherit;
+      font-size: 0.78rem; cursor: pointer;
+    }
+    button:hover, button.active { background: rgba(180, 109, 255, 0.35); border-color: var(--accent); }
+    .hint { font-size: 0.72rem; color: var(--muted); margin: 8px 0 0; line-height: 1.45; }
+    #stats {
+      position: fixed; right: 12px; bottom: 12px; font-size: 0.72rem;
+      color: var(--muted); background: var(--panel); border: 1px solid var(--line);
+      border-radius: 10px; padding: 8px 12px; font-variant-numeric: tabular-nums;
+      z-index: 5; max-width: min(280px, 90vw);
+    }
+    #brief {
+      font-size: 0.76rem; line-height: 1.45; color: var(--text);
+      background: rgba(180, 109, 255, 0.1); border: 1px solid var(--line);
+      border-radius: 10px; padding: 10px; margin-top: 6px;
+    }
+    #brief strong { color: var(--teal); display: block; margin-bottom: 4px; }
+    #cover-bar {
+      height: 8px; border-radius: 99px; background: rgba(255,255,255,0.08);
+      margin-top: 8px; overflow: hidden;
+    }
+    #cover-fill {
+      height: 100%; width: 0%; border-radius: 99px;
+      background: linear-gradient(90deg, var(--teal), var(--accent));
+      transition: width 0.08s linear;
+    }
+    #toast {
+      position: fixed; left: 50%; bottom: 56px; transform: translateX(-50%);
+      background: rgba(16,18,32,0.9); border: 1px solid var(--line);
+      border-radius: 999px; padding: 10px 18px; font-size: 0.82rem;
+      color: var(--text); z-index: 6; pointer-events: none;
+      opacity: 1; transition: opacity 0.6s;
+    }
+    #toast.hide { opacity: 0; }
+    #panel-toggle {
+      position: fixed; top: 12px; right: 12px; z-index: 7;
+      background: rgba(16, 18, 32, 0.92); border: 1px solid var(--line);
+      color: var(--text); border-radius: 999px; padding: 10px 14px;
+      font: inherit; font-size: 0.8rem; cursor: pointer;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    }
+    body.panel-hidden #panel { display: none; }
+    @media (max-width: 640px) {
+      #panel { width: calc(100vw - 24px); max-height: 42vh; }
+      #stats { left: 12px; right: 12px; bottom: 12px; max-width: none; }
+      #toast { bottom: 72px; font-size: 0.78rem; padding: 10px 14px; max-width: 90vw; text-align: center; }
+    }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <canvas id="stage"></canvas>
+  <button type="button" id="panel-toggle" aria-controls="panel">Hide UI</button>
+
+  <aside id="panel">
+    <h1>Green wall <span>+ neon</span></h1>
+    <p class="sub">L3 · swipe leaves off the sign · covered = darker</p>
+
+    <section>
+      <h2>Play</h2>
+      <div class="btn-row">
+        <button type="button" id="btn-reset">Reset growth</button>
+        <button type="button" id="btn-clear">Clear all</button>
+      </div>
+      <p class="hint">
+        Leaves creep over Stacy’s over time. <strong>Drag / finger-swipe</strong> leaves
+        to open the sign. The more it’s covered, the darker the scene.
+      </p>
+      <div id="cover-bar" title="sign coverage"><div id="cover-fill"></div></div>
+    </section>
+
+    <section>
+      <h2>Critic loop</h2>
+      <div class="btn-row" id="loops"></div>
+      <div id="brief"></div>
+    </section>
+
+    <section>
+      <h2>View</h2>
+      <div class="btn-row">
+        <button type="button" data-view="hero" class="active">Hero</button>
+        <button type="button" data-view="angle">3/4</button>
+        <button type="button" data-view="close">Close-up</button>
+        <button type="button" data-view="side">Side</button>
+      </div>
+      <p class="hint">Orbit on empty space · swipe leaves on the sign · R rebuild</p>
+    </section>
+
+    <section>
+      <h2>Display</h2>
+      <label class="check"><input type="checkbox" id="wire" /> Wireframe</label>
+      <label class="check"><input type="checkbox" id="auto" checked /> Soft neon glimmer</label>
+      <label class="check"><input type="checkbox" id="grow" checked /> Leaves grow over sign</label>
+      <label class="row">
+        <span>Night</span>
+        <input type="range" id="night" min="0" max="1" step="0.01" value="0.72" />
+        <output id="night-out">0.72</output>
+      </label>
+    </section>
+  </aside>
+
+  <div id="stats">…</div>
+  <div id="toast">Swipe the leaves to reveal Stacy’s</div>
+
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+    import {
+      buildGreenWallWithNeon,
+      applyCriticLoop,
+      CRITIC_LOOPS,
+      GREEN_WALL_PRESET,
+      loadBrandLogoTexture,
+    } from "./js/greenWall.js";
+
+    const params = new URLSearchParams(location.search);
+    let currentLoop = Math.min(4, Math.max(1, +(params.get("loop") || 3)));
+
+    async function loadFonts() {
+      if (!document.fonts?.load) return;
+      try {
+        await Promise.all([
+          document.fonts.load("400 200px Pacifico"),
+          document.fonts.load("800 200px Outfit"),
+          document.fonts.load('700 48px "DM Sans"'),
+        ]);
+        await document.fonts.ready;
+      } catch { /* ok */ }
+    }
+
+    const canvas = document.getElementById("stage");
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.95;
+
+    const scene = new THREE.Scene();
+    const BG_BRIGHT = new THREE.Color(0x12162a);
+    const BG_DARK = new THREE.Color(0x030408);
+    scene.background = BG_BRIGHT.clone();
+    scene.fog = new THREE.Fog(BG_BRIGHT.getHex(), 7, 16);
+
+    const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.05, 40);
+    const controls = new OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.target.set(0, 1.55, 0);
+    controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+
+    // Base light levels (scaled by coverage darkness)
+    const amb = new THREE.AmbientLight(0x283848, 0.4);
+    scene.add(amb);
+    const key = new THREE.DirectionalLight(0xfff2e4, 0.9);
+    key.position.set(2.2, 3.8, 2.8);
+    key.castShadow = true;
+    Object.assign(key.shadow.camera, { near: 0.5, far: 20, left: -4, right: 4, top: 4, bottom: -4 });
+    key.shadow.mapSize.set(1024, 1024);
+    scene.add(key);
+    const fill = new THREE.DirectionalLight(0x5068a0, 0.3);
+    fill.position.set(-2.8, 1.8, 1.2);
+    scene.add(fill);
+    const rim = new THREE.DirectionalLight(0x6a50a0, 0.24);
+    rim.position.set(0, 1.8, -2.5);
+    scene.add(rim);
+
+    const baseLight = {
+      amb: 0.4,
+      key: 0.9,
+      fill: 0.3,
+      rim: 0.24,
+      exposure: 0.95,
+    };
+
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(8, 8),
+      new THREE.MeshStandardMaterial({ color: 0x101218, roughness: 0.92 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    const board = new THREE.Mesh(
+      new THREE.BoxGeometry(2.4, 2.7, 0.08),
+      new THREE.MeshStandardMaterial({ color: 0x14101e, roughness: 0.88 })
+    );
+    board.position.set(0, 1.55, -0.12);
+    board.receiveShadow = true;
+    scene.add(board);
+
+    let nightMats = [];
+    let root = null;
+    let overgrowth = null;
+    let nightT = 0.72;
+    let wire = false;
+    let autoGlimmer = true;
+    let growOn = true;
+    let coverage = 0;
+    let smoothCoverage = 0;
+
+    const views = {
+      hero:  { pos: [0, 1.58, 3.1], target: [0, 1.55, 0] },
+      angle: { pos: [1.4, 1.85, 2.55], target: [0, 1.52, 0] },
+      close: { pos: [0.1, 1.66, 1.42], target: [0, 1.64, 0.15] },
+      side:  { pos: [2.15, 1.55, 0.5], target: [0, 1.55, 0.12] },
+    };
+
+    function setView(name) {
+      const v = views[name] || views.hero;
+      camera.position.set(...v.pos);
+      controls.target.set(...v.target);
+      controls.update();
+      document.querySelectorAll("[data-view]").forEach((b) => {
+        b.classList.toggle("active", b.dataset.view === name);
+      });
+    }
+    window.__setView = setView;
+
+    function applyNight(t) {
+      nightT = t;
+      // Neon still responds to night, but overall scaled by how clear the sign is
+      const clear = 1 - smoothCoverage;
+      const neonBoost = 0.35 + 0.65 * clear; // buried sign glows less into the room
+      for (const e of nightMats) {
+        if (!e?.mat) continue;
+        const base = e.day + (e.night - e.day) * t;
+        e.mat.emissiveIntensity = base * neonBoost;
+      }
+      if (root?.userData?.nightLights) {
+        for (const e of root.userData.nightLights) {
+          if (!e?.light) continue;
+          const base = e.day + (e.night - e.day) * t;
+          e.light.intensity = base * neonBoost;
+        }
+      }
+    }
+
+    /** Darken the whole scene from coverage 0 (open) → 1 (overgrown). */
+    function applyCoverageDarkness(c) {
+      smoothCoverage += (c - smoothCoverage) * 0.12;
+      const d = smoothCoverage; // 0 clear, 1 covered
+      // Lights dim hard when covered
+      const lightMul = 1 - d * 0.82;
+      amb.intensity = baseLight.amb * lightMul;
+      key.intensity = baseLight.key * lightMul;
+      fill.intensity = baseLight.fill * lightMul;
+      rim.intensity = baseLight.rim * (1 - d * 0.7);
+      renderer.toneMappingExposure = baseLight.exposure * (1 - d * 0.55);
+
+      scene.background.lerpColors(BG_BRIGHT, BG_DARK, d * 0.92);
+      if (scene.fog) {
+        scene.fog.color.copy(scene.background);
+        scene.fog.near = 7 - d * 3;
+        scene.fog.far = 16 - d * 6;
+      }
+
+      document.getElementById("cover-fill").style.width = `${Math.round(d * 100)}%`;
+      applyNight(nightT);
+    }
+
+    function setWire(on) {
+      wire = on;
+      if (!root) return;
+      root.traverse((o) => {
+        if (o.isMesh && o.material) {
+          const mats = Array.isArray(o.material) ? o.material : [o.material];
+          for (const m of mats) m.wireframe = on;
+        }
+      });
+    }
+
+    function updateBrief() {
+      const p = GREEN_WALL_PRESET;
+      document.getElementById("brief").innerHTML =
+        `<strong>${p.title || "Loop " + p.loop}</strong>${p.brief || ""}` +
+        `<div class="hint" style="margin-top:8px">density ${p.density} · leaf×${p.leafScale} · soft sign · overgrowth on</div>`;
+      document.querySelectorAll("[data-loop]").forEach((b) => {
+        b.classList.toggle("active", +b.dataset.loop === currentLoop);
+      });
+    }
+
+    function rebuild() {
+      window.__greenWallReady = false;
+      overgrowth = null;
+      if (root) {
+        scene.remove(root);
+        root.traverse((o) => {
+          if (o.geometry) o.geometry.dispose?.();
+          if (o.material) {
+            const mats = Array.isArray(o.material) ? o.material : [o.material];
+            for (const m of mats) {
+              if (m.map && !String(m.map?.image?.src || "").includes("stacys-diamond")) {
+                m.map?.dispose?.();
+              }
+              m.dispose?.();
+            }
+          }
+        });
+      }
+      nightMats = [];
+      applyCriticLoop(currentLoop);
+      const P = GREEN_WALL_PRESET;
+      root = buildGreenWallWithNeon(nightMats, {
+        w: 2.15,
+        h: 2.45,
+        density: P.density,
+        leafScale: P.leafScale,
+        heroScale: P.heroScale,
+        seed: P.seed,
+        useBrandPng: false, // always soft fun sign in this playable
+        faceW: 1.02,
+        faceH: 0.74,
+        signZ: 0.11,
+        signY: 0.1,
+        overgrowth: true,
+        overgrowthCount: 40,
+        growSeconds: 42,
+      });
+      root.position.set(0, 1.55, 0);
+      scene.add(root);
+      overgrowth = root.userData.overgrowth;
+      applyNight(nightT);
+      setWire(wire);
+      updateBrief();
+      coverage = overgrowth?.getCoverage?.() ?? 0;
+      smoothCoverage = coverage;
+      applyCoverageDarkness(coverage);
+      document.getElementById("stats").textContent =
+        `L${currentLoop} · swipe leaves · coverage ${Math.round(coverage * 100)}%`;
+      setTimeout(() => { window.__greenWallReady = true; }, 200);
+    }
+
+    // ── Pointer: orbit OR leaf swipe ───────────────────────────────────────
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const dragPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+    const hitPt = new THREE.Vector3();
+    const lastPt = new THREE.Vector3();
+    let draggingLeaf = null;
+    let pointerDown = false;
+
+    function setPointerFromEvent(e) {
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top) / rect.height;
+      pointer.x = x * 2 - 1;
+      pointer.y = -(y * 2) + 1;
+    }
+
+    function onPointerDown(e) {
+      if (e.target.closest?.("#panel")) return;
+      pointerDown = true;
+      setPointerFromEvent(e);
+      raycaster.setFromCamera(pointer, camera);
+
+      if (overgrowth) {
+        // Sync plane to wall face in world space
+        const wallZ = root.position.z + 0.11 + 0.04;
+        dragPlane.set(new THREE.Vector3(0, 0, 1), -wallZ);
+        const pick = overgrowth.pickLeaf(raycaster);
+        if (pick) {
+          draggingLeaf = pick.index;
+          overgrowth.beginDrag(draggingLeaf);
+          controls.enabled = false;
+          raycaster.ray.intersectPlane(dragPlane, lastPt);
+          canvas.setPointerCapture?.(e.pointerId);
+          e.preventDefault();
+          return;
+        }
+      }
+      controls.enabled = true;
+    }
+
+    function onPointerMove(e) {
+      if (!pointerDown || draggingLeaf === null || !overgrowth) return;
+      setPointerFromEvent(e);
+      raycaster.setFromCamera(pointer, camera);
+      if (!raycaster.ray.intersectPlane(dragPlane, hitPt)) return;
+      const dx = hitPt.x - lastPt.x;
+      const dy = hitPt.y - lastPt.y;
+      lastPt.copy(hitPt);
+      // root is only translated in Y — world ΔXY ≈ local ΔXY
+      overgrowth.dragLeaf(draggingLeaf, { x: dx, y: dy, z: 0 });
+      // Brush nearby leaves (compare in root-local space)
+      const localHit = hitPt.clone();
+      root.worldToLocal(localHit);
+      // overgrowth group sits at z offset; leaves use local XY relative to root
+      for (let i = 0; i < overgrowth.leaves.length; i++) {
+        if (i === draggingLeaf) continue;
+        const L = overgrowth.leaves[i];
+        const lx = L.mesh.position.x;
+        const ly = L.mesh.position.y;
+        const d = Math.hypot(lx - localHit.x, ly - localHit.y);
+        if (d < 0.32) {
+          const fall = 1 - d / 0.32;
+          overgrowth.dragLeaf(i, { x: dx * fall * 0.5, y: dy * fall * 0.5, z: 0 });
+        }
+      }
+      e.preventDefault();
+    }
+
+    function onPointerUp(e) {
+      pointerDown = false;
+      if (draggingLeaf !== null && overgrowth) {
+        overgrowth.endDrag();
+        draggingLeaf = null;
+      }
+      controls.enabled = true;
+    }
+
+    canvas.addEventListener("pointerdown", onPointerDown, { passive: false });
+    canvas.addEventListener("pointermove", onPointerMove, { passive: false });
+    canvas.addEventListener("pointerup", onPointerUp);
+    canvas.addEventListener("pointercancel", onPointerUp);
+    canvas.addEventListener("pointerleave", onPointerUp);
+
+    // UI
+    const loopsEl = document.getElementById("loops");
+    for (let i = 1; i <= 4; i++) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.dataset.loop = String(i);
+      b.textContent = `L${i}`;
+      b.title = CRITIC_LOOPS[i].title;
+      b.addEventListener("click", () => {
+        currentLoop = i;
+        const u = new URL(location.href);
+        u.searchParams.set("loop", String(i));
+        history.replaceState(null, "", u);
+        rebuild();
+      });
+      loopsEl.appendChild(b);
+    }
+
+    document.querySelectorAll("[data-view]").forEach((b) => {
+      b.addEventListener("click", () => setView(b.dataset.view));
+    });
+    document.getElementById("wire").addEventListener("change", (e) => setWire(e.target.checked));
+    document.getElementById("auto").addEventListener("change", (e) => { autoGlimmer = e.target.checked; });
+    document.getElementById("grow").addEventListener("change", (e) => { growOn = e.target.checked; });
+    document.getElementById("night").addEventListener("input", (e) => {
+      document.getElementById("night-out").textContent = (+e.target.value).toFixed(2);
+      applyNight(+e.target.value);
+    });
+    document.getElementById("btn-reset").addEventListener("click", () => {
+      overgrowth?.reset?.();
+      coverage = overgrowth?.getCoverage?.() ?? 0;
+    });
+    document.getElementById("btn-clear").addEventListener("click", () => {
+      if (!overgrowth) return;
+      for (const L of overgrowth.leaves) {
+        L.clear = 1;
+        L.dragOffset.set(
+          (Math.random() - 0.5) * 0.5,
+          (Math.random() - 0.5) * 0.5,
+          0
+        );
+      }
+    });
+
+    addEventListener("keydown", (e) => {
+      if (e.key === "r" || e.key === "R") rebuild();
+      if (e.key >= "1" && e.key <= "4") {
+        currentLoop = +e.key;
+        rebuild();
+      }
+    });
+
+    addEventListener("resize", () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+
+    // Toast fade
+    setTimeout(() => document.getElementById("toast").classList.add("hide"), 4500);
+
+    // Panel toggle (phone: hide chrome, full-screen swipe play)
+    const panelBtn = document.getElementById("panel-toggle");
+    panelBtn.addEventListener("click", () => {
+      const hidden = document.body.classList.toggle("panel-hidden");
+      panelBtn.textContent = hidden ? "Show UI" : "Hide UI";
+    });
+    // Start with panel collapsed on narrow phones so play is front-and-center
+    if (matchMedia("(max-width: 640px)").matches) {
+      document.body.classList.add("panel-hidden");
+      panelBtn.textContent = "Show UI";
+    }
+
+    await loadFonts();
+    await loadBrandLogoTexture();
+    rebuild();
+    setView("hero");
+
+    const clock = new THREE.Clock();
+    function tick() {
+      requestAnimationFrame(tick);
+      const dt = Math.min(0.05, clock.getDelta());
+      const t = clock.getElapsedTime();
+
+      if (overgrowth && growOn) {
+        coverage = overgrowth.tick(dt);
+      } else if (overgrowth) {
+        coverage = overgrowth.getCoverage();
+      }
+      applyCoverageDarkness(coverage);
+
+      if (autoGlimmer && nightT > 0.05) {
+        const clear = 1 - smoothCoverage;
+        for (const e of nightMats) {
+          if (!e?.mat || !e.glimmer) continue;
+          const base = (e.day + (e.night - e.day) * nightT) * (0.35 + 0.65 * clear);
+          const g = 0.94 + 0.06 * Math.sin(t * (e.glimmerSpeed || 2.2) + (e.phase || 0));
+          e.mat.emissiveIntensity = base * g;
+        }
+      }
+
+      document.getElementById("stats").textContent =
+        `L${currentLoop} · coverage ${Math.round(smoothCoverage * 100)}% · growth ${Math.round((overgrowth?.getGrowth?.() ?? 0) * 100)}%`;
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    tick();
+  </script>
+</body>
+</html>

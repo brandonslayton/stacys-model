@@ -17,6 +17,10 @@ Three.js + vanilla ES modules. No build step.
 > The model started life as an extraction from the game so it could be detailed in
 > isolation and pasted back. That is **no longer the plan** — it isn't going back
 > into Melrose Rising. See `CLAUDE.md`.
+>
+> **Management / idle game work lives in a sibling project:**  
+> [`gayborhood-tycoon`](../gayborhood-tycoon) — accelerated game clock, bar ops, debt,
+> garden loop. This repo stays the **live ambient pocket** (real Phoenix time).
 
 ## Run
 
@@ -27,6 +31,7 @@ python serve.py          # http://localhost:8090
 
 - `http://localhost:8090/pocket.html` — the ambient view
 - `http://localhost:8090/index.html` — the workbench
+- `http://localhost:8090/green-wall.html` — **activation wall modeling** (dense poly leaves + Stacy's neon diamond). Source: `js/greenWall.js`, refs in `refs/green-wall/`.
 
 In the workbench, edit `js/stacys.js` and press **R** to rebuild — no page reload,
 no lost camera position.

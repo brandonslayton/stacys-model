@@ -29,6 +29,10 @@ import {
   STACYS_UI,
 } from "./stacys.js";
 import { createInteriorLife } from "./interiorLife.js";
+import {
+  buildGreenWallWithNeon,
+  buildStacysNeonDiamond,
+} from "./greenWall.js";
 
 /** Thick modern club UI type (Outfit). Stacy's wordmark uses STACYS_DISPLAY via font:"logo". */
 const FUN_FONT = `Outfit, "DM Sans", "Segoe UI", system-ui, sans-serif`;
@@ -4004,7 +4008,10 @@ function buildBackBar(nightMats, lit, add, nightLights, wallX) {
     const topShelfY = 1.22 + 3 * 0.38; // tier 3 surface
     const dScale = 0.68;
     const faceH = 0.72;
-    const barDiamond = buildDiamondNeon(nightMats);
+    const barDiamond = buildStacysNeonDiamond(nightMats, {
+      faceW: 0.72,
+      faceH: 0.52,
+    });
     barDiamond.rotation.y = -Math.PI / 2;
     barDiamond.scale.setScalar(dScale);
     // Sit on top shelf, proud toward the aisle so bottles don't hide it
@@ -4654,29 +4661,30 @@ export function createInterior() {
     // Activation wall on the LEFT (more +X / south of ATM)
     const foliageX = atmX + atmHalfW + 0.14 + foliageW * 0.5;
 
-    // 1) Activation wall (LEFT when facing wall)
-    const foliage = buildFoliageWall(foliageW, 2.45);
-    foliage.position.set(foliageX, 1.55, z - 0.04);
-    foliage.rotation.y = Math.PI;
-    add(foliage);
+    // 1) Activation wall (LEFT when facing wall) — high-detail leaf poly + brand neon
+    // See js/greenWall.js + refs/green-wall/ for the modeling target.
+    const activation = buildGreenWallWithNeon(nightMats, {
+      w: foliageW,
+      h: 2.45,
+      density: 1.4,
+      faceW: 1.12,
+      faceH: 0.8,
+    });
+    // Interior west wall faces into the room (−Z); group is authored facing +Z.
+    activation.position.set(foliageX, 1.55, z - 0.04);
+    activation.rotation.y = Math.PI;
+    add(activation);
     // Thin solid so you can't walk into the green wall
     solidAt(foliageX, z - 0.1, foliageW * 0.46, 0.14);
 
-    const diamond = buildDiamondNeon(nightMats);
-    diamond.position.set(foliageX, 1.85, z - 0.22);
-    diamond.rotation.y = Math.PI;
-    add(diamond);
+    const diamond = activation.userData.diamond;
     g.userData.diamondNeon = diamond;
-    const neonWash = new THREE.PointLight(0xff4fa8, 1.85, 7.5, 2);
-    neonWash.position.set(foliageX, 1.85, z - 1.15);
-    add(neonWash);
-    nightLights.push({ light: neonWash, day: 1.1, night: 2.0 });
-    g.userData.diamondLight = neonWash;
-    const neonBounce = new THREE.PointLight(0xff80c0, 0.7, 5, 2);
-    neonBounce.position.set(foliageX, 0.9, z - 0.9);
-    add(neonBounce);
-    nightLights.push({ light: neonBounce, day: 0.4, night: 0.85 });
-    g.userData.diamondBounce = neonBounce;
+    g.userData.greenWall = activation;
+    for (const e of activation.userData.nightLights || []) {
+      nightLights.push(e);
+    }
+    g.userData.diamondLight = activation.userData.wash;
+    g.userData.diamondBounce = activation.userData.bounce;
 
     // Vertical ad TV — LEFT of activation wall (further +X / south when facing wall)
     {

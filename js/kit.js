@@ -615,12 +615,17 @@ export function canvasTexture(canvas, anisotropy = 8) {
 /** Ensure brand faces are ready before painting canvas sign textures. */
 export async function ensureSignFonts() {
   if (!document.fonts?.load) return;
+  // Inline stacks — kit stays free of stacys.js import (game contract).
+  const display = "Outfit, 'DM Sans', 'Segoe UI', system-ui, sans-serif";
+  const ui = "'DM Sans', Outfit, 'Segoe UI', system-ui, sans-serif";
   try {
     await Promise.all([
-      document.fonts.load(`700 200px ${STACYS_DISPLAY}`),
-      document.fonts.load(`800 200px ${STACYS_DISPLAY}`),
-      document.fonts.load(`600 48px ${STACYS_UI}`),
-      document.fonts.load(`700 48px ${STACYS_UI}`),
+      document.fonts.load(`700 200px ${display}`),
+      document.fonts.load(`800 200px ${display}`),
+      document.fonts.load(`600 48px ${ui}`),
+      document.fonts.load(`700 48px ${ui}`),
+      // Script face for activation-wall diamond wordmark (greenWall.js)
+      document.fonts.load("400 200px Pacifico"),
     ]);
     await document.fonts.ready;
   } catch {
