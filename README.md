@@ -31,7 +31,9 @@ python serve.py          # http://localhost:8090
 
 - `http://localhost:8090/pocket.html` — the ambient view
 - `http://localhost:8090/index.html` — the workbench
-- `http://localhost:8090/green-wall.html` — **activation wall modeling** (dense poly leaves + Stacy's neon diamond). Source: `js/greenWall.js`, refs in `refs/green-wall/`.
+
+Playable green-wall (swipe leaves) is a **separate project**:
+[stacys-green-wall](https://github.com/brandonslayton/stacys-green-wall) → https://brandonslayton.github.io/stacys-green-wall/
 
 In the workbench, edit `js/stacys.js` and press **R** to rebuild — no page reload,
 no lost camera position.
